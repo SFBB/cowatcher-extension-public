@@ -1,0 +1,317 @@
+/* Netflix AI Subtitle Overlay Styles */
+
+/* Safely hide Netflix & TVer native subtitles without breaking player measurement layout */
+body.ncw-hide-native-subs .player-timedtext,
+body.ncw-hide-native-subs [data-uia='player-timedtext'],
+body.ncw-hide-native-subs .player-timedtext-text-container,
+body.ncw-hide-native-subs div[class*='player-timedtext'],
+body.ncw-hide-native-subs .watch-video div[class*='timedtext'],
+body.ncw-hide-native-subs .vjs-text-track-display,
+body.ncw-hide-native-subs .vjs-text-track-cue,
+body.ncw-hide-native-subs .vjs-text-track-window {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Master subtitle viewport overlay */
+.ncw-subtitle-master-container,
+#ncw-subtitle-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 99999;
+  overflow: hidden;
+  --ncw-font-size: 26px;
+  --ncw-font-size-orig: 19px;
+  --ncw-bg-opacity: 0;
+  --ncw-bottom-offset: 80px;
+}
+
+/* Individual Slot Containers */
+.ncw-slot {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  transition: none;
+}
+
+/* Optional transition animation when user explicitly enables it */
+.ncw-subtitle-master-container.ncw-enable-anim .ncw-slot {
+  transition:
+    opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
+}
+
+/* 1. Bottom slot (Default dialogue) */
+.ncw-slot-bottom {
+  left: 50%;
+  bottom: var(--ncw-bottom-offset, 80px);
+  transform: translate(-50%, 0);
+  max-width: 85%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 2. Top slot (Annotations, speaker at top) */
+.ncw-slot-top {
+  left: 50%;
+  top: 50px;
+  transform: translate(-50%, 0);
+  max-width: 85%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 3. Right Vertical slot (Japanese/Asian vertical subtitles) */
+.ncw-slot-right-vertical {
+  right: 50px;
+  top: 15%;
+  max-height: 70%;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-start;
+  gap: 10px;
+  writing-mode: vertical-rl;
+  -webkit-writing-mode: vertical-rl;
+  text-orientation: upright;
+  -webkit-text-orientation: upright;
+}
+
+/* 4. Left Vertical slot */
+.ncw-slot-left-vertical {
+  left: 50px;
+  top: 15%;
+  max-height: 70%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  writing-mode: vertical-lr;
+  -webkit-writing-mode: vertical-lr;
+  text-orientation: upright;
+  -webkit-text-orientation: upright;
+}
+
+.ncw-subtitle-wrapper {
+  display: inline-block;
+  background-color: rgba(0, 0, 0, var(--ncw-bg-opacity, 0));
+  border-radius: 6px;
+  padding: 4px 10px;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Optional glass effect when user explicitly enables it */
+.ncw-subtitle-master-container.ncw-glass-effect .ncw-subtitle-wrapper {
+  border-radius: 8px;
+  padding: 8px 18px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Vertical slot adjustments */
+.ncw-slot-right-vertical .ncw-subtitle-wrapper,
+.ncw-slot-left-vertical .ncw-subtitle-wrapper {
+  padding: 18px 8px;
+}
+
+.ncw-sub-line {
+  line-height: 1.35;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei',
+    'Noto Sans', sans-serif;
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.95),
+    0 0 8px rgba(0, 0, 0, 0.8);
+  word-break: break-word;
+}
+
+.ncw-translated-text {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: var(--ncw-font-size, 26px);
+  letter-spacing: 0.5px;
+}
+
+.ncw-original-text {
+  color: #ffeb3b; /* Gentle subtitle gold/yellow for bilingual contrast */
+  font-weight: 400;
+  font-size: var(--ncw-font-size-orig, 19px);
+  margin-top: 4px;
+  opacity: 0.92;
+}
+
+.ncw-slot-right-vertical .ncw-original-text,
+.ncw-slot-left-vertical .ncw-original-text {
+  margin-top: 0;
+  margin-right: 6px;
+}
+
+/* Swapped Subtitles Mode (Original dialogue on top, Translated on bottom) */
+.ncw-subtitle-master-container.ncw-swapped-subs .ncw-original-text {
+  margin-top: 0;
+  margin-bottom: 4px;
+  font-size: var(--ncw-font-size, 26px);
+  font-weight: 600;
+}
+
+.ncw-subtitle-master-container.ncw-swapped-subs .ncw-translated-text {
+  margin-top: 0;
+  font-size: var(--ncw-font-size-orig, 19px);
+  font-weight: 400;
+  opacity: 0.92;
+}
+
+.ncw-subtitle-master-container.ncw-swapped-subs .ncw-slot-right-vertical .ncw-original-text,
+.ncw-subtitle-master-container.ncw-swapped-subs .ncw-slot-left-vertical .ncw-original-text {
+  margin-bottom: 0;
+  margin-right: 0;
+  margin-left: 6px;
+}
+
+.ncw-translating {
+  display: inline-block;
+  color: #aaa;
+  font-size: 0.8em;
+  font-style: italic;
+}
+
+/* Floating in-player AI Subtitle Toggle Pill */
+.ncw-player-toggle-btn {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 99999;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 18, 18, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 20px;
+  color: #fff;
+  cursor: pointer;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition:
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.2s ease,
+    border-color 0.2s ease,
+    visibility 0.3s;
+  user-select: none;
+  pointer-events: auto;
+  opacity: 0.85;
+  visibility: visible;
+  outline: none;
+}
+
+.ncw-player-toggle-btn:hover {
+  opacity: 1;
+  background: rgba(30, 30, 30, 0.92);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: scale(1.04);
+}
+
+.ncw-player-toggle-btn:active {
+  transform: scale(0.96);
+}
+
+.ncw-player-toggle-btn .ncw-badge-icon {
+  display: inline-block;
+  background: #e50914; /* Netflix Red */
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  margin-right: 6px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 6px rgba(229, 9, 20, 0.6);
+}
+
+.ncw-player-toggle-btn.ncw-inactive {
+  opacity: 0.65;
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(10, 10, 10, 0.6);
+}
+
+.ncw-player-toggle-btn.ncw-inactive:hover {
+  opacity: 0.95;
+}
+
+.ncw-player-toggle-btn.ncw-inactive .ncw-badge-icon {
+  background: #555;
+  box-shadow: none;
+  color: #bbb;
+}
+
+.ncw-player-toggle-btn.ncw-inactive .ncw-btn-text {
+  color: #888;
+}
+
+/* Auto fade-out when mouse is idle */
+.ncw-player-toggle-btn.ncw-faded {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden;
+  transition:
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.5s,
+    transform 0.3s ease;
+}
+
+/* Toast Notification */
+.ncw-toast {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.92);
+  background: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100000;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+}
+
+.ncw-toast.ncw-toast-show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}

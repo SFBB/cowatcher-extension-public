@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CoWatcher - Glossary & Terminology Editor</title>
+    <link rel="stylesheet" href="editor.css" />
+  </head>
+  <body>
+    <div class="editor-container">
+      <!-- Header -->
+      <header class="editor-header">
+        <div class="header-left">
+          <h1 class="header-title">📖 Glossary & Terminology Studio</h1>
+          <div class="header-subtitle-row">
+            <span class="context-lock-badge" id="context-lock-badge">🔒 Locked Show</span>
+            <div class="header-subtitle" id="current-show-info">Loading active show context...</div>
+          </div>
+        </div>
+        <div class="header-right">
+          <span class="ai-status-pill badge-neutral" id="ai-status-pill">Checking AI...</span>
+        </div>
+      </header>
+
+      <!-- Context Shift Alert Banner -->
+      <div class="context-shift-banner" id="context-shift-banner" style="display: none">
+        <span class="banner-icon">⚠️</span>
+        <div class="banner-content">
+          <div class="banner-title" id="banner-title">
+            Streaming playback switched to another title
+          </div>
+          <div class="banner-desc" id="banner-desc">
+            This editor session remains strictly locked to the original title. Saving will
+            accurately update this show's glossary without contaminating the new title.
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Reference Extraction Section -->
+      <section class="editor-section ai-extract-section">
+        <div class="section-header">
+          <div class="section-title">
+            <span>🤖 AI Reference & Knowledge Extraction</span>
+          </div>
+          <div class="section-desc">
+            Paste character introductions or lore (e.g. from Wikipedia / fandom wikis) to
+            automatically extract character names, canonical translations, aliases, and recurring
+            terminology.
+          </div>
+        </div>
+
+        <div class="reference-grid">
+          <div class="reference-col">
+            <div class="field-label-row">
+              <label for="source-reference-text"
+                >1. Source Reference Text (Original / Japanese / English)</label
+              >
+              <span class="char-count" id="source-char-count">0 chars</span>
+            </div>
+            <textarea
+              id="source-reference-text"
+              class="ref-textarea"
+              placeholder="Paste character lists, wiki biographies, or dialogue excerpts in original language..."
+            ></textarea>
+          </div>
+
+          <div class="reference-col">
+            <div class="field-label-row">
+              <label for="target-reference-text"
+                >2. Target Reference Text (Chinese / Target Language - Optional)</label
+              >
+              <span class="char-count" id="target-char-count">0 chars</span>
+            </div>
+            <textarea
+              id="target-reference-text"
+              class="ref-textarea"
+              placeholder="Paste official translated wiki introduction or character list in target language (for bilingual alignment)..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="ai-actions-bar">
+          <div class="ai-hint" id="ai-provider-hint">Model: Loading...</div>
+          <div class="ai-buttons-group">
+            <button
+              id="btn-extract-bilingual"
+              class="btn btn-secondary"
+              title="Requires both source and target reference text to align official names"
+            >
+              <span>✨ Align Bilingual References</span>
+            </button>
+            <button
+              id="btn-extract-translate"
+              class="btn btn-primary"
+              title="Requires source reference text only; AI will deduce and translate entities"
+            >
+              <span>🚀 Extract & Translate from Source</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Character Table Section -->
+      <section class="editor-section">
+        <div class="section-header table-header-flex">
+          <div>
+            <div class="section-title">
+              👤 Characters & Personae (<span id="character-count">0</span>)
+            </div>
+            <div class="section-desc">
+              Consistent personal names, canonical forms, and aliases (e.g. maiden names, nicknames,
+              honorific calls).
+            </div>
+          </div>
+          <button id="btn-add-character-row" class="btn btn-sm btn-outline">+ Add Character</button>
+        </div>
+
+        <div class="table-scroll-wrapper">
+          <table class="data-table" id="table-characters">
+            <thead>
+              <tr>
+                <th style="width: 25%">Original Name (Source)</th>
+                <th style="width: 30%">Canonical Translation</th>
+                <th style="width: 35%">Aliases / Called As (Comma-separated)</th>
+                <th style="width: 10%; text-align: center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-characters">
+              <!-- Dynamic character rows -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Terminology Table Section -->
+      <section class="editor-section">
+        <div class="section-header table-header-flex">
+          <div>
+            <div class="section-title">
+              🏷️ Specialized Terms & Organizations (<span id="term-count">0</span>)
+            </div>
+            <div class="section-desc">
+              Recurring proper nouns, fantasy concepts, ranks, spells, or location names.
+            </div>
+          </div>
+          <button id="btn-add-term-row" class="btn btn-sm btn-outline">+ Add Term</button>
+        </div>
+
+        <div class="table-scroll-wrapper">
+          <table class="data-table" id="table-terms">
+            <thead>
+              <tr>
+                <th style="width: 45%">Original Term (Source)</th>
+                <th style="width: 45%">Target Translation</th>
+                <th style="width: 10%; text-align: center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-terms">
+              <!-- Dynamic term rows -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Bottom Actions Toolbar -->
+      <footer class="editor-footer">
+        <div class="footer-left">
+          <span class="status-msg" id="footer-status-msg">Ready</span>
+        </div>
+        <div class="footer-right">
+          <button id="btn-close-window" class="btn btn-secondary">Close</button>
+          <button id="btn-save-glossary" class="btn btn-success">💾 Save to Show Memory</button>
+        </div>
+      </footer>
+    </div>
+
+    <script src="editor.js"></script>
+  </body>
+</html>

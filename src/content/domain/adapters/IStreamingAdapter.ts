@@ -1,0 +1,203 @@
+export interface SubtitleCueData {
+  id: number;
+  start: number; // in seconds
+  end: number; // in seconds
+  text: string;
+  position?: 'bottom' | 'top' | 'left-vertical' | 'right-vertical';
+}
+
+export interface VideoMetadata {
+  mainTitle: string;
+  episodeTitle: string;
+  fullTitle: string;
+  videoId: string;
+  showId?: string;
+  seasonId?: string;
+  showSummary?: string;
+  episodeSummary?: string;
+  seasonNum?: number;
+  episodeNum?: number;
+}
+
+import { StreamingPlatformId } from '@shared/domain/constants/StreamingPlatforms';
+import { IAdDetector, AdDetectorOptions } from './IAdDetector';
+
+export type { IAdDetector, AdDetectorOptions };
+
+/**
+ * Domain interface for Streaming Platform Content Adapters.
+ *
+ * Runs exclusively in the extension's ISOLATED execution world (Content Script).
+ * Acts as the Anti-Corruption Layer (ACL) and bridge between platform-specific streaming players
+ * (Netflix, Disney+, YouTube, etc.) and the platform-agnostic subtitle pipeline (`SubtitleManager`).
+ *
+ * Works in tandem with its corresponding `IInjectedAdapter` (which runs in the webpage's MAIN world).
+ *
+ * --- Primary Responsibilities ---
+ * 1. DOM & Player Anchoring:
+ *    - Locate the active HTMLVideoElement (`getVideoElement`) to bind play, pause, seek, and tick events.
+ *    - Locate the presentation container (`getPlayerContainer`) for mounting custom subtitle overlays
+ *      ensuring proper z-index and automatic scaling in fullscreen modes.
+ *
+ * 2. Playback Timeline & Ad Synchronization:
+ *    - Provide authoritative content playback time (`getContentTime`), compensating for platform-specific
+ *      segment offsets or clock drift (e.g. Netflix Kadmium atomic segments).
+ *    - Detect active commercial advertisements (`isAdActive`) to pause translation and suppress overlays.
+ *
+ * 3. Identity & Metadata Extraction:
+ *    - Match supported platform URLs (`matches`).
+ *    - Extract current video / show identifiers (`extractVideoId`).
+ *    - Supply structured metadata (`getVideoInfo`): showId, videoId, titles, synopses, season/episode numbers
+ *      for AI context warmup and glossary tracking.
+ *
+ * 4. Injected Script Bridging & Subtitle Parsing:
+ *    - Bridge window.postMessage events emitted by the companion `IInjectedAdapter`.
+ *    - Parse intercepted raw subtitle payloads (WebVTT, TTML, DFXP, XML) into standardized `SubtitleCueData[]`.
+ *    - Dispatch lifecycle events: episode changes, URL changes, metadata loading, time sync offsets.
+ *
+ * 5. Subtitle Fallback & Recovery:
+ *    - Provide a retry mechanism (`requestSubtitleRetry`) via window.postMessage when subtitles fail to load.
+ *
+ * 6. Lifecycle Management:
+ *    - Properly clean up all event listeners, MutationObservers, and background monitors (`dispose`).
+ *
+ * --- Step-by-Step Guide to Implement a New Platform ---
+ * To support a new streaming service (e.g., Disney+, YouTube, Prime Video):
+ *
+ * Step 1: Implement the companion `IInjectedAdapter` in `src/injected/infrastructure/adapters/<platform>/`
+ *         to run in the MAIN world, hook network requests (fetch / XHR) or player APIs, and emit standardized
+ *         events (NCW_SUBTITLE_RAW_DATA, NCW_METADATA_LOADED, etc.) via window.postMessage.
+ *         Register it in `src/injected/injected.ts` via `InjectedAdapterRegistry.register()`.
+ *
+ * Step 2: Implement this `IStreamingAdapter` in `src/content/infrastructure/adapters/<platform>/`.
+ *         Implement DOM selectors for video and player container, parse raw subtitles using `SubtitleParser`,
+ *         and forward events via the `onSubtitleData`, `onMetadataLoaded`, etc. listener hooks.
+ *
+ * Step 3: Register this adapter in `src/content/content.ts` via:
+ *         `StreamingAdapterRegistry.register(new <Platform>ContentAdapter())`
+ *
+ * Step 4: Add the new platform identifier to `src/shared/domain/constants/StreamingPlatforms.ts`.
+ *
+ * Step 5: Add matching URL patterns to `manifest.json` under `content_scripts` and `web_accessible_resources`.
+ */
+export interface IStreamingAdapter {
+  readonly platformName: StreamingPlatformId;
+
+  /**
+   * Check if current webpage matches this streaming platform
+   */
+  matches(url: string): boolean;
+
+  /**
+   * Extract video / episode ID from current page or URL
+   */
+  extractVideoId(url?: string): string | null;
+
+  /**
+   * Extract video metadata (title, episode, videoId) from page
+   */
+  getVideoInfo(): VideoMetadata;
+
+  /**
+   * Find video playback HTMLMediaElement
+   */
+  getVideoElement(): HTMLVideoElement | null;
+
+  /**
+   * Get the presentation mounting container for custom subtitle overlays
+   */
+  getPlayerContainer(): HTMLElement | null;
+
+  /**
+   * Query authoritative content time (e.g. Kadmium segment time or fallback video currentTime)
+   */
+  getContentTime(): number;
+
+  /**
+   * Check if commercial advertisements are currently active
+   */
+  isAdActive(): boolean;
+
+  /**
+   * Listen for episode change events
+   */
+  onEpisodeChange(callback: (newEpisodeId: string) => void): () => void;
+
+  /**
+   * Listen for URL changes detected by the platform player
+   */
+  onUrlChange(callback: (url: string) => void): () => void;
+
+  /**
+   * Listen for player time synchronization offset events
+   */
+  onTimeSync(
+    callback: (offsets: { cadmiumOffset?: number; adOffset?: number }) => void
+  ): () => void;
+
+  /**
+   * Listen for metadata loaded events (show synopsis, show title, episode synopsis)
+   */
+  onMetadataLoaded?(
+    callback: (metadata: VideoMetadata) => void
+  ): () => void;
+
+  /**
+   * Listen for preloaded / staged subtitle tracks for upcoming episodes
+   */
+  onSubtitlePreload(
+    callback: (data: {
+      movieId?: string;
+      rawText: string;
+      bcp47?: string | null;
+      timestamp?: number;
+    }) => void
+  ): () => void;
+
+  /**
+   * Listen for raw subtitle track data intercepted from platform
+   */
+  onSubtitleData(
+    callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string }) => void
+  ): () => void;
+
+  /**
+   * Listen for subtitle track being turned OFF / disabled on the streaming platform
+   */
+  onSubtitleOff?(callback: () => void): () => void;
+
+  /**
+   * Request platform API to retry or fetch active subtitle track if not captured automatically
+   */
+  requestSubtitleRetry(): void;
+
+  /**
+   * Request platform or injected script to actively extract or fetch metadata for the given episode/movie ID
+   */
+  requestMetadata?(movieId?: string): void;
+
+  /**
+   * Clear any cached metadata on episode or show transitions
+   */
+  clearMetadata?(): void;
+
+  /**
+   * Query and fetch native official subtitle track matching target language if available
+   */
+  fetchNativeTargetTrack?(
+    targetLang: import('@shared/domain/value-objects/Language').LanguageInfo,
+    movieId?: string
+  ): Promise<SubtitleCueData[] | null>;
+
+  /**
+   * Create platform-specific ad detector
+   */
+  createAdDetector?(
+    options?: AdDetectorOptions
+  ): IAdDetector;
+
+  /**
+   * Cleanup observers and event hooks
+   */
+  dispose(): void;
+}

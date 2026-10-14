@@ -1,0 +1,60 @@
+// webpack.config.js
+const path = require('path');
+const CopyPlugin = require('copy-webpack-plugin');
+
+module.exports = {
+  mode: 'development',
+  devtool: 'cheap-module-source-map',
+  entry: {
+    background: './src/background/background.ts',
+    content: './src/content/content.ts',
+    injected: './src/injected/injected.ts',
+    popup: './src/popup/popup.ts',
+    options: './src/options/options.ts',
+    editor: './src/editor/editor.ts'
+  },
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: '[name]/[name].js'
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        use: 'ts-loader',
+        exclude: /node_modules/
+      },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader']
+      }
+    ]
+  },
+  plugins: [
+    new CopyPlugin({
+      patterns: [
+        { from: 'manifest.json', to: 'manifest.json' },
+        { from: 'icons', to: 'icons' },
+        { from: 'src/content/presentation/styles/style.css', to: 'content/style.css' },
+        { from: 'src/shared/utils/rules.json', to: 'utils/rules.json' },
+        { from: 'src/options/options.html', to: 'options/options.html' },
+        { from: 'src/options/options.css', to: 'options/options.css' },
+        { from: 'src/popup/popup.html', to: 'popup/popup.html' },
+        { from: 'src/popup/popup.css', to: 'popup/popup.css' },
+        { from: 'src/editor/editor.html', to: 'editor/editor.html' },
+        { from: 'src/editor/editor.css', to: 'editor/editor.css' }
+      ]
+    })
+  ],
+  resolve: {
+    extensions: ['.ts', '.js'],
+    alias: {
+      '@shared': path.resolve(__dirname, 'src/shared'),
+      '@background': path.resolve(__dirname, 'src/background'),
+      '@content': path.resolve(__dirname, 'src/content'),
+      '@popup': path.resolve(__dirname, 'src/popup'),
+      '@options': path.resolve(__dirname, 'src/options'),
+      '@injected': path.resolve(__dirname, 'src/injected')
+    }
+  }
+};

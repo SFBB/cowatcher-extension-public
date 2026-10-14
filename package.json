@@ -1,0 +1,45 @@
+{
+  "type": "module",
+  "name": "netflix_cowatcher",
+  "version": "1.0.0",
+  "description": "English Documentation | [中文文档](README_zh.md) | [📖 Popup UI Guide](docs/popup_guide.md)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build": "webpack",
+    "watch": "webpack --watch",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SFBB/NetflixCoWatcher.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SFBB/NetflixCoWatcher/issues"
+  },
+  "homepage": "https://github.com/SFBB/NetflixCoWatcher#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/chrome": "^0.3.4",
+    "@types/node": "^26.6.4",
+    "@typescript-eslint/eslint-plugin": "^8.71.1",
+    "@typescript-eslint/parser": "^8.71.1",
+    "copy-webpack-plugin": "^14.0.0",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "ts-loader": "^9.6.2",
+    "typescript": "^6.0.3",
+    "webpack": "^5.111.1",
+    "webpack-cli": "^7.2.3"
+  }
+}

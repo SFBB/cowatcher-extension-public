@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CoWatcher - Dashboard & Management</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+      <div class="nav-brand">
+        <span class="brand-logo">N</span>
+        <div class="brand-info">
+          <h1 class="brand-title">Subtitle Translator</h1>
+          <span class="brand-subtitle">Control Center & Data Management</span>
+        </div>
+      </div>
+
+      <!-- Center Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="nav-tab-btn active" data-tab="cache">
+          <span class="tab-icon">💾</span>
+          <span>Subtitle Cache</span>
+          <span class="tab-count-badge" id="nav-cache-count">0</span>
+        </button>
+        <button class="nav-tab-btn" data-tab="vocab">
+          <span class="tab-icon">📚</span>
+          <span>Vocabulary Bank</span>
+          <span class="tab-count-badge" id="nav-vocab-count">0</span>
+        </button>
+        <button class="nav-tab-btn" data-tab="context">
+          <span class="tab-icon">🎬</span>
+          <span>Show Context & Memory</span>
+          <span class="tab-count-badge" id="nav-context-count">0</span>
+        </button>
+        <button class="nav-tab-btn" data-tab="settings">
+          <span class="tab-icon">⚙️</span>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <!-- Right Controls -->
+      <div class="nav-right">
+        <select id="options-ui-language" class="select-sm">
+          <option value="en">English</option>
+          <option value="zh">简体中文</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+        </select>
+        <a
+          href="https://ko-fi.com/sfbb49898"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn-kofi"
+          title="Support on Ko-fi"
+        >
+          <span>☕ Support</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-content">
+      <!-- TAB 1: SUBTITLE CACHE -->
+      <section id="pane-cache" class="tab-pane active">
+        <div class="pane-header">
+          <div>
+            <h2 class="pane-title">💾 Subtitle Track Cache</h2>
+            <p class="pane-desc">
+              Stores translated and reviewed subtitle cues bound by SHA-256 track fingerprints,
+              target language, and AI models for 0-latency playback and instant rewatching.
+            </p>
+          </div>
+          <div class="pane-actions">
+            <button id="btn-refresh-cache" class="btn-secondary">🔄 Refresh</button>
+            <button id="btn-clear-all-cache" class="btn-danger">
+              🗑️ Clear All Subtitle Caches
+            </button>
+          </div>
+        </div>
+
+        <!-- Overview Stat Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Cached Episodes / Tracks</div>
+            <div class="stat-val" id="stat-cache-tracks">0</div>
+            <div class="stat-sub">Indexed in browser database</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Cached Cues</div>
+            <div class="stat-val" id="stat-cache-cues">0</div>
+            <div class="stat-sub">Saved dialogue lines</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Reviewed vs Raw Cues</div>
+            <div class="stat-val" id="stat-cache-reviewed-raw">0 / 0</div>
+            <div class="stat-sub">Audit-approved vs draft cues</div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input
+              type="text"
+              id="cache-search"
+              placeholder="Search by show title, movie ID, or track hash..."
+            />
+          </div>
+          <div class="filter-right">
+            <span id="cache-list-count" class="counter-text">Showing 0 tracks</span>
+          </div>
+        </div>
+
+        <!-- Track List Table -->
+        <div class="table-container">
+          <table class="data-table" id="cache-table">
+            <thead>
+              <tr>
+                <th>Episode / Show</th>
+                <th>Track Hash</th>
+                <th>Target Lang</th>
+                <th>Provider & Model</th>
+                <th>Translation Status</th>
+                <th>Last Accessed</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="cache-table-body">
+              <tr>
+                <td colspan="7" class="empty-cell">Loading subtitle cache...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 2: VOCABULARY BANK -->
+      <section id="pane-vocab" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h2 class="pane-title">📚 Episode Vocabulary Collection</h2>
+            <p class="pane-desc">
+              Vocabulary, idioms, context sentences, and translations collected during video
+              playback. You can preview, download CSV for Anki / Excel, or delete specific episodes.
+            </p>
+          </div>
+          <div class="pane-actions">
+            <button id="btn-refresh-vocab" class="btn-secondary">🔄 Refresh</button>
+            <button id="btn-clear-all-vocab" class="btn-danger">🗑️ Clear All Vocabulary</button>
+          </div>
+        </div>
+
+        <!-- Overview Stat Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Collected Episodes</div>
+            <div class="stat-val" id="stat-vocab-episodes">0</div>
+            <div class="stat-sub">Unique shows / episodes</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Unique Words</div>
+            <div class="stat-val" id="stat-vocab-words">0</div>
+            <div class="stat-sub">Difficult words & expressions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Source / Target Pairs</div>
+            <div class="stat-val" id="stat-vocab-langs">Multi-lang</div>
+            <div class="stat-sub">Context-isolated definitions</div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input
+              type="text"
+              id="vocab-search"
+              placeholder="Search by show title, movie ID, or vocabulary words..."
+            />
+          </div>
+          <div class="filter-right" style="display: flex; align-items: center; gap: 14px">
+            <label class="select-all-label">
+              <input type="checkbox" id="vocab-select-all" />
+              <span>Select All</span>
+            </label>
+            <button id="btn-export-selected-vocab" class="btn-primary btn-sm" disabled>
+              ⬇️ Export Selected (0)
+            </button>
+            <span id="vocab-list-count" class="counter-text">Showing 0 episodes</span>
+          </div>
+        </div>
+
+        <!-- Vocab Show Groups Container -->
+        <div class="vocab-groups-list" id="vocab-cards-grid">
+          <div class="empty-state">Loading vocabulary bank...</div>
+        </div>
+      </section>
+
+      <!-- TAB 3: SHOW CONTEXT & MEMORY -->
+      <section id="pane-context" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h2 class="pane-title">🎬 Show Context & Supervisor Memory</h2>
+            <p class="pane-desc">
+              Stores film synopses, characters, aliases, and terminology glossaries maintained by
+              the supervisor model across episodes for consistency.
+            </p>
+          </div>
+          <div class="pane-actions">
+            <button id="btn-refresh-context" class="btn-secondary">🔄 Refresh</button>
+            <button id="btn-clear-all-context" class="btn-danger">🗑️ Clear All Show Memory</button>
+          </div>
+        </div>
+
+        <!-- Overview Stat Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Remembered Shows</div>
+            <div class="stat-val" id="stat-context-shows">0</div>
+            <div class="stat-sub">Active film profiles</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Discovered Characters</div>
+            <div class="stat-val" id="stat-context-chars">0</div>
+            <div class="stat-sub">Names & aliases tracked</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Glossary Terms</div>
+            <div class="stat-val" id="stat-context-terms">0</div>
+            <div class="stat-sub">Canon translation terms</div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input
+              type="text"
+              id="context-search"
+              placeholder="Search by show title, character name, or term..."
+            />
+          </div>
+          <div class="filter-right">
+            <span id="context-list-count" class="counter-text">Showing 0 shows</span>
+          </div>
+        </div>
+
+        <!-- Context Cards List -->
+        <div class="context-grid" id="context-cards-grid">
+          <div class="empty-state">Loading show memory...</div>
+        </div>
+      </section>
+
+      <!-- TAB 4: GLOBAL SETTINGS -->
+      <section id="pane-settings" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h2 class="pane-title">⚙️ Full Extension Configuration</h2>
+            <p class="pane-desc">
+              Configure dual-model translation parameters, API credentials, cue buffers, and
+              appearance preferences.
+            </p>
+          </div>
+          <div class="pane-actions">
+            <button id="btn-save-settings" class="btn-primary">💾 Save Settings</button>
+          </div>
+        </div>
+
+        <div class="settings-form-grid">
+          <!-- Col 1: Provider & Models -->
+          <div class="settings-card">
+            <h3 class="card-title">🤖 AI Service Provider & Models</h3>
+
+            <div class="form-group">
+              <label for="cfg-ai-provider">AI Provider</label>
+              <select id="cfg-ai-provider">
+                <option value="google" selected>Google Translate (Free / Out of the Box)</option>
+                <option value="ollama">Ollama (Local / Privacy-first)</option>
+                <option value="openrouter">OpenRouter (Cloud / High Speed)</option>
+              </select>
+            </div>
+
+            <!-- Ollama settings -->
+            <div id="cfg-ollama-section">
+              <div class="form-group">
+                <label for="cfg-ollama-host">Ollama Server Host</label>
+                <input type="text" id="cfg-ollama-host" placeholder="http://localhost:11434" />
+              </div>
+              <div class="form-group">
+                <label for="cfg-translation-model">Translation Model</label>
+                <select id="cfg-translation-model">
+                  <option value="translategemma:4b">translategemma:4b</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="cfg-supervisor-model">Supervisor Model</label>
+                <select id="cfg-supervisor-model">
+                  <option value="gemma4:e4b">gemma4:e4b</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- OpenRouter settings -->
+            <div id="cfg-openrouter-section" style="display: none">
+              <div class="form-group">
+                <label for="cfg-openrouter-key">OpenRouter API Key</label>
+                <input type="password" id="cfg-openrouter-key" placeholder="sk-or-v1-..." />
+              </div>
+              <div class="form-group">
+                <label for="cfg-openrouter-trans-model">OpenRouter Translation Model</label>
+                <select id="cfg-openrouter-trans-model"></select>
+              </div>
+              <div class="form-group">
+                <label for="cfg-openrouter-sup-model">OpenRouter Supervisor Model</label>
+                <select id="cfg-openrouter-sup-model"></select>
+              </div>
+            </div>
+
+            <div class="form-group checkbox-row">
+              <label>
+                <input type="checkbox" id="cfg-enable-supervisor" />
+                <span>Enable Supervisor Model (Consistency Audit & Memory)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Col 2: Target Language & Subtitle Display -->
+          <div class="settings-card">
+            <h3 class="card-title">🌐 Language & Display Options</h3>
+
+            <div class="form-group">
+              <label for="cfg-target-lang">Target Translation Language</label>
+              <select id="cfg-target-lang">
+                <option value="English">English</option>
+                <option value="简体中文">简体中文 (Simplified Chinese)</option>
+                <option value="繁體中文">繁體中文 (Traditional Chinese)</option>
+                <option value="日本語">日本語 (Japanese)</option>
+                <option value="한국어">한국어 (Korean)</option>
+                <option value="Español">Español (Spanish)</option>
+                <option value="Français">Français (French)</option>
+                <option value="Deutsch">Deutsch (German)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="cfg-display-mode">Display Mode</label>
+              <select id="cfg-display-mode">
+                <option value="bilingual">Bilingual (Translation + Original)</option>
+                <option value="translated">Translation Only</option>
+                <option value="original">Original Only</option>
+              </select>
+            </div>
+
+            <div class="form-group checkbox-row">
+              <label>
+                <input type="checkbox" id="cfg-prefer-native-subtitles" checked />
+                <span>Prefer Official Platform Subtitles (0-Latency / Studio Quality)</span>
+              </label>
+            </div>
+
+            <div class="form-group checkbox-row">
+              <label>
+                <input type="checkbox" id="cfg-extract-native-terms" />
+                <span>Extract Glossary from Official Subtitles via Supervisor Model</span>
+              </label>
+            </div>
+
+            <div class="form-group checkbox-row">
+              <label>
+                <input type="checkbox" id="cfg-hide-native" />
+                <span>Hide Native Subtitles (Prevent duplicate overlap)</span>
+              </label>
+            </div>
+
+            <div class="form-group checkbox-row">
+              <label>
+                <input type="checkbox" id="cfg-enable-dom-sync" />
+                <span>DOM Subtitle Text Auto-Calibration (Default: Off)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Col 3: Vocabulary Collector Config -->
+          <div class="settings-card">
+            <h3 class="card-title">📚 Vocabulary Collector Pass</h3>
+
+            <div class="form-group checkbox-row">
+              <label>
+                <input type="checkbox" id="cfg-vocab-enabled" />
+                <span>Enable Background Vocabulary Collection</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label for="cfg-vocab-provider">Vocab Model Provider</label>
+              <select id="cfg-vocab-provider">
+                <option value="openrouter">OpenRouter (Cloud)</option>
+                <option value="ollama">Ollama (Local)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="cfg-vocab-difficulty">Vocabulary Difficulty</label>
+              <select id="cfg-vocab-difficulty">
+                <option value="easy">🟢 Easy (Phrasal verbs & Slang)</option>
+                <option value="medium">🟡 Medium (B2/C1, Academic & Idioms)</option>
+                <option value="hard">🔴 Hard (C2+, Jargon & GRE)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="cfg-vocab-source-lang">Subtitle Source Language</label>
+              <select id="cfg-vocab-source-lang">
+                <option value="auto">✨ Auto Detect</option>
+                <option value="Japanese">Japanese (日本語)</option>
+                <option value="English">English</option>
+                <option value="Korean">Korean (한국어)</option>
+                <option value="Chinese">Chinese (中文)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="cfg-vocab-custom-prompt">Custom Extraction Prompt / Instructions</label>
+              <textarea
+                id="cfg-vocab-custom-prompt"
+                rows="3"
+                placeholder="e.g. Focus on JLPT N1 idioms, medical terminology, ignore character names..."
+              ></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Word List Preview Modal -->
+    <div class="modal-overlay" id="vocab-preview-modal" style="display: none">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3 id="modal-episode-title">Episode Vocabulary Preview</h3>
+          <button class="modal-close" id="btn-modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-words-list">
+          <!-- Rendered words -->
+        </div>
+        <div class="modal-footer">
+          <span id="modal-word-count" style="color: #888">0 words</span>
+          <button id="modal-download-btn" class="btn-primary">📥 Download CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subtitle Cache Range Invalidate Modal -->
+    <div class="modal-overlay" id="cache-range-modal" style="display: none">
+      <div class="modal-dialog" style="max-width: 540px">
+        <div class="modal-header">
+          <h3 id="range-modal-title">⏱️ Invalidate Subtitle Range</h3>
+          <button class="modal-close" id="btn-range-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p
+            class="modal-desc"
+            style="color: #bbb; font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.4"
+          >
+            Select a time window to mark subtitle cues as stale. Stale cues will be immediately
+            re-translated and audited next time they appear on screen.
+          </p>
+
+          <div
+            class="range-info"
+            style="
+              margin-bottom: 1rem;
+              padding: 0.75rem;
+              background: #161616;
+              border-radius: 6px;
+              border: 1px solid #333;
+            "
+          >
+            <div
+              style="font-weight: 600; color: #fff; font-size: 0.95rem"
+              id="range-modal-show-title"
+            >
+              Show Title
+            </div>
+            <div
+              style="font-size: 0.75rem; color: #888; font-family: monospace; margin-top: 2px"
+              id="range-modal-track-hash"
+            >
+              Track Hash
+            </div>
+          </div>
+
+          <div class="range-controls" style="display: flex; flex-direction: column; gap: 1rem">
+            <div class="range-inputs-row" style="display: flex; gap: 0.75rem; align-items: center">
+              <div style="flex: 1">
+                <label
+                  style="display: block; font-size: 0.75rem; color: #aaa; margin-bottom: 0.25rem"
+                  >Start Time (MM:SS)</label
+                >
+                <input
+                  type="text"
+                  id="range-start-text"
+                  value="00:00"
+                  style="
+                    width: 100%;
+                    padding: 0.4rem;
+                    background: #222;
+                    border: 1px solid #444;
+                    border-radius: 4px;
+                    color: #fff;
+                    font-family: monospace;
+                    font-size: 0.95rem;
+                    text-align: center;
+                  "
+                />
+              </div>
+              <div style="color: #666; font-size: 1rem; margin-top: 1rem">→</div>
+              <div style="flex: 1">
+                <label
+                  style="display: block; font-size: 0.75rem; color: #aaa; margin-bottom: 0.25rem"
+                  >End Time (MM:SS)</label
+                >
+                <input
+                  type="text"
+                  id="range-end-text"
+                  value="10:00"
+                  style="
+                    width: 100%;
+                    padding: 0.4rem;
+                    background: #222;
+                    border: 1px solid #444;
+                    border-radius: 4px;
+                    color: #fff;
+                    font-family: monospace;
+                    font-size: 0.95rem;
+                    text-align: center;
+                  "
+                />
+              </div>
+            </div>
+
+            <div
+              class="range-slider-container"
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+                background: #181818;
+                padding: 0.75rem 1rem;
+                border-radius: 6px;
+                border: 1px solid #2a2a2a;
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  font-size: 0.8rem;
+                  color: #888;
+                "
+              >
+                <span
+                  >Start:
+                  <span id="range-slider-start-val" style="color: #e50914; font-weight: bold"
+                    >00:00</span
+                  ></span
+                >
+                <span
+                  >End:
+                  <span id="range-slider-end-val" style="color: #e50914; font-weight: bold"
+                    >10:00</span
+                  ></span
+                >
+              </div>
+              <input
+                type="range"
+                id="range-slider-start"
+                min="0"
+                max="3600"
+                value="0"
+                step="5"
+                style="width: 100%; accent-color: #e50914; cursor: pointer"
+              />
+              <input
+                type="range"
+                id="range-slider-end"
+                min="0"
+                max="3600"
+                value="600"
+                step="5"
+                style="width: 100%; accent-color: #e50914; cursor: pointer"
+              />
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  font-size: 0.75rem;
+                  color: #666;
+                "
+              >
+                <span>00:00</span>
+                <span id="range-slider-max-label">60:00</span>
+              </div>
+            </div>
+
+            <div
+              id="range-preview-count"
+              style="
+                font-size: 0.85rem;
+                color: #eee;
+                text-align: center;
+                padding: 0.6rem;
+                background: rgba(229, 9, 20, 0.12);
+                border-radius: 4px;
+                border: 1px dashed rgba(229, 9, 20, 0.4);
+              "
+            >
+              Ready to mark cues in selected range as stale.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem">
+          <button id="btn-range-modal-cancel" class="btn-secondary">Cancel</button>
+          <button id="btn-range-modal-confirm" class="btn-danger">⚠️ Mark Range Stale</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast-notify">Settings Saved</div>
+
+    <!-- Scripts -->
+    <script src="../utils/constants.js"></script>
+    <script src="../utils/i18n.js"></script>
+    <script src="../utils/subtitleCache.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>
