@@ -152,6 +152,8 @@ ollama pull gemma4:e2b
 
 ## ☕ Support & Donation
 
+This project welcomes any pull requests, forks, or issues(bugs or feature requests)! Code-of-conduct will be released soon.
+
 If this project enhances your streaming and language learning experience, consider buying the author a coffee! Every bit of support fuels continued development and maintenance.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/sfbb49898)

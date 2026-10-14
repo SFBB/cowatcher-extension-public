@@ -152,6 +152,8 @@ ollama pull gemma4:e2b
 
 ## ☕ 赞助与支持 (Support & Donation)
 
+本项目欢迎任何pull request, fork, 或者issue(bugs or feature requests)。代码规范将会近期释出。
+
 如果这个项目对您有所帮助，让您的 Netflix 观影与双语体验更加流畅愉悦，欢迎请作者喝杯咖啡！您的每一份认可都是我持续优化与维护项目的最大动力。
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/sfbb49898)
