@@ -87,7 +87,19 @@
 
 ## 🚀 安装与配置指南
 
-### 1. 选择您的 AI 服务提供商
+### 1. 加载 Chrome 扩展
+
+1. 在github的release中下载最新的release中的`cowatcher-extension.zip`。
+2. 解压缩，会产生一个叫做`cowatcher-extension`的文件夹。
+3. 打开 Chrome 浏览器，在地址栏访问：`chrome://extensions/`。
+4. 打开右上角的 **「开发者模式」 (Developer mode)**。
+5. 点击左上角的 **「加载已解压的扩展程序」 (Load unpacked)**。
+6. 选择本项目所在根目录 `cowatcher-extension`。
+7. 看到 `CoWatcher` 已加载成功。
+
+   欢迎 请作者喝杯咖啡 ☕ <https://ko-fi.com/sfbb49898，支持我们支付> Chrome 开发者账号费用，让这个扩展早日上架 Chrome Web Store！
+
+### 2. 选择您的 AI 服务提供商
 
 #### 方案 A：本地 Ollama (完全免费 & 100% 隐私)
 
@@ -116,16 +128,6 @@ ollama pull gemma4:e2b
    - **翻译模型**：推荐 `deepseek/deepseek-chat`（极低成本、影视神翻译）或 `google/gemini-2.5-flash`（秒级响应）。
    - **监督模型**：推荐 `google/gemini-2.5-flash`。
    - 亦可选择自定义输入任意 OpenRouter 模型 ID！
-
-### 2. 加载 Chrome 扩展
-
-1. 打开 Chrome 浏览器，在地址栏访问：`chrome://extensions/`。
-2. 打开右上角的 **「开发者模式」 (Developer mode)**。
-3. 点击左上角的 **「加载已解压的扩展程序」 (Load unpacked)**。
-4. 选择本项目所在根目录 `cowatcher-extension`。
-5. 看到 `CoWatcher` 已加载成功。
-
-欢迎 请作者喝杯咖啡 ☕ <https://ko-fi.com/sfbb49898，支持我们支付> Chrome 开发者账号费用，让这个扩展早日上架 Chrome Web Store！
 
 ### 3. 打开 Netflix/TVer 观影
 

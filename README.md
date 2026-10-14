@@ -87,7 +87,19 @@ Your CoWatcher!
 
 ## 🚀 Installation & Setup
 
-### 1. Choose Your AI Service Provider
+### 1. Load the Extension in Chrome
+
+1. Download the `cowatcher-extension.zip` from the latest release in github.
+2. Extract the zip file and it will generate a new folder/dir called `cowatcher-extension`.
+3. Open Google Chrome and navigate to: `chrome://extensions/`.
+4. Enable **Developer mode** in the top-right corner.
+5. Click **Load unpacked** in the top-left corner.
+6. Select the project directory `cowatcher-extension` produced under step `2`.
+7. Confirm that `CoWatcher` is loaded and active.
+
+> ☕ Love this project? [Buy me a coffee on Ko-fi](https://ko-fi.com/sfbb49898) to help us cover developer fees and bring CoWatcher to the official Chrome Web Store!
+
+### 2. Choose Your AI Service Provider
 
 #### Option A: Local Ollama (100% Free & Private)
 
@@ -116,16 +128,6 @@ ollama pull gemma4:e2b
    - **Translation Model**: Recommended `deepseek/deepseek-chat` (cost-effective with exceptional cinematic quality) or `google/gemini-2.5-flash` (lightning-fast).
    - **Supervisor Model**: Recommended `google/gemini-2.5-flash`.
    - Or enter any custom OpenRouter model ID!
-
-### 2. Load the Extension in Chrome
-
-1. Open Google Chrome and navigate to: `chrome://extensions/`.
-2. Enable **Developer mode** in the top-right corner.
-3. Click **Load unpacked** in the top-left corner.
-4. Select the project directory (`cowatcher-extension` or `target_ts`).
-5. Confirm that `CoWatcher` (or `Netflix AI Subtitle Translator`) is loaded and active.
-
-> ☕ Love this project? [Buy me a coffee on Ko-fi](https://ko-fi.com/sfbb49898) to help us cover developer fees and bring CoWatcher to the official Chrome Web Store!
 
 ### 3. Start Watching on Netflix / TVer
 
