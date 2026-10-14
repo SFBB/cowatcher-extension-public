@@ -150,7 +150,7 @@ ollama pull gemma4:e2b
 
 ---
 
-## ☕ 赞助与支持 (Support & Donation)
+## ☕ 贡献、支持与赞助 (Contribution & Support & Donation)
 
 本项目欢迎任何pull request, fork, 或者issue(bugs or feature requests)。代码规范将会近期释出。
 

@@ -150,7 +150,7 @@ ollama pull gemma4:e2b
 
 ---
 
-## ☕ Support & Donation
+## ☕ Contribution & Support & Donation
 
 This project welcomes any pull requests, forks, or issues(bugs or feature requests)! Code-of-conduct will be released soon.
 
