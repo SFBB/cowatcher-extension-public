@@ -276,6 +276,14 @@ export class GoogleTranslatorService implements ITranslatorService {
         Object.assign(resultMap, subResultMap);
       }
 
+      // Safety Guard: Validate that EVERY requested cue was translated with non-empty text
+      const missingIds = items.filter((it) => !resultMap[it.id] || !resultMap[it.id].trim());
+      if (missingIds.length > 0) {
+        const errorMsg = `Safety Guard: Google Translate count mismatch (expected ${items.length} cues, but received ${Object.keys(resultMap).length} valid cues). Missing cue IDs: [${missingIds.map((m) => m.id).join(', ')}]. Discarding entire batch to trigger retry and prevent subtitle misalignment.`;
+        this.logger.warn('Translator', errorMsg);
+        return { success: false, error: errorMsg };
+      }
+
       return { success: true, results: resultMap };
     } catch (err: any) {
       if (err.name === 'AbortError' || err.message === 'Aborted') {

@@ -249,28 +249,60 @@ Return in this exact format:
       ? `${contextDialogues}--- Target Lines to Translate ---\n${userLines}`
       : userLines;
 
-    try {
-      const rawResponse = await this.llmService.callChat('translator', {
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: fullUserPrompt },
-        ],
-        temperature: 0.2,
-        signal,
-      });
+    const MAX_RETRIES = 2;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      if (signal?.aborted) return { success: false, error: 'Aborted' };
 
-      const cleanResponse = rawResponse
-        .replace(/<think[\s\S]*?<\/think>/gi, '')
-        .replace(/<thought[\s\S]*?<\/thought>/gi, '')
-        .trim();
+      try {
+        const rawResponse = await this.llmService.callChat('translator', {
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: fullUserPrompt },
+          ],
+          temperature: attempt === 1 ? 0.2 : 0.1,
+          signal,
+        });
 
-      const targetIds = new Set(items.map((it) => it.id));
-      const resultMap = this.parseNumberedSubtitles(cleanResponse, targetIds, items);
+        const cleanResponse = rawResponse
+          .replace(/<think[\s\S]*?<\/think>/gi, '')
+          .replace(/<thought[\s\S]*?<\/thought>/gi, '')
+          .trim();
 
-      return { success: true, results: resultMap };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+        const targetIds = new Set(items.map((it) => it.id));
+        const resultMap = this.parseNumberedSubtitles(cleanResponse, targetIds, items);
+
+        // Safety Guard: Validate that EVERY requested cue was translated with non-empty text
+        const missingIds = items.filter((it) => !resultMap[it.id] || !resultMap[it.id].trim());
+        if (missingIds.length > 0) {
+          const warnMsg = `Safety Guard: Batch translation count mismatch (expected ${items.length} cues, but received ${Object.keys(resultMap).length} valid cues). Missing cue IDs: [${missingIds.map((m) => m.id).join(', ')}].`;
+          if (attempt < MAX_RETRIES) {
+            this.logger.warn(
+              'Translator',
+              `${warnMsg} Retrying entire batch (attempt ${attempt + 1}/${MAX_RETRIES})...`
+            );
+            continue;
+          } else {
+            this.logger.error(
+              'Translator',
+              `${warnMsg} Discarding entire batch to trigger retry and prevent subtitle misalignment.`
+            );
+            return { success: false, error: warnMsg };
+          }
+        }
+
+        return { success: true, results: resultMap };
+      } catch (err: any) {
+        if (attempt === MAX_RETRIES || err.name === 'AbortError' || signal?.aborted) {
+          return { success: false, error: err.message };
+        }
+        this.logger.warn(
+          'Translator',
+          `Batch translation attempt ${attempt} failed: ${err.message}. Retrying...`
+        );
+      }
     }
+
+    return { success: false, error: 'Batch translation failed after retries' };
   }
 
   private fallbackExtractSupervisorJson(text: string): any {
