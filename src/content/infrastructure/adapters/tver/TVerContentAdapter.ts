@@ -243,7 +243,7 @@ export class TVerContentAdapter implements IStreamingAdapter {
   }
 
   onSubtitleData(
-    callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string }) => void
+    callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string; isAsr?: boolean }) => void
   ): () => void {
     const listener = (event: MessageEvent) => {
       if (event.source !== window || !event.data) return;
@@ -273,6 +273,7 @@ export class TVerContentAdapter implements IStreamingAdapter {
               cues,
               language,
               movieId: event.data.movieId,
+              isAsr: false,
             });
           }
         } catch (err) {

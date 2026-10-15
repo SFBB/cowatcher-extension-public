@@ -429,7 +429,48 @@
           </div>
         </div>
 
-        <!-- 3. Subtitle Appearance & Timing -->
+        <!-- 3. ASR Subtitle Auto-Merging -->
+        <div class="subsection-title" data-i18n="pipelineGroupAsr" style="margin-top: 14px">
+          🎙️ ASR Subtitle Auto-Merging
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="enable-automatic-asr-merging" checked />
+          <label for="enable-automatic-asr-merging" data-i18n="enableAutomaticAsrMerging"
+            >Auto-Merge ASR Word Fragments</label
+          >
+        </div>
+        <div
+          class="field-hint"
+          data-i18n="enableAutomaticAsrMergingHint"
+          style="margin-top: -6px; margin-bottom: 10px;"
+        >
+          Combines fragmented word-by-word ASR cues (e.g. YouTube auto-captions) into grammatically complete sentences before translation
+        </div>
+
+        <div class="form-group" id="asr-merge-controls">
+          <div class="slider-header">
+            <label for="asr-merge-batch-size" data-i18n="asrMergeBatchSize">ASR Merge Window Size</label>
+            <span class="slider-val" id="asr-merge-batch-val">15 fragments</span>
+          </div>
+          <input type="range" id="asr-merge-batch-size" min="5" max="30" step="1" value="15" />
+          <div class="field-hint" data-i18n="asrMergeBatchSizeHint">
+            Number of raw fragments processed per merge stage (Default: 15)
+          </div>
+        </div>
+
+        <div class="form-group" id="asr-silence-controls">
+          <div class="slider-header">
+            <label for="asr-silence-threshold" data-i18n="asrSilenceThreshold">Silence Gap Threshold</label>
+            <span class="slider-val" id="asr-silence-threshold-val">600 ms</span>
+          </div>
+          <input type="range" id="asr-silence-threshold" min="200" max="1500" step="50" value="600" />
+          <div class="field-hint" data-i18n="asrSilenceThresholdHint">
+            Threshold in milliseconds to detect natural sentence pause (Default: 600ms)
+          </div>
+        </div>
+
+        <!-- 4. Subtitle Appearance & Timing -->
         <div class="subsection-title" data-i18n="pipelineGroupStyle" style="margin-top: 14px">
           🎨 Subtitle Appearance & Timing
         </div>

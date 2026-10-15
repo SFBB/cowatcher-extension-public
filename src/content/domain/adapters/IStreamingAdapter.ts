@@ -158,7 +158,7 @@ export interface IStreamingAdapter {
    * Listen for raw subtitle track data intercepted from platform
    */
   onSubtitleData(
-    callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string }) => void
+    callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string; isAsr?: boolean }) => void
   ): () => void;
 
   /**

@@ -21,6 +21,16 @@ export interface SubtitleCue {
 }
 
 /**
+ * Raw cue item used during ASR fragment merging.
+ */
+export interface MergeAsrCueItem {
+  id: number;
+  startTime: number;
+  endTime: number;
+  rawText: string;
+}
+
+/**
  * Creates a normalized SubtitleCue instance.
  */
 export function createSubtitleCue(params: {

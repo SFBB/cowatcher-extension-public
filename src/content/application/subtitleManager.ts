@@ -57,6 +57,11 @@ export class SubtitleManager {
   _lastNativeCalibAt: number = 0;
   _hasLoggedEndOfCues: boolean = false;
 
+  private isAsrTrack: boolean = false;
+  private rawAsrCues: CueItem[] = [];
+  private asrMergeIndex: number = 0;
+  private isMergingAsr: boolean = false;
+
   private messageService: ContentMessageService;
 
   private logger: Logger = new Logger('SubtitleManager');
@@ -141,16 +146,18 @@ export class SubtitleManager {
     return this.platform.isContextValid();
   }
 
-  isSameSubtitle(newCues: CueItem[]): boolean {
-    if (!this.cues || this.cues.length === 0 || !newCues || newCues.length === 0) return false;
-    if (this.cues.length !== newCues.length) return false;
+  isSameSubtitle(newCues: CueItem[], isAsr = false): boolean {
+    const targetCues =
+      isAsr && this.isAsrTrack && this.rawAsrCues.length > 0 ? this.rawAsrCues : this.cues;
+    if (!targetCues || targetCues.length === 0 || !newCues || newCues.length === 0) return false;
+    if (targetCues.length !== newCues.length) return false;
     const mid = Math.floor(newCues.length / 2);
     const last = newCues.length - 1;
     return (
-      this.cues[0]?.rawText === newCues[0]?.rawText &&
-      this.cues[0]?.startTime === newCues[0]?.startTime &&
-      this.cues[mid]?.rawText === newCues[mid]?.rawText &&
-      this.cues[last]?.rawText === newCues[last]?.rawText
+      targetCues[0]?.rawText === newCues[0]?.rawText &&
+      targetCues[0]?.startTime === newCues[0]?.startTime &&
+      targetCues[mid]?.rawText === newCues[mid]?.rawText &&
+      targetCues[last]?.rawText === newCues[last]?.rawText
     );
   }
 
@@ -232,9 +239,9 @@ export class SubtitleManager {
     }
   }
 
-  loadCues(cues: CueItem[], movieId: string | number | null = null): void {
+  loadCues(cues: CueItem[], movieId: string | number | null = null, isAsr = false): void {
     if (!cues || cues.length === 0) return;
-    if (this.isSameSubtitle(cues)) {
+    if (this.isSameSubtitle(cues, isAsr)) {
       this.logger.info(
         'Subtitle',
         `Subtitle cues already loaded (${cues.length} cues). Skipping reload.`
@@ -254,7 +261,6 @@ export class SubtitleManager {
     const epoch = Date.now();
     this.sessionEpoch = epoch;
     this.lastCuesLoadedAt = epoch;
-    this.cues = cues;
     this.currentTrackHash = '';
     this.translationMap.clear();
     this.cueStateMap.clear();
@@ -265,13 +271,31 @@ export class SubtitleManager {
     this.activeCueId = null;
     this._hasLoggedEndOfCues = false;
 
-    // Asynchronously compute Track Hash and query subtitle cache / native tracks
-    this.loadSubtitlesForCurrentTrack(cues, epoch);
+    const shouldMergeAsr = isAsr && this.settings.enableAutomaticAsrMerging !== false;
+    this.isAsrTrack = shouldMergeAsr;
 
-    this.logger.info(
-      'Subtitle',
-      `Loaded ${cues.length} subtitle cues for movie (${this.currentMovieId || 'active'}).`
-    );
+    if (shouldMergeAsr) {
+      this.rawAsrCues = cues;
+      this.asrMergeIndex = 0;
+      this.isMergingAsr = false;
+      this.cues = [];
+      this.logger.info(
+        'Subtitle',
+        `Loaded ${cues.length} raw ASR subtitle fragments. Initializing ASR auto-merge pipeline...`
+      );
+    } else {
+      this.rawAsrCues = [];
+      this.asrMergeIndex = 0;
+      this.isMergingAsr = false;
+      this.cues = cues;
+      // Asynchronously compute Track Hash and query subtitle cache / native tracks
+      this.loadSubtitlesForCurrentTrack(cues, epoch);
+
+      this.logger.info(
+        'Subtitle',
+        `Loaded ${cues.length} subtitle cues for movie (${this.currentMovieId || 'active'}).`
+      );
+    }
 
     if (this.settings.enabled !== false) {
       // 1. Immediately tick to display active cue (or placeholder) and trigger pipeline
@@ -287,8 +311,10 @@ export class SubtitleManager {
 
       if (this.video) {
         this.onTick();
-        if (this.settings.preferNativeSubtitles === false) {
-          const effectiveTime = this.getEffectiveTime();
+        const effectiveTime = this.getEffectiveTime();
+        if (shouldMergeAsr) {
+          this.checkAsrMergePipeline(effectiveTime);
+        } else if (this.settings.preferNativeSubtitles === false) {
           this.checkPipeline(effectiveTime);
         }
         if (!this.video.paused) {
@@ -320,6 +346,10 @@ export class SubtitleManager {
     const epoch = Date.now();
     this.sessionEpoch = epoch;
     this.cues = [];
+    this.isAsrTrack = false;
+    this.rawAsrCues = [];
+    this.asrMergeIndex = 0;
+    this.isMergingAsr = false;
     this.currentTrackHash = '';
     this.translationMap.clear();
     this.cueStateMap.clear();
@@ -1154,13 +1184,17 @@ export class SubtitleManager {
     }
     this._lastContentTime = null;
     this._emptyCueSince = null;
-    if (!this.video || Boolean(this.adDetector?.isAdPlaying) || this.cues.length === 0) return;
+    if (!this.video || Boolean(this.adDetector?.isAdPlaying)) return;
+    if (this.cues.length === 0 && !this.isAsrTrack) return;
     const effectiveTime = this.getEffectiveTime();
     this.logger.info(
       'Subtitle',
       `Timeline jump detected at ${effectiveTime.toFixed(2)}s (contentTime: ${this.getContentTime().toFixed(2)}s, raw: ${this.video.currentTime.toFixed(2)}s, domOffset: ${(this.domOffset || 0).toFixed(2)}s, manualOffset: ${(this.manualOffset || 0).toFixed(2)}s)`
     );
 
+    if (this.isAsrTrack) {
+      this.checkAsrMergePipeline(effectiveTime);
+    }
     this.onTick();
     this.checkPipeline(effectiveTime);
   }
@@ -1326,11 +1360,93 @@ export class SubtitleManager {
     return Math.max(0, this.cues.length - 1);
   }
 
+  async checkAsrMergePipeline(currentTime: number): Promise<void> {
+    if (!this.isAsrTrack || this.isMergingAsr || !this.isContextValid()) return;
+    if (!this.rawAsrCues || this.rawAsrCues.length === 0) return;
+
+    // Fast-forward raw merge index if user sought ahead of currently merged cues
+    const lastMergedTime = this.cues.length > 0 ? this.cues[this.cues.length - 1].endTime : 0;
+    if (currentTime > lastMergedTime + 10 && this.asrMergeIndex < this.rawAsrCues.length) {
+      const seekRawIdx = this.rawAsrCues.findIndex((c) => c.startTime >= currentTime - 2);
+      if (seekRawIdx >= 0 && seekRawIdx > this.asrMergeIndex) {
+        this.asrMergeIndex = seekRawIdx;
+      }
+    }
+
+    if (this.asrMergeIndex >= this.rawAsrCues.length) return;
+
+    // Check if we need more merged cues ahead:
+    // If cues is empty, or remaining buffer ahead is < 45 seconds
+    const needsMore = this.cues.length === 0 || lastMergedTime - currentTime < 45;
+    if (!needsMore) return;
+
+    this.isMergingAsr = true;
+    const epoch = this.sessionEpoch;
+    const batchSize = Math.max(5, this.settings.asrMergeBatchSize || 15);
+    const chunk = this.rawAsrCues.slice(this.asrMergeIndex, this.asrMergeIndex + batchSize);
+    this.asrMergeIndex += chunk.length;
+
+    try {
+      this.logger.info(
+        'Subtitle',
+        `ASR Merge: merging ${chunk.length} raw fragments [${chunk[0].id}..${chunk[chunk.length - 1].id}]...`
+      );
+      const res = await this.messageService.mergeAsrBatch({
+        items: chunk.map((c) => ({
+          id: c.id,
+          startTime: c.startTime,
+          endTime: c.endTime,
+          rawText: c.rawText,
+        })),
+      });
+
+      if (epoch !== this.sessionEpoch) return;
+
+      if (res && res.success && res.mergedCues && res.mergedCues.length > 0) {
+        const newCues: CueItem[] = res.mergedCues.map((c) =>
+          createSubtitleCue({
+            id: c.id,
+            startTime: c.startTime,
+            endTime: c.endTime,
+            rawText: c.rawText,
+          })
+        );
+
+        const existingIds = new Set(this.cues.map((c) => c.id));
+        const toAdd = newCues.filter((c) => !existingIds.has(c.id));
+        this.cues.push(...toAdd);
+        this.cues.sort((a, b) => a.startTime - b.startTime);
+
+        this.logger.info(
+          'Subtitle',
+          `ASR Merge: successfully produced ${newCues.length} clean sentences (total active cues: ${this.cues.length}).`
+        );
+
+        if (this.cues.length > 0 && !this.currentTrackHash) {
+          this.loadSubtitlesForCurrentTrack(this.cues, epoch);
+        }
+
+        this.onTick();
+        const effectiveTime = this.getEffectiveTime();
+        this.checkPipeline(effectiveTime);
+      }
+    } catch (err) {
+      this.logger.error('Subtitle', 'Error in ASR merge pipeline:', err);
+    } finally {
+      this.isMergingAsr = false;
+    }
+  }
+
   checkPipeline(currentTime: number): void {
     if (!this.isContextValid()) {
       this.detachVideo();
       return;
     }
+
+    if (this.isAsrTrack) {
+      this.checkAsrMergePipeline(currentTime);
+    }
+
     if (Boolean(this.adDetector?.isAdPlaying) || !this.settings.enabled || this.cues.length === 0)
       return;
 

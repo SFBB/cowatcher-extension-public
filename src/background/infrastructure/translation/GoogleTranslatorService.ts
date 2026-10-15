@@ -5,10 +5,16 @@ import {
   TranslateBatchResponse,
   ReviewBatchRequest,
   ReviewBatchResponse,
+  MergeAsrCueItem,
+  MergeAsrBatchRequest,
+  MergeAsrBatchResponse,
   HealthCheckResult,
 } from '../../domain/translation/ITranslatorService';
 
 import { LanguageInfo } from '@shared/domain/value-objects/Language';
+import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
+import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
+import { ExtensionSettings } from '@shared/domain/constants/SettingsDefaults';
 
 export class GoogleTranslatorService implements ITranslatorService {
   readonly providerId = 'google';
@@ -19,7 +25,24 @@ export class GoogleTranslatorService implements ITranslatorService {
   private readonly minRequestIntervalMs = 500; // Minimum 500ms between calls to Google
   private backoffUntil = 0; // Timestamp until which requests must pause due to a 429
 
+  private silenceThresholdMs = 600;
   private logger: Logger = new Logger('GoogleTranslatorService');
+
+  async init(): Promise<void> {
+    const storage = BrowserStorageFactory.getStorage();
+    const res = await storage.get<Partial<ExtensionSettings>>([NCW_STORAGE_KEYS.SETTINGS]);
+    const s = res[NCW_STORAGE_KEYS.SETTINGS];
+    if (typeof s?.asrSilenceThresholdMs === 'number') {
+      this.silenceThresholdMs = s.asrSilenceThresholdMs;
+    }
+
+    storage.onChanged((changes) => {
+      const s = changes[NCW_STORAGE_KEYS.SETTINGS]?.newValue as Partial<ExtensionSettings> | undefined;
+      if (typeof s?.asrSilenceThresholdMs === 'number') {
+        this.silenceThresholdMs = s.asrSilenceThresholdMs;
+      }
+    });
+  }
 
   private mapLanguageCode(lang?: LanguageInfo | 'auto'): string {
     if (!lang || lang === 'auto') return 'auto';
@@ -302,6 +325,59 @@ export class GoogleTranslatorService implements ITranslatorService {
       success: true,
       corrections: {},
     };
+  }
+
+  /**
+   * Programmatic heuristic merging for ASR subtitle fragments
+   */
+  async mergeAsrBatch(req: MergeAsrBatchRequest): Promise<MergeAsrBatchResponse> {
+    const { items } = req;
+    if (!items || items.length === 0) return { success: true, mergedCues: [] };
+
+    const silenceSec = this.silenceThresholdMs / 1000;
+    const mergedCues: MergeAsrCueItem[] = [];
+
+    let currentGroup: MergeAsrCueItem[] = [];
+
+    const flushGroup = () => {
+      if (currentGroup.length === 0) return;
+      const first = currentGroup[0];
+      const last = currentGroup[currentGroup.length - 1];
+      const combinedText = currentGroup
+        .map((it) => it.rawText.trim())
+        .filter(Boolean)
+        .join(' ');
+
+      if (combinedText.length > 0) {
+        mergedCues.push({
+          id: first.id,
+          startTime: first.startTime,
+          endTime: last.endTime,
+          rawText: combinedText,
+        });
+      }
+      currentGroup = [];
+    };
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      currentGroup.push(item);
+
+      const next = items[i + 1];
+      const hasSilenceBreak = next ? next.startTime - item.endTime >= silenceSec : true;
+      const text = item.rawText.trim();
+      const hasPunctuationEnd = /[.!?。！？\n]$/.test(text);
+      const totalWords = currentGroup.reduce(
+        (acc, it) => acc + it.rawText.trim().split(/\s+/).length,
+        0
+      );
+
+      if (hasSilenceBreak || hasPunctuationEnd || totalWords >= 25 || !next) {
+        flushGroup();
+      }
+    }
+
+    return { success: true, mergedCues };
   }
 
   async checkHealth(): Promise<HealthCheckResult> {

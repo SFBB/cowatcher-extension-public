@@ -4,6 +4,9 @@ import {
   TranslateBatchResponse,
   ReviewBatchRequest,
   ReviewBatchResponse,
+  MergeAsrCueItem,
+  MergeAsrBatchRequest,
+  MergeAsrBatchResponse,
   HealthCheckResult,
 } from "../../domain/translation/ITranslatorService";
 import { LlmService } from "../../application/services/LlmService";
@@ -12,10 +15,14 @@ import { Language } from "@shared/domain/value-objects/Language";
 import { Logger } from "@shared/utils/logger";
 import { LLMProvider } from "@shared/domain/entities/PipelineTypes";
 import { Context } from "@shared/domain/entities/Context";
+import { BrowserStorageFactory } from "@shared/infrastructure/storage/BrowserStorageFactory";
+import { NCW_STORAGE_KEYS } from "@shared/domain/constants/StorageKeys";
+import { ExtensionSettings } from "@shared/domain/constants/SettingsDefaults";
 
 export class LlmTranslatorService implements ITranslatorService {
   readonly providerId: LLMProvider;
   private llmService: LlmService;
+  private silenceThresholdMs = 600;
 
   private logger: Logger = new Logger("LlmTranslatorService");
 
@@ -26,6 +33,20 @@ export class LlmTranslatorService implements ITranslatorService {
 
   async init(): Promise<void> {
     await this.llmService.init();
+
+    const storage = BrowserStorageFactory.getStorage();
+    const res = await storage.get<Partial<ExtensionSettings>>([NCW_STORAGE_KEYS.SETTINGS]);
+    const s = res[NCW_STORAGE_KEYS.SETTINGS];
+    if (typeof s?.asrSilenceThresholdMs === "number") {
+      this.silenceThresholdMs = s.asrSilenceThresholdMs;
+    }
+
+    storage.onChanged((changes) => {
+      const s = changes[NCW_STORAGE_KEYS.SETTINGS]?.newValue as Partial<ExtensionSettings> | undefined;
+      if (typeof s?.asrSilenceThresholdMs === "number") {
+        this.silenceThresholdMs = s.asrSilenceThresholdMs;
+      }
+    });
   }
 
   private formatGlossaryForPrompt(
@@ -653,6 +674,147 @@ Guidelines for new_characters and new_terms:
       );
       return { success: false, error: err.message };
     }
+  }
+
+  /**
+   * Algorithmic heuristic fallback for ASR segment merging
+   */
+  private algorithmicMergeAsr(items: MergeAsrCueItem[]): MergeAsrBatchResponse {
+    const silenceSec = this.silenceThresholdMs / 1000;
+    const mergedCues: MergeAsrCueItem[] = [];
+
+    let currentGroup: MergeAsrCueItem[] = [];
+
+    const flushGroup = () => {
+      if (currentGroup.length === 0) return;
+      const first = currentGroup[0];
+      const last = currentGroup[currentGroup.length - 1];
+      const combinedText = currentGroup
+        .map((it) => it.rawText.trim())
+        .filter(Boolean)
+        .join(" ");
+
+      if (combinedText.length > 0) {
+        mergedCues.push({
+          id: first.id,
+          startTime: first.startTime,
+          endTime: last.endTime,
+          rawText: combinedText,
+        });
+      }
+      currentGroup = [];
+    };
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      currentGroup.push(item);
+
+      const next = items[i + 1];
+      const hasSilenceBreak = next ? next.startTime - item.endTime >= silenceSec : true;
+      const text = item.rawText.trim();
+      const hasPunctuationEnd = /[.!?。！？\n]$/.test(text);
+      const totalWords = currentGroup.reduce(
+        (acc, it) => acc + it.rawText.trim().split(/\s+/).length,
+        0
+      );
+
+      if (hasSilenceBreak || hasPunctuationEnd || totalWords >= 25 || !next) {
+        flushGroup();
+      }
+    }
+
+    return { success: true, mergedCues };
+  }
+
+  /**
+   * Intelligently groups and merges fragmented ASR subtitle segments using the Supervisor LLM,
+   * with algorithmic fallback on failure.
+   */
+  async mergeAsrBatch(req: MergeAsrBatchRequest): Promise<MergeAsrBatchResponse> {
+    const { items, signal } = req;
+    if (!items || items.length === 0) return { success: true, mergedCues: [] };
+
+    const minId = items[0].id;
+    const maxId = items[items.length - 1].id;
+
+    const lines = items
+      .map((it) => `[${it.id}] ${it.rawText.replace(/\n+/g, " ").trim()}`)
+      .join("\n");
+
+    const systemPrompt = `You are an expert subtitle sentence boundary segmenter.
+Group consecutive fragmented ASR subtitle segments into complete, grammatically sound sentences.
+Every input line ID from ${minId} to ${maxId} MUST be included in exactly one continuous range.
+Do not reorder, skip, or omit any line IDs.
+
+Output strictly a single JSON object in this format:
+{"ranges": [[start_id, end_id], ...]}`;
+
+    try {
+      const rawContent = await this.llmService.callChat("supervisor", {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: lines },
+        ],
+        temperature: 0.1,
+        jsonMode: true,
+        signal,
+      });
+
+      const parsed = this.parseSupervisorJson(rawContent);
+      if (parsed && Array.isArray(parsed.ranges) && parsed.ranges.length > 0) {
+        const itemMap = new Map<number, MergeAsrCueItem>();
+        items.forEach((it) => itemMap.set(it.id, it));
+
+        const mergedCues: MergeAsrCueItem[] = [];
+        const coveredIds = new Set<number>();
+
+        for (const r of parsed.ranges) {
+          if (!Array.isArray(r) || r.length < 2) continue;
+          const startId = parseInt(r[0], 10);
+          const endId = parseInt(r[1], 10);
+          if (isNaN(startId) || isNaN(endId) || startId > endId) continue;
+
+          const group: MergeAsrCueItem[] = [];
+          for (let id = startId; id <= endId; id++) {
+            const it = itemMap.get(id);
+            if (it) {
+              group.push(it);
+              coveredIds.add(id);
+            }
+          }
+
+          if (group.length > 0) {
+            const first = group[0];
+            const last = group[group.length - 1];
+            const combinedText = group
+              .map((it) => it.rawText.trim())
+              .filter(Boolean)
+              .join(" ");
+
+            mergedCues.push({
+              id: first.id,
+              startTime: first.startTime,
+              endTime: last.endTime,
+              rawText: combinedText,
+            });
+          }
+        }
+
+        // Verify that at least 80% of items were covered to consider LLM merge valid
+        if (mergedCues.length > 0 && coveredIds.size >= items.length * 0.8) {
+          return { success: true, mergedCues };
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(
+        "Translator",
+        "LLM ASR merge failed, falling back to algorithmic merge:",
+        err
+      );
+    }
+
+    // Fallback to programmatic merge
+    return this.algorithmicMergeAsr(items);
   }
 
   async checkHealth(): Promise<HealthCheckResult> {

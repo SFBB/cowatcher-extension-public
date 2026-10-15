@@ -1,11 +1,16 @@
-import { ContentBackgroundBus } from '@shared/infrastructure/bus/ContentBackgroundBus';
-import { AiSubState } from '@shared/domain/entities/AiSubState';
-import { ContextDTO } from '@shared/domain/entities/Context';
-import { ExtensionSettings } from '@shared/domain/constants/SettingsDefaults';
-import { TranslateCueItem, ReviewCueItem, PrecedingContextItem } from '@shared/types/Messages';
-import { LanguageInfo } from '@shared/domain/value-objects/Language';
-import { StreamingPlatformId } from '@shared/domain/constants/StreamingPlatforms';
-import NCW_CONSTANTS from '@shared/utils/constants';
+import { ContentBackgroundBus } from "@shared/infrastructure/bus/ContentBackgroundBus";
+import { AiSubState } from "@shared/domain/entities/AiSubState";
+import { ContextDTO } from "@shared/domain/entities/Context";
+import { ExtensionSettings } from "@shared/domain/constants/SettingsDefaults";
+import {
+  TranslateCueItem,
+  ReviewCueItem,
+  PrecedingContextItem,
+} from "@shared/types/Messages";
+import { MergeAsrCueItem } from "@shared/domain/entities/Subtitle";
+import { LanguageInfo } from "@shared/domain/value-objects/Language";
+import { StreamingPlatformId } from "@shared/domain/constants/StreamingPlatforms";
+import NCW_CONSTANTS from "@shared/utils/constants";
 
 export class ContentMessageService {
   private static instance: ContentMessageService | null = null;
@@ -22,19 +27,22 @@ export class ContentMessageService {
   async fetchAiSubState(): Promise<AiSubState | null> {
     const res = await ContentBackgroundBus.send(
       NCW_CONSTANTS.MESSAGE_TYPES.GET_AI_SUB_STATE,
-      undefined
+      undefined,
     );
     return res.success && res.state ? new AiSubState(res.state) : null;
   }
 
   async setAiSubEnabled(
     enabled: boolean,
-    platform?: StreamingPlatformId
+    platform?: StreamingPlatformId,
   ): Promise<AiSubState | null> {
-    const res = await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.SET_AI_SUB_ENABLED, {
-      enabled,
-      platform,
-    });
+    const res = await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.SET_AI_SUB_ENABLED,
+      {
+        enabled,
+        platform,
+      },
+    );
     return res.success && res.state ? new AiSubState(res.state) : null;
   }
 
@@ -45,7 +53,7 @@ export class ContentMessageService {
         if (payload && payload.state) {
           callback(new AiSubState(payload.state));
         }
-      }
+      },
     );
   }
 
@@ -56,9 +64,12 @@ export class ContentMessageService {
       videoId?: string;
       mainTitle?: string;
       showId?: string;
-    } = {}
+    } = {},
   ): Promise<ContextDTO | null> {
-    const res = await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT, params);
+    const res = await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT,
+      params,
+    );
     return res.success ? res.context : null;
   }
 
@@ -67,7 +78,10 @@ export class ContentMessageService {
     mainTitle?: string;
     showId?: string;
   }): Promise<{ success: boolean; context: ContextDTO | null }> {
-    return await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT, params);
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT,
+      params,
+    );
   }
 
   onGlossaryChanged(callback: (context: ContextDTO) => void): () => void {
@@ -77,7 +91,7 @@ export class ContentMessageService {
         if (payload && payload.context) {
           callback(payload.context);
         }
-      }
+      },
     );
   }
 
@@ -88,7 +102,7 @@ export class ContentMessageService {
         if (payload) {
           callback(payload);
         }
-      }
+      },
     );
   }
 
@@ -102,10 +116,24 @@ export class ContentMessageService {
     showSummary?: string;
     episodeSummary?: string;
   }): Promise<{ success: boolean; context: ContextDTO | null }> {
-    return await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.WARMUP_CONTEXT, params);
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.WARMUP_CONTEXT,
+      params,
+    );
   }
 
   // --- Translation Pipeline Operations ---
+
+  async mergeAsrBatch(params: { items: MergeAsrCueItem[] }): Promise<{
+    success: boolean;
+    mergedCues?: MergeAsrCueItem[];
+    error?: string;
+  }> {
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.MERGE_ASR_BATCH,
+      params,
+    );
+  }
 
   async translateBatch(params: {
     items: TranslateCueItem[];
@@ -115,8 +143,15 @@ export class ContentMessageService {
     movieId?: string;
     mainTitle?: string;
     urgent?: boolean;
-  }): Promise<{ success: boolean; results?: Record<number, string>; error?: string }> {
-    return await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.TRANSLATE_BATCH, params);
+  }): Promise<{
+    success: boolean;
+    results?: Record<number, string>;
+    error?: string;
+  }> {
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.TRANSLATE_BATCH,
+      params,
+    );
   }
 
   async reviewBatch(params: {
@@ -126,7 +161,7 @@ export class ContentMessageService {
     showId?: string;
     movieId?: string;
     mainTitle?: string;
-    status?: 'reviewed' | 'pre_reviewed';
+    status?: "reviewed" | "pre_reviewed";
   }): Promise<{
     success: boolean;
     corrections?: Record<number, string>;
@@ -134,11 +169,21 @@ export class ContentMessageService {
     updatedContext?: ContextDTO;
     error?: string;
   }> {
-    return await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.SUPERVISOR_REVIEW, params);
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.SUPERVISOR_REVIEW,
+      params,
+    );
   }
 
-  async getSubtitleCache(params: { trackHash: string; movieId?: string; targetLanguage?: string }) {
-    return await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.GET_SUBTITLE_CACHE, params);
+  async getSubtitleCache(params: {
+    trackHash: string;
+    movieId?: string;
+    targetLanguage?: string;
+  }) {
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.GET_SUBTITLE_CACHE,
+      params,
+    );
   }
 
   async saveSubtitleCache(params: {
@@ -151,7 +196,10 @@ export class ContentMessageService {
     supervisorModel?: string;
     results: Record<string | number, string>;
   }) {
-    return await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.SAVE_SUBTITLE_CACHE, params);
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.SAVE_SUBTITLE_CACHE,
+      params,
+    );
   }
 
   async extractTermsFromNativeBilingualCues(params: {
@@ -161,12 +209,15 @@ export class ContentMessageService {
   }) {
     return await ContentBackgroundBus.send(
       NCW_CONSTANTS.MESSAGE_TYPES.EXTRACT_NATIVE_TERMS,
-      params
+      params,
     );
   }
 
   async clearQueues(): Promise<void> {
-    await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.CLEAR_QUEUES, undefined);
+    await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.CLEAR_QUEUES,
+      undefined,
+    );
   }
 
   async sendHeartbeat(params: {
@@ -175,18 +226,27 @@ export class ContentMessageService {
     targetLanguage?: LanguageInfo;
   }): Promise<boolean> {
     try {
-      const res = await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.HEARTBEAT, params);
+      const res = await ContentBackgroundBus.send(
+        NCW_CONSTANTS.MESSAGE_TYPES.HEARTBEAT,
+        params,
+      );
       return Boolean(res?.success);
     } catch {
       return false;
     }
   }
 
-  async unloadContext(showId: string, targetLanguage: LanguageInfo): Promise<void> {
-    await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.UNLOAD_CONTEXT, {
-      showId,
-      targetLanguage,
-    });
+  async unloadContext(
+    showId: string,
+    targetLanguage: LanguageInfo,
+  ): Promise<void> {
+    await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.UNLOAD_CONTEXT,
+      {
+        showId,
+        targetLanguage,
+      },
+    );
   }
 
   async notifyEpisodeChanged(
@@ -198,39 +258,47 @@ export class ContentMessageService {
     episodeSynopsis?: string,
     episodeId?: string,
     episodeNumber?: string,
-    seasonId?: string
+    seasonId?: string,
   ): Promise<void> {
-    await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.EPISODE_CHANGED, {
-      showId,
-      targetLanguage,
-      title,
-      mainTitle,
-      showSynopsis,
-      episodeSynopsis,
-      episodeId,
-      episodeNumber,
-      seasonId,
-    });
+    await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.EPISODE_CHANGED,
+      {
+        showId,
+        targetLanguage,
+        title,
+        mainTitle,
+        showSynopsis,
+        episodeSynopsis,
+        episodeId,
+        episodeNumber,
+        seasonId,
+      },
+    );
   }
 
   async feedVocabCues(params: {
     movieId: string;
     cues: TranslateCueItem[];
     showTitle: string;
-    sourceLanguage?: LanguageInfo | 'auto';
+    sourceLanguage?: LanguageInfo | "auto";
     trackHash?: string;
   }): Promise<void> {
-    await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.FEED_VOCAB_CUES, params);
+    await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.FEED_VOCAB_CUES,
+      params,
+    );
   }
 
-  onSettingsChanged(callback: (settings: ExtensionSettings) => void): () => void {
+  onSettingsChanged(
+    callback: (settings: ExtensionSettings) => void,
+  ): () => void {
     return ContentBackgroundBus.onMessage(
       NCW_CONSTANTS.MESSAGE_TYPES.PUSH_SETTINGS_CHANGED,
       (payload) => {
         if (payload && payload.settings) {
           callback(payload.settings);
         }
-      }
+      },
     );
   }
 }

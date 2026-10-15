@@ -1,7 +1,7 @@
 import { ContextDTO } from '../domain/entities/Context';
 import { CharacterGlossaryMap, TermGlossaryMap } from '../domain/entities/Glossary';
 
-import { SubtitleCue } from '../domain/entities/Subtitle';
+import { SubtitleCue, MergeAsrCueItem, TrackCacheRecord } from '../domain/entities/Subtitle';
 import { LanguageInfo } from '../domain/value-objects/Language';
 
 /**
@@ -13,9 +13,8 @@ export type ReviewCueItem = SubtitleCue;
 export type PrecedingContextItem = SubtitleCue;
 
 import { VocabWordItem, EpisodeVocabData } from '../domain/entities/Vocabulary';
-import { TrackCacheRecord } from '../domain/entities/Subtitle';
 
-export { VocabWordItem, EpisodeVocabData, TrackCacheRecord };
+export { VocabWordItem, EpisodeVocabData, TrackCacheRecord, MergeAsrCueItem };
 
 export interface OpenRouterModelItem {
   id: string;
@@ -129,6 +128,16 @@ export type MessagePayloadMap = {
   };
 
   // Subtitle Translation Pipeline
+  NCW_MERGE_ASR_BATCH: {
+    request: {
+      items: MergeAsrCueItem[];
+    };
+    response: {
+      success: boolean;
+      mergedCues?: MergeAsrCueItem[];
+      error?: string;
+    };
+  };
   NCW_TRANSLATE_BATCH: {
     request: {
       items: TranslateCueItem[];

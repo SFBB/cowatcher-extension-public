@@ -716,7 +716,7 @@ const logger: Logger = new Logger('content');
       if (data.movieId && !currentVideoId) {
         currentVideoId = data.movieId;
       }
-      subtitleManager.loadCues(cues, effectiveMid);
+      subtitleManager.loadCues(cues, effectiveMid, Boolean(data.isAsr));
       notifyVocabExtractor(cues, effectiveMid, currentSubtitleLanguage);
     }
   });

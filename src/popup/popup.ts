@@ -155,6 +155,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const reviewBatchSlider = document.getElementById('review-batch-size') as HTMLInputElement;
   const reviewBatchVal = document.getElementById('review-batch-val') as HTMLElement;
 
+  const enableAutomaticAsrMergingCheckbox = document.getElementById(
+    'enable-automatic-asr-merging'
+  ) as HTMLInputElement;
+  const asrMergeBatchSlider = document.getElementById('asr-merge-batch-size') as HTMLInputElement;
+  const asrMergeBatchVal = document.getElementById('asr-merge-batch-val') as HTMLElement;
+  const asrSilenceThresholdSlider = document.getElementById('asr-silence-threshold') as HTMLInputElement;
+  const asrSilenceThresholdVal = document.getElementById('asr-silence-threshold-val') as HTMLElement;
+
   const fontSizeSlider = document.getElementById('font-size') as HTMLInputElement;
   const fontSizeVal = document.getElementById('font-size-val') as HTMLElement;
   const bgOpacitySlider = document.getElementById('bg-opacity') as HTMLInputElement;
@@ -335,6 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function syncUIWithSettings(): void {
+    const l = currentSettings.uiLanguage || 'en';
     if (enabledToggle) {
       if (
         currentDetectedPlatform &&
@@ -419,6 +428,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const op = currentSettings.bgOpacity !== undefined ? currentSettings.bgOpacity : 0.0;
       bgOpacitySlider.value = String(Math.round(op * 100));
       if (bgOpacityVal) bgOpacityVal.textContent = `${Math.round(op * 100)}%`;
+    }
+    if (enableAutomaticAsrMergingCheckbox) {
+      enableAutomaticAsrMergingCheckbox.checked = currentSettings.enableAutomaticAsrMerging !== false;
+    }
+    if (asrMergeBatchSlider) {
+      const count = currentSettings.asrMergeBatchSize || 15;
+      asrMergeBatchSlider.value = String(count);
+      if (asrMergeBatchVal) {
+        asrMergeBatchVal.textContent = NCW_I18N.getText('asrMergeBatchVal', l, { count });
+      }
+    }
+    if (asrSilenceThresholdSlider) {
+      const count = currentSettings.asrSilenceThresholdMs || 600;
+      asrSilenceThresholdSlider.value = String(count);
+      if (asrSilenceThresholdVal) {
+        asrSilenceThresholdVal.textContent = NCW_I18N.getText('asrSilenceThresholdVal', l, { count });
+      }
     }
     if (subOffsetSlider) {
       subOffsetSlider.value = String(currentSettings.subOffsetBottom);
@@ -1546,6 +1572,37 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         saveSettings({ ollamaReviewBatchSize: val, reviewBatchSize: val });
       }
+    });
+  }
+
+  if (enableAutomaticAsrMergingCheckbox) {
+    enableAutomaticAsrMergingCheckbox.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      saveSettings({ enableAutomaticAsrMerging: target.checked });
+    });
+  }
+
+  if (asrMergeBatchSlider) {
+    asrMergeBatchSlider.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      const val = parseInt(target.value, 10);
+      const l = currentSettings.uiLanguage || 'en';
+      if (asrMergeBatchVal) {
+        asrMergeBatchVal.textContent = NCW_I18N.getText('asrMergeBatchVal', l, { count: val });
+      }
+      saveSettings({ asrMergeBatchSize: val });
+    });
+  }
+
+  if (asrSilenceThresholdSlider) {
+    asrSilenceThresholdSlider.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      const val = parseInt(target.value, 10);
+      const l = currentSettings.uiLanguage || 'en';
+      if (asrSilenceThresholdVal) {
+        asrSilenceThresholdVal.textContent = NCW_I18N.getText('asrSilenceThresholdVal', l, { count: val });
+      }
+      saveSettings({ asrSilenceThresholdMs: val });
     });
   }
 

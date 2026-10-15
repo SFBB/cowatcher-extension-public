@@ -63,6 +63,10 @@ export interface ExtensionSettings {
 
   preferNativeSubtitles: boolean;
   extractTermsFromNativeSubtitles: boolean;
+
+  enableAutomaticAsrMerging: boolean;
+  asrMergeBatchSize: number;
+  asrSilenceThresholdMs: number;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -105,6 +109,10 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   hideNativeSubtitles: true,
   enableDomSubtitleSync: false,
   subSyncOffset: 0,
+
+  enableAutomaticAsrMerging: true,
+  asrMergeBatchSize: 15,
+  asrSilenceThresholdMs: 600,
 
   aiProvider: 'google',
   openrouterApiKey: '',

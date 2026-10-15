@@ -14,6 +14,7 @@ export class TranslatorRegistry {
 
     if (this.services.size > 0) return;
     const googleTranslatorService = new GoogleTranslatorService();
+    await googleTranslatorService.init();
     this.register(googleTranslatorService);
     const ollamaTranslatorService = new LlmTranslatorService("ollama");
     await ollamaTranslatorService.init();
@@ -38,6 +39,11 @@ export class TranslatorRegistry {
       return service;
     }
     // Default fallback to google
-    return this.services.get("google") || new GoogleTranslatorService();
+    if (this.services.has("google")) {
+      return this.services.get("google")!;
+    }
+    const fallback = new GoogleTranslatorService();
+    await fallback.init();
+    return fallback;
   }
 }

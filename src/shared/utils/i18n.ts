@@ -110,6 +110,18 @@ const NCW_I18N = {
       reviewBatchSizeHint:
         'Number of translated dialogues audited in a single prompt (Ollama: 8, OpenRouter: 20)',
       reviewBatchVal: '{count} cues',
+      pipelineGroupAsr: '🎙️ ASR Subtitle Auto-Merging',
+      enableAutomaticAsrMerging: 'Auto-Merge ASR Word Fragments',
+      enableAutomaticAsrMergingHint:
+        'Combines fragmented word-by-word ASR cues (e.g. YouTube auto-captions) into grammatically complete sentences before translation',
+      asrMergeBatchSize: 'ASR Merge Window Size',
+      asrMergeBatchSizeHint:
+        'Number of raw fragments processed per merge stage (Default: 15)',
+      asrMergeBatchVal: '{count} fragments',
+      asrSilenceThreshold: 'Silence Gap Threshold',
+      asrSilenceThresholdHint:
+        'Threshold in milliseconds to detect natural sentence pause (Default: 600ms)',
+      asrSilenceThresholdVal: '{count} ms',
       pipelineGroupStyle: '🎨 Subtitle Appearance & Timing',
       fontSize: 'Subtitle Font Size',
       bgOpacity: 'Subtitle Background Opacity',
@@ -277,6 +289,18 @@ const NCW_I18N = {
       reviewBatchSizeHint:
         '监督模型单次 Prompt 集中比对审阅的对话句数 (Ollama 预设: 8, OpenRouter 预设: 20)',
       reviewBatchVal: '{count} 句',
+      pipelineGroupAsr: '🎙️ ASR 语音识别字幕自动重组',
+      enableAutomaticAsrMerging: '自动合并 ASR 逐词碎片字幕',
+      enableAutomaticAsrMergingHint:
+        '在翻译前将 YouTube 等平台逐词滚动的 ASR 碎片字幕自动重组成语法完整的句子',
+      asrMergeBatchSize: 'ASR 碎片合并窗口大小',
+      asrMergeBatchSizeHint:
+        '每次送入重组算法或大模型的碎片字幕句数（默认：15）',
+      asrMergeBatchVal: '{count} 个碎片',
+      asrSilenceThreshold: '断句静音停顿阈值',
+      asrSilenceThresholdHint:
+        '说话人自然停顿超过此毫秒数时切断句子（默认：600ms）',
+      asrSilenceThresholdVal: '{count} 毫秒',
       pipelineGroupStyle: '🎨 字幕样式与时间轴',
       fontSize: '字幕字体大小',
       bgOpacity: '字幕背景不透明度',
@@ -433,6 +457,18 @@ const NCW_I18N = {
       reviewBatchSizeHint:
         '1回のプロンプトで監督モデルが校正する台詞の数 (Ollama: 8, OpenRouter: 20)',
       reviewBatchVal: '{count} 行',
+      pipelineGroupAsr: '🎙️ ASR 音声認識字幕の自動結合',
+      enableAutomaticAsrMerging: 'ASR 逐語断片字幕を自動結合',
+      enableAutomaticAsrMergingHint:
+        'YouTubeなどの自動生成字幕（ASR）の単語断片を翻訳前に自然な文に結合します',
+      asrMergeBatchSize: 'ASR 結合ウィンドウサイズ',
+      asrMergeBatchSizeHint:
+        '1回の結合処理で処理する断片字幕の行数（デフォルト: 15）',
+      asrMergeBatchVal: '{count} 断片',
+      asrSilenceThreshold: '無音ポーズ閾値',
+      asrSilenceThresholdHint:
+        '文の区切りを検出する無音時間（ミリ秒、デフォルト: 600ms）',
+      asrSilenceThresholdVal: '{count} ms',
       pipelineGroupStyle: '🎨 字幕スタイルと同期',
       fontSize: '字幕フォントサイズ',
       bgOpacity: '字幕背景の不透明度',
@@ -593,6 +629,18 @@ const NCW_I18N = {
       reviewBatchSizeHint:
         '한 번의 프롬프트로 감수 모델이 검토할 대사 수 (Ollama: 8, OpenRouter: 20)',
       reviewBatchVal: '{count} 줄',
+      pipelineGroupAsr: '🎙️ ASR 음성 인식 자막 자동 병합',
+      enableAutomaticAsrMerging: 'ASR 단어 조각 자막 자동 병합',
+      enableAutomaticAsrMergingHint:
+        'YouTube 등의 ASR 자동 생성 자막 조각을 번역 전에 완전한 문장으로 자동 병합합니다',
+      asrMergeBatchSize: 'ASR 병합 윈도우 크기',
+      asrMergeBatchSizeHint:
+        '1회 병합 처리 시 처리할 자막 조각 수 (기본값: 15)',
+      asrMergeBatchVal: '{count} 조각',
+      asrSilenceThreshold: '무음 일시정지 임계값',
+      asrSilenceThresholdHint:
+        '문장 구분을 감지할 무음 시간(밀리초, 기본값: 600ms)',
+      asrSilenceThresholdVal: '{count} ms',
       pipelineGroupStyle: '🎨 자막 스타일 및 싱크',
       fontSize: '자막 글꼴 크기',
       bgOpacity: '자막 배경 불투명도',

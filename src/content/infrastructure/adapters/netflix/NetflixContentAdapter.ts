@@ -218,7 +218,7 @@ export class NetflixContentAdapter implements IStreamingAdapter {
   }
 
   onSubtitleData(
-    callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string }) => void
+    callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string; isAsr?: boolean }) => void
   ): () => void {
     const handler = (event: MessageEvent) => {
       if (event.source !== window || !event.data) return;
@@ -234,7 +234,12 @@ export class NetflixContentAdapter implements IStreamingAdapter {
             text: c.text,
             position: c.position,
           }));
-          callback({ cues, language: lang, movieId: event.data.movieId });
+          callback({
+            cues,
+            language: lang,
+            movieId: event.data.movieId,
+            isAsr: false,
+          });
         } catch (_err) {
           // Ignore
         }

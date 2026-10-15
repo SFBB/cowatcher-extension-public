@@ -7,6 +7,7 @@ import {
   TranslateCueItem,
   ReviewCueItem,
   PrecedingContextItem,
+  MergeAsrCueItem,
 } from "@shared/types/Messages";
 import { ContextDTO } from "@shared/domain/entities/Context";
 import { TranslationProvider } from "@shared/domain/entities/PipelineTypes";
@@ -15,6 +16,10 @@ import { LlmService } from "./LlmService";
 import { ITrackCacheRepository } from "@shared/domain/repositories/ITrackCacheRepository";
 import { TrackCacheRepositoryFactory } from "../../infrastructure/cache/TrackCacheRepositoryFactory";
 import { TranslatorRegistry } from "../../domain/translation/TranslatorRegistry";
+import {
+  MergeAsrBatchRequest,
+  MergeAsrBatchResponse,
+} from "../../domain/translation/ITranslatorService";
 import { BrowserStorageFactory } from "@shared/infrastructure/storage/BrowserStorageFactory";
 import { NCW_STORAGE_KEYS } from "@shared/domain/constants/StorageKeys";
 import { ExtensionSettings } from "@shared/domain/constants/SettingsDefaults";
@@ -306,6 +311,34 @@ export class TranslationPipelineService {
 
       ctx.markWarmup();
       return { success: true, context: ctx.toDTO(), cached: false };
+    });
+  }
+
+  /**
+   * Intelligently merges fragmented ASR subtitle segments into complete sentences
+   */
+  async mergeAsrBatch(params: {
+    items: MergeAsrCueItem[];
+  }): Promise<MergeAsrBatchResponse> {
+    const activeProvider = this.activeProvider;
+    const translator = await TranslatorRegistry.getTranslator(activeProvider);
+    const req: MergeAsrBatchRequest = {
+      items: params.items,
+    };
+
+    if (activeProvider === "google" || !translator.mergeAsrBatch) {
+      if (typeof (translator as any).mergeAsrBatch === "function") {
+        return (translator as any).mergeAsrBatch(req);
+      }
+      return { success: false, error: "Provider does not support ASR merging" };
+    }
+
+    // For LLM providers, enqueue on supervisorQueue
+    return this.supervisorQueue.enqueue(async () => {
+      if (translator.mergeAsrBatch) {
+        return translator.mergeAsrBatch(req);
+      }
+      return { success: false, error: "Provider does not support ASR merging" };
     });
   }
 

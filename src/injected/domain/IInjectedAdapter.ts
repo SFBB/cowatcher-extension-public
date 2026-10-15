@@ -14,6 +14,7 @@ export interface InjectedSubtitleRawDataPayload {
   bcp47?: string | null;
   timestamp: number;
   isReplay?: boolean;
+  isAsr?: boolean;
 }
 
 export interface InjectedSubtitlePreloadStagedPayload {

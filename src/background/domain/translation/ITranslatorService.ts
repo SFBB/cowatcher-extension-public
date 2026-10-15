@@ -1,9 +1,12 @@
-import { CharacterItem } from '@shared/domain/entities/Translation';
-import { PrecedingContextItem } from '@shared/types/Messages';
+import { CharacterItem } from "@shared/domain/entities/Translation";
+import { PrecedingContextItem } from "@shared/types/Messages";
+import { MergeAsrCueItem } from "@shared/domain/entities/Subtitle";
 
-import { Context } from '@shared/domain/entities/Context';
-import { LanguageInfo } from '@shared/domain/value-objects/Language';
-import { TranslationProvider } from '@shared/domain/entities/PipelineTypes';
+import { Context } from "@shared/domain/entities/Context";
+import { LanguageInfo } from "@shared/domain/value-objects/Language";
+import { TranslationProvider } from "@shared/domain/entities/PipelineTypes";
+
+export { MergeAsrCueItem };
 
 export interface TranslateBatchRequest {
   items: Array<{ id: number; rawText: string }>;
@@ -41,6 +44,17 @@ export interface ReviewBatchResponse {
   error?: string;
 }
 
+export interface MergeAsrBatchRequest {
+  items: MergeAsrCueItem[];
+  signal?: AbortSignal;
+}
+
+export interface MergeAsrBatchResponse {
+  success: boolean;
+  mergedCues?: MergeAsrCueItem[];
+  error?: string;
+}
+
 export interface HealthCheckResult {
   ok: boolean;
   message?: string;
@@ -48,6 +62,11 @@ export interface HealthCheckResult {
 
 export interface ITranslatorService {
   readonly providerId: TranslationProvider;
+
+  /**
+   * Async initialization for services that need to read storage/config
+   */
+  init?(): Promise<void>;
 
   /**
    * Translate a batch of subtitle cues to target language
@@ -58,6 +77,11 @@ export interface ITranslatorService {
    * Supervise and review translated cues
    */
   reviewBatch(req: ReviewBatchRequest): Promise<ReviewBatchResponse>;
+
+  /**
+   * Intelligently group and merge fragmented ASR subtitle segments into complete sentences
+   */
+  mergeAsrBatch?(req: MergeAsrBatchRequest): Promise<MergeAsrBatchResponse>;
 
   /**
    * Check connection/health of the translation service

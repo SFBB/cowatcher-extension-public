@@ -352,6 +352,23 @@ export class BackgroundMessageService {
             return true;
           }
 
+          case NCW_MESSAGE_TYPES.MERGE_ASR_BATCH: {
+            this.translationPipelineService
+              .mergeAsrBatch({ items: message.items })
+              .then((res) => {
+                sendResponse(
+                  res as MessagePayloadMap[typeof NCW_MESSAGE_TYPES.MERGE_ASR_BATCH]["response"],
+                );
+              })
+              .catch((err) => {
+                sendResponse({
+                  success: false,
+                  error: err?.message,
+                } as MessagePayloadMap[typeof NCW_MESSAGE_TYPES.MERGE_ASR_BATCH]["response"]);
+              });
+            return true;
+          }
+
           case NCW_CONSTANTS.MESSAGE_TYPES.TRANSLATE_BATCH: {
             this.translationPipelineService
               .translateBatch(message)
