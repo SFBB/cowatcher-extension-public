@@ -91,6 +91,50 @@ export class SubtitleManager {
         }
       }
     });
+
+    this.messageService.onCuesStale((payload) => {
+      if (!payload) return;
+      const currentMid = String(this.currentMovieId || '');
+      const matchesEpisode = payload.movieId && String(payload.movieId) === currentMid;
+      const matchesEpisodeList =
+        Array.isArray(payload.movieIds) &&
+        payload.movieIds.some((id: string) => String(id) === currentMid);
+      const matchesTrack = payload.trackHash && payload.trackHash === this.currentTrackHash;
+      const matchesShowTitle =
+        payload.showTitle &&
+        this.currentContext &&
+        ((this.currentContext.mainTitle &&
+          payload.showTitle.toLowerCase().includes(this.currentContext.mainTitle.toLowerCase())) ||
+          (this.currentContext.mainTitle &&
+            this.currentContext.mainTitle
+              .toLowerCase()
+              .includes(payload.showTitle.toLowerCase())));
+      const matchesShowId =
+        payload.showId &&
+        (String(payload.showId) === String(this.currentShowId) ||
+          String(payload.showId) === String(this.currentContext?.showId));
+
+      if (
+        matchesEpisode ||
+        matchesEpisodeList ||
+        matchesTrack ||
+        matchesShowTitle ||
+        matchesShowId
+      ) {
+        this.logger.info(
+          'Subtitle',
+          `Cues invalidated (${payload.invalidatedCount || 0} cues). Clearing in-memory translations to re-translate with updated glossary.`
+        );
+        this.translationMap.clear();
+        this.cueStateMap.clear();
+        this.canonicalReviewIndex = 0;
+        this._lastCueSig = '';
+        this.onTick();
+        if (this.video) {
+          this.checkPipeline(this.getEffectiveTime());
+        }
+      }
+    });
   }
 
   isContextValid(): boolean {

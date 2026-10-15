@@ -115,6 +115,18 @@ export type MessagePayloadMap = {
     request: { context: ContextDTO };
     response: void;
   };
+  NCW_PUSH_CUES_STALE: {
+    request: {
+      trackHash?: string;
+      cacheKey?: string;
+      movieId?: string;
+      movieIds?: string[];
+      showTitle?: string;
+      showId?: string;
+      invalidatedCount?: number;
+    };
+    response: void;
+  };
 
   // Subtitle Translation Pipeline
   NCW_TRANSLATE_BATCH: {
@@ -181,8 +193,12 @@ export type MessagePayloadMap = {
     request: {
       trackHash?: string;
       cacheKey?: string;
-      startTime: number;
-      endTime: number;
+      movieId?: string;
+      movieIds?: string[];
+      showTitle?: string;
+      showId?: string;
+      startTime?: number;
+      endTime?: number;
     };
     response: {
       success: boolean;

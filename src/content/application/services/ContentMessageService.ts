@@ -81,6 +81,17 @@ export class ContentMessageService {
     );
   }
 
+  onCuesStale(callback: (payload: any) => void): () => void {
+    return ContentBackgroundBus.onMessage(
+      NCW_CONSTANTS.MESSAGE_TYPES.PUSH_CUES_STALE,
+      (payload) => {
+        if (payload) {
+          callback(payload);
+        }
+      }
+    );
+  }
+
   async warmupGlossaryContext(params: {
     title: string;
     mainTitle: string;

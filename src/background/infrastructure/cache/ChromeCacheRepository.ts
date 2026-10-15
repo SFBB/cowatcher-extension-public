@@ -284,18 +284,51 @@ export class ChromeCacheRepository implements ITrackCacheRepository {
   static async markCuesStaleByTimeRange(params: {
     trackHash?: string;
     cacheKey?: string;
-    startTime: number;
-    endTime: number;
+    movieId?: string;
+    movieIds?: string[];
+    showTitle?: string;
+    showId?: string;
+    startTime?: number;
+    endTime?: number;
   }): Promise<number> {
-    const { trackHash, cacheKey: explicitKey, startTime, endTime } = params;
+    const {
+      trackHash,
+      cacheKey: explicitKey,
+      movieId,
+      movieIds,
+      showTitle,
+      showId,
+      startTime = 0,
+      endTime = Number.MAX_SAFE_INTEGER,
+    } = params;
     let recordsToUpdate: TrackCacheRecord[] = [];
 
     if (explicitKey) {
       const rec = await this.getTrackCache(explicitKey);
       if (rec) recordsToUpdate.push(rec);
-    } else if (trackHash) {
+    } else {
       const all = await this.getAllTrackCaches();
-      recordsToUpdate = all.filter((t) => t.trackHash === trackHash);
+      const movieIdSet = new Set<string>();
+      if (movieId) movieIdSet.add(String(movieId));
+      if (Array.isArray(movieIds)) {
+        movieIds.forEach((id) => {
+          if (id) movieIdSet.add(String(id));
+        });
+      }
+
+      recordsToUpdate = all.filter((t) => {
+        if (trackHash && t.trackHash === trackHash) return true;
+        if (movieIdSet.size > 0 && t.movieId && movieIdSet.has(String(t.movieId))) return true;
+        if (showId && t.showTitle && t.showTitle.includes(showId)) return true;
+        if (showTitle && t.showTitle) {
+          const sTitle = showTitle.trim().toLowerCase();
+          const tTitle = t.showTitle.trim().toLowerCase();
+          if (tTitle === sTitle || tTitle.includes(sTitle) || sTitle.includes(tTitle)) {
+            return true;
+          }
+        }
+        return false;
+      });
     }
 
     let totalInvalidated = 0;

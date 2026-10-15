@@ -370,6 +370,18 @@ body {
   background: var(--success-hover);
 }
 
+.btn-warning {
+  background: rgba(241, 196, 15, 0.15);
+  color: #f1c40f;
+  border: 1px solid rgba(241, 196, 15, 0.45);
+  font-weight: 500;
+}
+.btn-warning:hover:not(:disabled) {
+  background: rgba(241, 196, 15, 0.28);
+  border-color: #f1c40f;
+  color: #fff;
+}
+
 .btn-sm {
   padding: 4px 10px;
   font-size: 11px;
@@ -422,4 +434,6 @@ body {
 .footer-right {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }

@@ -37,11 +37,15 @@ export interface SaveReviewedCuesParams {
 export interface MarkCuesStaleParams {
   cacheKey?: string;
   trackHash?: string;
+  movieId?: string;
+  movieIds?: string[];
+  showTitle?: string;
+  showId?: string;
   targetLanguage?: string;
   provider?: string;
   translationModel?: string;
-  startTime: number;
-  endTime: number;
+  startTime?: number;
+  endTime?: number;
 }
 
 export interface VocabScanCheckParams {

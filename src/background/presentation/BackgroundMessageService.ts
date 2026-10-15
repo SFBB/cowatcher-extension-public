@@ -527,10 +527,27 @@ export class BackgroundMessageService {
               .markCuesStaleByTimeRange({
                 trackHash: message.trackHash,
                 cacheKey: message.cacheKey,
+                movieId: message.movieId,
+                movieIds: message.movieIds,
+                showTitle: message.showTitle,
+                showId: message.showId,
                 startTime: message.startTime,
                 endTime: message.endTime,
               })
               .then((count) => {
+                ContentBackgroundBus.broadcastToTabs(
+                  NCW_CONSTANTS.MESSAGE_TYPES.PUSH_CUES_STALE,
+                  {
+                    movieId: message.movieId,
+                    movieIds: message.movieIds,
+                    showTitle: message.showTitle,
+                    showId: message.showId,
+                    trackHash: message.trackHash,
+                    cacheKey: message.cacheKey,
+                    invalidatedCount: count,
+                  }
+                ).catch(() => {});
+
                 sendResponse({
                   success: true,
                   invalidatedCount: count,

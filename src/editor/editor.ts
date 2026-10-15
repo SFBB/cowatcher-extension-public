@@ -61,12 +61,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const footerStatusMsg = document.getElementById('footer-status-msg') as HTMLElement;
   const btnCloseWindow = document.getElementById('btn-close-window') as HTMLButtonElement;
+  const btnInvalidateEpisode = document.getElementById(
+    'btn-invalidate-episode'
+  ) as HTMLButtonElement;
+  const btnInvalidateShow = document.getElementById(
+    'btn-invalidate-show'
+  ) as HTMLButtonElement;
   const btnSaveGlossary = document.getElementById('btn-save-glossary') as HTMLButtonElement;
 
   // Local Editor State
   let characterRows: CharacterRowState[] = [];
   let termRows: TermRowState[] = [];
   let hasAiCapability = false;
+  let loadedContextDTO: ContextDTO | null = null;
 
   // Setup Title Info & Locking UI
   const displayTitle = activeTitle || activeShowId || 'Active Streaming Playback';
@@ -152,6 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (res.success && res.context) {
         const ctx: ContextDTO = res.context;
+        loadedContextDTO = ctx;
         if (ctx.targetLanguage) {
           activeTargetLang = Language.resolve(ctx.targetLanguage);
           currentShowInfo.textContent = `${displayTitle} ${activeVideoId ? `(ID: ${activeVideoId})` : ''} • Target Language: ${activeTargetLang.name}`;
@@ -492,6 +500,94 @@ document.addEventListener('DOMContentLoaded', async () => {
       showStatus(`❌ Save Error: ${e?.message || e}`, 'error');
     } finally {
       btnSaveGlossary.disabled = false;
+    }
+  });
+
+  // 7. Invalidate Subtitles for This Episode
+  btnInvalidateEpisode?.addEventListener('click', async () => {
+    const epId = activeVideoId;
+    if (!epId) {
+      showStatus('⚠️ No active episode ID found to invalidate.', 'error');
+      return;
+    }
+
+    const confirmed = confirm(
+      'Mark all previous cached subtitles in this episode as stale?\n\n' +
+        'Previously translated subtitles for this episode will be invalidated and re-translated with your updated glossary.'
+    );
+    if (!confirmed) return;
+
+    btnInvalidateEpisode.disabled = true;
+    showStatus('⏳ Invalidating previous subtitles for this episode...', 'neutral');
+
+    try {
+      const res = await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.MARK_CUES_STALE, {
+        movieId: epId,
+        startTime: 0,
+        endTime: Number.MAX_SAFE_INTEGER,
+      });
+
+      if (res && res.success) {
+        showStatus(
+          `🎉 Successfully marked ${res.invalidatedCount} subtitles as stale for this episode!`,
+          'success'
+        );
+      } else {
+        showStatus(`❌ Invalidation failed: ${res?.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err: any) {
+      showStatus(`❌ Invalidation error: ${err?.message || err}`, 'error');
+    } finally {
+      btnInvalidateEpisode.disabled = false;
+    }
+  });
+
+  // 8. Invalidate Subtitles Across Entire Show
+  btnInvalidateShow?.addEventListener('click', async () => {
+    const showTitle = activeTitle || loadedContextDTO?.mainTitle || loadedContextDTO?.title || '';
+    const showId = activeShowId || loadedContextDTO?.showId || '';
+
+    const movieIds: string[] = [];
+    if (activeVideoId) movieIds.push(activeVideoId);
+    if (loadedContextDTO?.episodes && Array.isArray(loadedContextDTO.episodes)) {
+      loadedContextDTO.episodes.forEach((ep) => {
+        if (ep.videoId && !movieIds.includes(ep.videoId)) {
+          movieIds.push(ep.videoId);
+        }
+      });
+    }
+
+    const showName = showTitle || showId || 'this show';
+    const confirmed = confirm(
+      `Mark ALL previous cached subtitles across ALL episodes in "${showName}" as stale?\n\n` +
+        'Cached subtitles for this entire show will be invalidated and re-translated with your updated glossary.'
+    );
+    if (!confirmed) return;
+
+    btnInvalidateShow.disabled = true;
+    showStatus('⏳ Invalidating previous subtitles across entire show...', 'neutral');
+
+    try {
+      const res = await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.MARK_CUES_STALE, {
+        showTitle: showTitle || undefined,
+        showId: showId || undefined,
+        movieIds: movieIds.length > 0 ? movieIds : undefined,
+        startTime: 0,
+        endTime: Number.MAX_SAFE_INTEGER,
+      });
+
+      if (res && res.success) {
+        showStatus(
+          `🎉 Successfully marked ${res.invalidatedCount} subtitles as stale across this show!`,
+          'success'
+        );
+      } else {
+        showStatus(`❌ Invalidation failed: ${res?.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err: any) {
+      showStatus(`❌ Invalidation error: ${err?.message || err}`, 'error');
+    } finally {
+      btnInvalidateShow.disabled = false;
     }
   });
 
