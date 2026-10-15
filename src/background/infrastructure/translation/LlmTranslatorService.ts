@@ -5,44 +5,48 @@ import {
   ReviewBatchRequest,
   ReviewBatchResponse,
   HealthCheckResult,
-} from '../../domain/translation/ITranslatorService';
-import { LlmService } from '../../application/services/LlmService';
-import { CharacterItem } from '@shared/domain/entities/Translation';
-import { Language } from '@shared/domain/value-objects/Language';
-import { Logger } from '@shared/utils/logger';
-import { LLMProvider } from '@shared/domain/entities/PipelineTypes';
-import { Context } from '@shared/domain/entities/Context';
+} from "../../domain/translation/ITranslatorService";
+import { LlmService } from "../../application/services/LlmService";
+import { CharacterItem } from "@shared/domain/entities/Translation";
+import { Language } from "@shared/domain/value-objects/Language";
+import { Logger } from "@shared/utils/logger";
+import { LLMProvider } from "@shared/domain/entities/PipelineTypes";
+import { Context } from "@shared/domain/entities/Context";
 
 export class LlmTranslatorService implements ITranslatorService {
   readonly providerId: LLMProvider;
   private llmService: LlmService;
 
-  private logger: Logger = new Logger('LlmTranslatorService');
+  private logger: Logger = new Logger("LlmTranslatorService");
 
-  constructor(providerId: LLMProvider = 'ollama') {
+  constructor(providerId: LLMProvider = "ollama") {
     this.providerId = providerId;
     this.llmService = LlmService.getInstance();
   }
 
+  async init(): Promise<void> {
+    await this.llmService.init();
+  }
+
   private formatGlossaryForPrompt(
     characters: Record<string, CharacterItem> = {},
-    terms: Record<string, string> = {}
+    terms: Record<string, string> = {},
   ): string[] {
     const lines: string[] = [];
     for (const [name, val] of Object.entries(characters)) {
-      if (typeof val === 'string') {
+      if (typeof val === "string") {
         lines.push(`${name} -> ${val}`);
-      } else if (val && typeof val === 'object') {
+      } else if (val && typeof val === "object") {
         const canonical = val.canonical || name;
         const aliases =
           Array.isArray(val.aliases) && val.aliases.length > 0
-            ? ` (Aliases/Called: ${val.aliases.join(', ')})`
-            : '';
+            ? ` (Aliases/Called: ${val.aliases.join(", ")})`
+            : "";
         lines.push(`${name}${aliases} -> ${canonical}`);
       }
     }
     for (const [term, val] of Object.entries(terms)) {
-      if (typeof val === 'string') {
+      if (typeof val === "string") {
         lines.push(`${term} -> ${val}`);
       }
     }
@@ -60,10 +64,12 @@ export class LlmTranslatorService implements ITranslatorService {
    */
   private buildGlossaryBlocks(context: Context, isSupervisor: boolean): string {
     const manualChars: Record<string, CharacterItem> = {};
-    for (const [name, manualChar] of Object.entries(context.manualSetupCharacters || {})) {
+    for (const [name, manualChar] of Object.entries(
+      context.manualSetupCharacters || {},
+    )) {
       const modelChar = context.characters[name];
       const mergedAliases = Array.from(
-        new Set([...(manualChar.aliases || []), ...(modelChar?.aliases || [])])
+        new Set([...(manualChar.aliases || []), ...(modelChar?.aliases || [])]),
       );
       manualChars[name] = {
         canonical: manualChar.canonical,
@@ -79,7 +85,9 @@ export class LlmTranslatorService implements ITranslatorService {
       }
     }
 
-    const manualTerms: Record<string, string> = { ...(context.manualSetupTerms || {}) };
+    const manualTerms: Record<string, string> = {
+      ...(context.manualSetupTerms || {}),
+    };
 
     const autoTerms: Record<string, string> = {};
     for (const [k, v] of Object.entries(context.terms || {})) {
@@ -91,24 +99,25 @@ export class LlmTranslatorService implements ITranslatorService {
     const manualLines = this.formatGlossaryForPrompt(manualChars, manualTerms);
     const autoLines = this.formatGlossaryForPrompt(autoChars, autoTerms);
 
-    let block = '';
+    let block = "";
 
     if (manualLines.length > 0) {
-      block += '\n### MASTER GLOSSARY & CHARACTERS (IMMUTABLE - STRICTLY USER-DEFINED) ###\n';
+      block +=
+        "\n### MASTER GLOSSARY & CHARACTERS (IMMUTABLE - STRICTLY USER-DEFINED) ###\n";
       block += isSupervisor
-        ? 'These terms and character translations are user-locked. YOU MUST NOT MODIFY OR OVERRIDE THEIR CANONICAL TRANSLATIONS, but you CAN discover and report new aliases for them.\n'
-        : 'You must strictly and verbatim use these exact character names and terminology translations.\n';
-      block += manualLines.map((line) => '- ' + line).join('\n') + '\n';
-      block += '### END MASTER GLOSSARY ###\n\n';
+        ? "These terms and character translations are user-locked. YOU MUST NOT MODIFY OR OVERRIDE THEIR CANONICAL TRANSLATIONS, but you CAN discover and report new aliases for them.\n"
+        : "You must strictly and verbatim use these exact character names and terminology translations.\n";
+      block += manualLines.map((line) => "- " + line).join("\n") + "\n";
+      block += "### END MASTER GLOSSARY ###\n\n";
     }
 
     if (autoLines.length > 0) {
-      block += '### ESTABLISHED GLOSSARY & CHARACTERS ###\n';
+      block += "### ESTABLISHED GLOSSARY & CHARACTERS ###\n";
       block += isSupervisor
-        ? 'These are model-discovered terms. Verify consistency and suggest refinements or new terms if found.\n'
-        : 'Strictly adhere to these character names and terms for consistency.\n';
-      block += autoLines.map((line) => '- ' + line).join('\n') + '\n';
-      block += '### END ESTABLISHED GLOSSARY ###\n\n';
+        ? "These are model-discovered terms. Verify consistency and suggest refinements or new terms if found.\n"
+        : "Strictly adhere to these character names and terms for consistency.\n";
+      block += autoLines.map((line) => "- " + line).join("\n") + "\n";
+      block += "### END ESTABLISHED GLOSSARY ###\n\n";
     }
 
     return block;
@@ -118,16 +127,16 @@ export class LlmTranslatorService implements ITranslatorService {
    * Cleans ID markers (e.g., [643], [643]:, 【643】, 【643】：) and extraneous wrapper quotes
    */
   private cleanTranslationText(text: string): string {
-    if (!text) return '';
+    if (!text) return "";
     return (
       text
         // Strip leading brackets and IDs: [643]:, 【643】：, [643] -, 643., etc.
-        .replace(/^(?:\[|【|\()\s*\d+\s*(?:\]|】|\))\s*[:：\-.]?\s*/, '')
-        .replace(/^(\d+)\s*[:：\-.]\s*/, '')
+        .replace(/^(?:\[|【|\()\s*\d+\s*(?:\]|】|\))\s*[:：\-.]?\s*/, "")
+        .replace(/^(\d+)\s*[:：\-.]\s*/, "")
         // Strip any residual [id] or 【id】 markers within text
-        .replace(/(?:\[|【)\s*\d+\s*(?:\]|】)\s*[:：]?\s*/g, '')
+        .replace(/(?:\[|【)\s*\d+\s*(?:\]|】)\s*[:：]?\s*/g, "")
         // Strip wrapping quotes
-        .replace(/^["'“”](.*)["'“”]$/, '$1')
+        .replace(/^["'“”](.*)["'“”]$/, "$1")
         .trim()
     );
   }
@@ -141,7 +150,7 @@ export class LlmTranslatorService implements ITranslatorService {
   private parseNumberedSubtitles(
     text: string,
     targetIds: Set<number>,
-    orderedItems: Array<{ id: number }>
+    orderedItems: Array<{ id: number }>,
   ): Record<number, string> {
     const resultMap: Record<number, string> = {};
     if (!text) return resultMap;
@@ -170,7 +179,8 @@ export class LlmTranslatorService implements ITranslatorService {
       markers.sort((a, b) => a.start - b.start);
       for (let i = 0; i < markers.length; i++) {
         const current = markers[i];
-        const nextStart = i + 1 < markers.length ? markers[i + 1].start : text.length;
+        const nextStart =
+          i + 1 < markers.length ? markers[i + 1].start : text.length;
         const rawChunk = text.slice(current.end, nextStart).trim();
         if (rawChunk) {
           resultMap[current.id] = this.cleanTranslationText(rawChunk);
@@ -181,10 +191,14 @@ export class LlmTranslatorService implements ITranslatorService {
 
     // Fallback ONLY when absolutely no markers were matched:
     const rawLines = text
-      .split('\n')
+      .split("\n")
       .map((l) => l.trim())
       .filter(
-        (l) => l.length > 0 && !l.startsWith('#') && !l.startsWith('*') && !l.startsWith('---')
+        (l) =>
+          l.length > 0 &&
+          !l.startsWith("#") &&
+          !l.startsWith("*") &&
+          !l.startsWith("---"),
       );
 
     if (rawLines.length === orderedItems.length) {
@@ -193,42 +207,53 @@ export class LlmTranslatorService implements ITranslatorService {
       });
     } else {
       this.logger.warn(
-        'Translator',
-        `Batch translation returned unformatted text without ID markers, and line count (${rawLines.length}) does not match items count (${orderedItems.length}). Discarding unverified batch to prevent misalignment.`
+        "Translator",
+        `Batch translation returned unformatted text without ID markers, and line count (${rawLines.length}) does not match items count (${orderedItems.length}). Discarding unverified batch to prevent misalignment.`,
       );
     }
 
     return resultMap;
   }
 
-  async translateBatch(req: TranslateBatchRequest): Promise<TranslateBatchResponse> {
-    const { items, targetLang, contextItems = [], context, signal, movieId } = req;
+  async translateBatch(
+    req: TranslateBatchRequest,
+  ): Promise<TranslateBatchResponse> {
+    const {
+      items,
+      targetLang,
+      contextItems = [],
+      context,
+      signal,
+      movieId,
+    } = req;
     if (!items || items.length === 0) return { success: true, results: {} };
 
     const ctx = context;
-    let contextBlock = '';
+    let contextBlock = "";
     if (ctx && ctx.isWarmedUp) {
       contextBlock += `Show Title: ${ctx.title}\n`;
       const episode = movieId ? ctx.getEpisodeContext(movieId) : null;
       const synopsisParts = [
-        ctx.showSynopsis ? `Show: ${ctx.showSynopsis}` : '',
-        episode?.synopsis ? `Episode: ${episode.synopsis}` : '',
+        ctx.showSynopsis ? `Show: ${ctx.showSynopsis}` : "",
+        episode?.synopsis ? `Episode: ${episode.synopsis}` : "",
       ].filter(Boolean);
       if (synopsisParts.length > 0) {
-        contextBlock += `Background Synopsis:\n${synopsisParts.join('\n')}\n`;
+        contextBlock += `Background Synopsis:\n${synopsisParts.join("\n")}\n`;
       }
 
       contextBlock += this.buildGlossaryBlocks(ctx, false);
     }
 
-    let contextDialogues = '';
+    let contextDialogues = "";
     if (contextItems.length > 0) {
       const validCtx = contextItems.map((c) => {
-        const orig = (c.rawText || '').replace(/\n+/g, ' ');
-        const trans = c.transText ? ` -> Translated: "${c.transText.replace(/\n+/g, ' ')}"` : '';
+        const orig = (c.rawText || "").replace(/\n+/g, " ");
+        const trans = c.transText
+          ? ` -> Translated: "${c.transText.replace(/\n+/g, " ")}"`
+          : "";
         return `[Context #${c.id}]: "${orig}"${trans}`;
       });
-      contextDialogues = `--- Preceding Dialogue Context ---\n${validCtx.join('\n')}\n\n`;
+      contextDialogues = `--- Preceding Dialogue Context ---\n${validCtx.join("\n")}\n\n`;
     }
 
     const targetLangPrompt = Language.resolve(targetLang as any).promptName;
@@ -243,48 +268,54 @@ Return in this exact format:
 [index]: translated_text`;
 
     const userLines = items
-      .map((item) => `[${item.id}]: ${item.rawText.replace(/\n+/g, ' ')}`)
-      .join('\n');
+      .map((item) => `[${item.id}]: ${item.rawText.replace(/\n+/g, " ")}`)
+      .join("\n");
     const fullUserPrompt = contextDialogues
       ? `${contextDialogues}--- Target Lines to Translate ---\n${userLines}`
       : userLines;
 
     const MAX_RETRIES = 2;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      if (signal?.aborted) return { success: false, error: 'Aborted' };
+      if (signal?.aborted) return { success: false, error: "Aborted" };
 
       try {
-        const rawResponse = await this.llmService.callChat('translator', {
+        const rawResponse = await this.llmService.callChat("translator", {
           messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: fullUserPrompt },
+            { role: "system", content: systemPrompt },
+            { role: "user", content: fullUserPrompt },
           ],
           temperature: attempt === 1 ? 0.2 : 0.1,
           signal,
         });
 
         const cleanResponse = rawResponse
-          .replace(/<think[\s\S]*?<\/think>/gi, '')
-          .replace(/<thought[\s\S]*?<\/thought>/gi, '')
+          .replace(/<think[\s\S]*?<\/think>/gi, "")
+          .replace(/<thought[\s\S]*?<\/thought>/gi, "")
           .trim();
 
         const targetIds = new Set(items.map((it) => it.id));
-        const resultMap = this.parseNumberedSubtitles(cleanResponse, targetIds, items);
+        const resultMap = this.parseNumberedSubtitles(
+          cleanResponse,
+          targetIds,
+          items,
+        );
 
         // Safety Guard: Validate that EVERY requested cue was translated with non-empty text
-        const missingIds = items.filter((it) => !resultMap[it.id] || !resultMap[it.id].trim());
+        const missingIds = items.filter(
+          (it) => !resultMap[it.id] || !resultMap[it.id].trim(),
+        );
         if (missingIds.length > 0) {
-          const warnMsg = `Safety Guard: Batch translation count mismatch (expected ${items.length} cues, but received ${Object.keys(resultMap).length} valid cues). Missing cue IDs: [${missingIds.map((m) => m.id).join(', ')}].`;
+          const warnMsg = `Safety Guard: Batch translation count mismatch (expected ${items.length} cues, but received ${Object.keys(resultMap).length} valid cues). Missing cue IDs: [${missingIds.map((m) => m.id).join(", ")}].`;
           if (attempt < MAX_RETRIES) {
             this.logger.warn(
-              'Translator',
-              `${warnMsg} Retrying entire batch (attempt ${attempt + 1}/${MAX_RETRIES})...`
+              "Translator",
+              `${warnMsg} Retrying entire batch (attempt ${attempt + 1}/${MAX_RETRIES})...`,
             );
             continue;
           } else {
             this.logger.error(
-              'Translator',
-              `${warnMsg} Discarding entire batch to trigger retry and prevent subtitle misalignment.`
+              "Translator",
+              `${warnMsg} Discarding entire batch to trigger retry and prevent subtitle misalignment.`,
             );
             return { success: false, error: warnMsg };
           }
@@ -292,17 +323,21 @@ Return in this exact format:
 
         return { success: true, results: resultMap };
       } catch (err: any) {
-        if (attempt === MAX_RETRIES || err.name === 'AbortError' || signal?.aborted) {
+        if (
+          attempt === MAX_RETRIES ||
+          err.name === "AbortError" ||
+          signal?.aborted
+        ) {
           return { success: false, error: err.message };
         }
         this.logger.warn(
-          'Translator',
-          `Batch translation attempt ${attempt} failed: ${err.message}. Retrying...`
+          "Translator",
+          `Batch translation attempt ${attempt} failed: ${err.message}. Retrying...`,
         );
       }
     }
 
-    return { success: false, error: 'Batch translation failed after retries' };
+    return { success: false, error: "Batch translation failed after retries" };
   }
 
   private fallbackExtractSupervisorJson(text: string): any {
@@ -317,7 +352,9 @@ Return in this exact format:
     };
 
     // 1. Extract corrections section
-    const corrMatch = text.match(/"corrections"\s*:\s*\{([\s\S]*?)\}(?:\s*,|\s*\}|\s*$)/i);
+    const corrMatch = text.match(
+      /"corrections"\s*:\s*\{([\s\S]*?)\}(?:\s*,|\s*\}|\s*$)/i,
+    );
     if (corrMatch) {
       const corrBody = corrMatch[1];
       const itemRegex = /"(\d+)"\s*:\s*"((?:[^"\\]|\\.)*?)"/g;
@@ -328,7 +365,9 @@ Return in this exact format:
     }
 
     // 2. Extract new_terms section
-    const termsMatch = text.match(/"new_terms"\s*:\s*\{([\s\S]*?)\}(?:\s*,|\s*\}|\s*$)/i);
+    const termsMatch = text.match(
+      /"new_terms"\s*:\s*\{([\s\S]*?)\}(?:\s*,|\s*\}|\s*$)/i,
+    );
     if (termsMatch) {
       const termsBody = termsMatch[1];
       const termRegex = /"([^"]+)"\s*:\s*"((?:[^"\\]|\\.)*?)"/g;
@@ -346,8 +385,8 @@ Return in this exact format:
 
     // 1. Strip reasoning/thinking tags and markdown fences
     let cleaned = rawContent
-      .replace(/<think[\s\S]*?<\/think>/gi, '')
-      .replace(/<thought[\s\S]*?<\/thought>/gi, '')
+      .replace(/<think[\s\S]*?<\/think>/gi, "")
+      .replace(/<thought[\s\S]*?<\/thought>/gi, "")
       .trim();
 
     const jsonFenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -356,8 +395,8 @@ Return in this exact format:
     }
 
     // 2. Extract candidate JSON object boundaries
-    const firstBrace = cleaned.indexOf('{');
-    const lastBrace = cleaned.lastIndexOf('}');
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
     if (firstBrace === -1 || lastBrace <= firstBrace) {
       return this.fallbackExtractSupervisorJson(cleaned);
     }
@@ -371,7 +410,7 @@ Return in this exact format:
     }
 
     // 4. Repair strategy 1: Trailing commas
-    let repaired = jsonStr.replace(/,\s*([\]}])/g, '$1');
+    let repaired = jsonStr.replace(/,\s*([\]}])/g, "$1");
     try {
       return JSON.parse(repaired);
     } catch {
@@ -380,7 +419,7 @@ Return in this exact format:
 
     // 5. Repair strategy 2: Unescaped double quotes inside key-value string lines
     try {
-      const repairedLines = repaired.split('\n').map((line) => {
+      const repairedLines = repaired.split("\n").map((line) => {
         // Match line like: "123": "some text "quotes" here",
         const kvMatch = line.match(/^(\s*"[^"]+"\s*:\s*")(.*)("\s*,?\s*)$/);
         if (kvMatch) {
@@ -391,7 +430,7 @@ Return in this exact format:
         }
         return line;
       });
-      return JSON.parse(repairedLines.join('\n'));
+      return JSON.parse(repairedLines.join("\n"));
     } catch {
       // Proceed to fallback extraction
     }
@@ -400,40 +439,53 @@ Return in this exact format:
     try {
       return this.fallbackExtractSupervisorJson(cleaned);
     } catch (finalErr) {
-      this.logger.warn('LLM Translation', 'All supervisor JSON parsing attempts failed:', finalErr);
+      this.logger.warn(
+        "LLM Translation",
+        "All supervisor JSON parsing attempts failed:",
+        finalErr,
+      );
       return {};
     }
   }
 
   async reviewBatch(req: ReviewBatchRequest): Promise<ReviewBatchResponse> {
-    const { items, contextItems = [], targetLang, signal, context, movieId } = req;
+    const {
+      items,
+      contextItems = [],
+      targetLang,
+      signal,
+      context,
+      movieId,
+    } = req;
 
     if (!items || items.length === 0) {
       return { success: true, corrections: {} };
     }
 
-    let contextBlock = '';
+    let contextBlock = "";
     if (contextItems.length > 0) {
       const validCtx = contextItems.map((c) => {
-        const orig = (c.rawText || '').replace(/\n+/g, ' ');
-        const trans = c.transText ? ` -> Translated: "${c.transText.replace(/\n+/g, ' ')}"` : '';
+        const orig = (c.rawText || "").replace(/\n+/g, " ");
+        const trans = c.transText
+          ? ` -> Translated: "${c.transText.replace(/\n+/g, " ")}"`
+          : "";
         return `[Context #${c.id}]: "${orig}"${trans}`;
       });
-      contextBlock = `Preceding Dialogue Context:\n${validCtx.join('\n')}\n\n`;
+      contextBlock = `Preceding Dialogue Context:\n${validCtx.join("\n")}\n\n`;
     }
 
     const dialoguesText = items
       .map((item) => {
-        const origText = item.rawText.replace(/\n+/g, ' ');
-        const transText = item.transText.replace(/\n+/g, ' ');
+        const origText = item.rawText.replace(/\n+/g, " ");
+        const transText = item.transText.replace(/\n+/g, " ");
         return `[${item.id}] Original: "${origText}" | Translated: "${transText}"`;
       })
-      .join('\n');
+      .join("\n");
 
     const targetLangPrompt = targetLang.promptName;
-    let showLine = '';
-    let synopsisLine = '';
-    let glossaryBlock = '';
+    let showLine = "";
+    let synopsisLine = "";
+    let glossaryBlock = "";
 
     if (context) {
       if (context.title) {
@@ -441,12 +493,12 @@ Return in this exact format:
       }
       const episode = movieId ? context.getEpisodeContext(movieId) : null;
       const synopsisParts = [
-        context.showSynopsis ? `Show: ${context.showSynopsis}` : '',
-        episode?.synopsis ? `Episode: ${episode.synopsis}` : '',
+        context.showSynopsis ? `Show: ${context.showSynopsis}` : "",
+        episode?.synopsis ? `Episode: ${episode.synopsis}` : "",
       ].filter(Boolean);
 
       if (synopsisParts.length > 0) {
-        synopsisLine = `Background Synopsis:\n${synopsisParts.join('\n')}\n`;
+        synopsisLine = `Background Synopsis:\n${synopsisParts.join("\n")}\n`;
       }
 
       glossaryBlock = this.buildGlossaryBlocks(context, true);
@@ -481,10 +533,10 @@ Guidelines for new_characters and new_terms:
     const userPrompt = `${contextBlock}Dialogues to Review:\n${dialoguesText}`;
 
     try {
-      const rawContent = await this.llmService.callChat('supervisor', {
+      const rawContent = await this.llmService.callChat("supervisor", {
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
         ],
         temperature: 0.1,
         jsonMode: true,
@@ -494,36 +546,40 @@ Guidelines for new_characters and new_terms:
       const parsed = this.parseSupervisorJson(rawContent);
 
       const corrections: Record<number, string> = {};
-      if (parsed.corrections && typeof parsed.corrections === 'object') {
+      if (parsed.corrections && typeof parsed.corrections === "object") {
         for (const [k, v] of Object.entries(parsed.corrections)) {
           const numId = parseInt(k, 10);
-          if (!isNaN(numId) && typeof v === 'string') {
+          if (!isNaN(numId) && typeof v === "string") {
             corrections[numId] = this.cleanTranslationText(v);
           }
         }
       }
 
       const newCharacters: Record<string, CharacterItem> = {};
-      if (parsed.new_characters && typeof parsed.new_characters === 'object') {
+      if (parsed.new_characters && typeof parsed.new_characters === "object") {
         for (const [k, v] of Object.entries(parsed.new_characters)) {
           const key = k.trim();
-          if (!key || key.toLowerCase() === 'original name') continue;
+          if (!key || key.toLowerCase() === "original name") continue;
 
-          if (typeof v === 'string') {
+          if (typeof v === "string") {
             const canonical = v.trim();
-            if (canonical && canonical.toLowerCase() !== 'target name') {
+            if (canonical && canonical.toLowerCase() !== "target name") {
               newCharacters[key] = { canonical, aliases: [] };
             }
-          } else if (v && typeof v === 'object') {
+          } else if (v && typeof v === "object") {
             const obj = v as any;
             const canonical = String(obj.canonical || obj.name || key).trim();
-            if (canonical && canonical.toLowerCase() !== 'target name') {
+            if (canonical && canonical.toLowerCase() !== "target name") {
               const aliases = Array.isArray(obj.aliases)
-                ? obj.aliases.map((a: unknown) => String(a).trim()).filter(Boolean)
+                ? obj.aliases
+                    .map((a: unknown) => String(a).trim())
+                    .filter(Boolean)
                 : [];
               newCharacters[key] = {
                 canonical,
-                aliases: aliases.filter((a: string) => a.toLowerCase() !== 'new_alias'),
+                aliases: aliases.filter(
+                  (a: string) => a.toLowerCase() !== "new_alias",
+                ),
               };
             }
           }
@@ -533,16 +589,19 @@ Guidelines for new_characters and new_terms:
       const newTerms: Record<string, string> = {};
       if (
         parsed.new_terms &&
-        typeof parsed.new_terms === 'object' &&
+        typeof parsed.new_terms === "object" &&
         !Array.isArray(parsed.new_terms)
       ) {
         for (const [k, v] of Object.entries(parsed.new_terms)) {
           const key = k.trim();
-          const val = typeof v === 'string' ? v.trim() : '';
+          const val = typeof v === "string" ? v.trim() : "";
           if (
             key &&
             val &&
-            !(key.toLowerCase() === 'term' && val.toLowerCase() === 'translation')
+            !(
+              key.toLowerCase() === "term" &&
+              val.toLowerCase() === "translation"
+            )
           ) {
             newTerms[key] = val;
           }
@@ -552,20 +611,25 @@ Guidelines for new_characters and new_terms:
       return {
         success: true,
         corrections,
-        newCharacters: Object.keys(newCharacters).length > 0 ? newCharacters : undefined,
+        newCharacters:
+          Object.keys(newCharacters).length > 0 ? newCharacters : undefined,
         newTerms: Object.keys(newTerms).length > 0 ? newTerms : undefined,
       };
     } catch (err: any) {
-      this.logger.warn('LLM Translation', 'Supervisor Review LLM call failed:', err);
+      this.logger.warn(
+        "LLM Translation",
+        "Supervisor Review LLM call failed:",
+        err,
+      );
       return { success: false, error: err.message };
     }
   }
 
   async checkHealth(): Promise<HealthCheckResult> {
     try {
-      const translatorClient = this.llmService.getClient('translator');
+      const translatorClient = await this.llmService.getClient("translator");
       const translatorRes = await translatorClient.checkConnection();
-      const supervisorClient = this.llmService.getClient('supervisor');
+      const supervisorClient = await this.llmService.getClient("supervisor");
       const supervisorRes = await supervisorClient.checkConnection();
       return {
         ok: translatorRes.ok && supervisorRes.ok,
@@ -574,7 +638,7 @@ Guidelines for new_characters and new_terms:
           `Connected (${translatorRes.models?.length || 0} models available)`,
       };
     } catch (e: any) {
-      return { ok: false, message: e.message || 'Connection check failed' };
+      return { ok: false, message: e.message || "Connection check failed" };
     }
   }
 }

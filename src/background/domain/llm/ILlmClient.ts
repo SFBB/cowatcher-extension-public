@@ -1,7 +1,7 @@
-import { LLMProvider } from '@shared/domain/entities/PipelineTypes';
+import { LLMProvider } from "@shared/domain/entities/PipelineTypes";
 
 export interface LlmChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
@@ -20,7 +20,7 @@ export interface LlmConnectionTestResult {
   keyInfo?: Record<string, unknown>;
 }
 
-import { LlmRole, AiCapability } from './LlmRole';
+import { LlmRole, AiCapability } from "./LlmRole";
 
 /**
  * Driver interface for specific LLM Providers (e.g. Ollama, OpenRouter).
@@ -31,7 +31,11 @@ export interface ILlmClient {
   readonly role: LlmRole;
   readonly model: string;
 
-  chat(request: Omit<LlmChatRequest, 'model'> & { model?: string }): Promise<string>;
+  init(): Promise<void>;
+
+  chat(
+    request: Omit<LlmChatRequest, "model"> & { model?: string },
+  ): Promise<string>;
 
   getCapability(): Promise<AiCapability>;
 

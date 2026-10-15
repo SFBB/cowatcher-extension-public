@@ -4,17 +4,20 @@
  * Dispatches chat calls by role without exposing provider/credentials to callers.
  */
 
-import { OpenRouterModelItem } from '@shared/types/Messages';
-import { DEFAULT_SETTINGS, ExtensionSettings } from '@shared/domain/constants/SettingsDefaults';
-import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
-import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
-import { IBrowserStorage } from '@shared/infrastructure/storage/IBrowserStorage';
-import { LLMProvider } from '@shared/domain/entities/PipelineTypes';
-import { LlmRole, AiCapability } from '../../domain/llm/LlmRole';
-import { ILlmClient, LlmChatMessage } from '../../domain/llm/ILlmClient';
-import { LlmClientFactory } from '../../infrastructure/llm/LlmClientFactory';
-import { OllamaClient } from '../../infrastructure/llm/OllamaClient';
-import { OpenRouterClient } from '../../infrastructure/llm/OpenRouterClient';
+import { OpenRouterModelItem } from "@shared/types/Messages";
+import {
+  DEFAULT_SETTINGS,
+  ExtensionSettings,
+} from "@shared/domain/constants/SettingsDefaults";
+import { NCW_STORAGE_KEYS } from "@shared/domain/constants/StorageKeys";
+import { BrowserStorageFactory } from "@shared/infrastructure/storage/BrowserStorageFactory";
+import { IBrowserStorage } from "@shared/infrastructure/storage/IBrowserStorage";
+import { LLMProvider } from "@shared/domain/entities/PipelineTypes";
+import { LlmRole, AiCapability } from "../../domain/llm/LlmRole";
+import { ILlmClient, LlmChatMessage } from "../../domain/llm/ILlmClient";
+import { LlmClientFactory } from "../../infrastructure/llm/LlmClientFactory";
+import { OllamaClient } from "../../infrastructure/llm/OllamaClient";
+import { OpenRouterClient } from "../../infrastructure/llm/OpenRouterClient";
 
 export interface LlmRoleChatParams {
   messages: LlmChatMessage[];
@@ -27,7 +30,7 @@ export class LlmService {
   private static instance: LlmService | null = null;
   private storage: IBrowserStorage;
 
-  private activeProvider: LLMProvider = 'ollama';
+  private activeProvider: LLMProvider = "ollama";
   private translatorModel: string = DEFAULT_SETTINGS.ollamaModel;
   private supervisorModel: string = DEFAULT_SETTINGS.supervisorModel;
   private enableSupervisor: boolean = DEFAULT_SETTINGS.enableSupervisor;
@@ -35,18 +38,30 @@ export class LlmService {
   private translatorClient: ILlmClient | null = null;
   private supervisorClient: ILlmClient | null = null;
 
-  private constructor(storage: IBrowserStorage = BrowserStorageFactory.getStorage()) {
+  private initialized: boolean = false;
+
+  private constructor(
+    storage: IBrowserStorage = BrowserStorageFactory.getStorage(),
+  ) {
     this.storage = storage;
-    this.initClientsFromSettings(DEFAULT_SETTINGS);
-    this.initFromStorage();
+  }
+
+  async init(): Promise<void> {
+    if (this.initialized) return;
+
+    await this.initClientsFromSettings(DEFAULT_SETTINGS);
+    await this.initFromStorage();
 
     this.storage.onChanged((changes) => {
       if (changes[NCW_STORAGE_KEYS.SETTINGS]?.newValue) {
         this.updateFromSettings(
-          changes[NCW_STORAGE_KEYS.SETTINGS].newValue as Partial<ExtensionSettings>
+          changes[NCW_STORAGE_KEYS.SETTINGS]
+            .newValue as Partial<ExtensionSettings>,
         );
       }
     });
+
+    this.initialized = true;
   }
 
   static getInstance(storage?: IBrowserStorage): LlmService {
@@ -57,22 +72,22 @@ export class LlmService {
   }
 
   private resolveProvider(rawProvider?: string): LLMProvider {
-    return rawProvider === 'openrouter' ? 'openrouter' : 'ollama';
+    return rawProvider === "openrouter" ? "openrouter" : "ollama";
   }
 
   private resolveModels(
     provider: LLMProvider,
-    settings: Partial<ExtensionSettings>
+    settings: Partial<ExtensionSettings>,
   ): { translatorModel: string; supervisorModel: string } {
-    if (provider === 'openrouter') {
+    if (provider === "openrouter") {
       const translatorModel =
         settings.openrouterTranslationModel?.trim() ||
         DEFAULT_SETTINGS.openrouterTranslationModel ||
-        'deepseek/deepseek-chat';
+        "deepseek/deepseek-chat";
       const supervisorModel =
         settings.openrouterSupervisorModel?.trim() ||
         DEFAULT_SETTINGS.openrouterSupervisorModel ||
-        'google/gemini-2.5-flash';
+        "google/gemini-2.5-flash";
       return { translatorModel, supervisorModel };
     }
 
@@ -80,58 +95,69 @@ export class LlmService {
       settings.translationModel?.trim() ||
       settings.ollamaModel?.trim() ||
       DEFAULT_SETTINGS.ollamaModel ||
-      'translategemma:4b';
+      "translategemma:4b";
     const supervisorModel =
       settings.supervisorModel?.trim() ||
       settings.ollamaModel?.trim() ||
       DEFAULT_SETTINGS.supervisorModel ||
-      'translategemma:4b';
+      "translategemma:4b";
 
     return { translatorModel, supervisorModel };
   }
 
-  private initClientsFromSettings(settings: Partial<ExtensionSettings>): void {
+  private async initClientsFromSettings(
+    settings: Partial<ExtensionSettings>,
+  ): Promise<void> {
     const provider = this.resolveProvider(settings.aiProvider);
-    const { translatorModel, supervisorModel } = this.resolveModels(provider, settings);
+    const { translatorModel, supervisorModel } = this.resolveModels(
+      provider,
+      settings,
+    );
     const enableSupervisor =
-      settings.enableSupervisor !== undefined ? settings.enableSupervisor : this.enableSupervisor;
+      settings.enableSupervisor !== undefined
+        ? settings.enableSupervisor
+        : this.enableSupervisor;
 
     this.activeProvider = provider;
     this.translatorModel = translatorModel;
     this.supervisorModel = supervisorModel;
     this.enableSupervisor = enableSupervisor;
 
-    this.translatorClient = LlmClientFactory.createClient(
+    this.translatorClient = await LlmClientFactory.getOrCreateClient(
       this.activeProvider,
-      'translator',
-      this.translatorModel
+      "translator",
+      this.translatorModel,
     );
-    this.supervisorClient = LlmClientFactory.createClient(
+    this.supervisorClient = await LlmClientFactory.getOrCreateClient(
       this.activeProvider,
-      'supervisor',
-      this.supervisorModel
+      "supervisor",
+      this.supervisorModel,
     );
   }
 
   async initFromStorage(): Promise<void> {
-    const res = await this.storage.get<Partial<ExtensionSettings>>([NCW_STORAGE_KEYS.SETTINGS]);
+    const res = await this.storage.get<Partial<ExtensionSettings>>([
+      NCW_STORAGE_KEYS.SETTINGS,
+    ]);
     if (res?.[NCW_STORAGE_KEYS.SETTINGS]) {
       this.updateFromSettings(res[NCW_STORAGE_KEYS.SETTINGS]);
     }
   }
 
-  updateFromSettings(settings: Partial<ExtensionSettings>): void {
+  async updateFromSettings(
+    settings: Partial<ExtensionSettings>,
+  ): Promise<void> {
     if (!settings) return;
 
     const newProvider = settings.aiProvider
       ? this.resolveProvider(settings.aiProvider)
       : this.activeProvider;
-    const { translatorModel: newTransModel, supervisorModel: newSupModel } = this.resolveModels(
-      newProvider,
-      settings
-    );
+    const { translatorModel: newTransModel, supervisorModel: newSupModel } =
+      this.resolveModels(newProvider, settings);
     const newEnableSupervisor =
-      settings.enableSupervisor !== undefined ? settings.enableSupervisor : this.enableSupervisor;
+      settings.enableSupervisor !== undefined
+        ? settings.enableSupervisor
+        : this.enableSupervisor;
 
     const providerChanged = newProvider !== this.activeProvider;
     const transModelChanged = newTransModel !== this.translatorModel;
@@ -143,18 +169,18 @@ export class LlmService {
     this.enableSupervisor = newEnableSupervisor;
 
     if (providerChanged || transModelChanged || !this.translatorClient) {
-      this.translatorClient = LlmClientFactory.createClient(
+      this.translatorClient = await LlmClientFactory.getOrCreateClient(
         this.activeProvider,
-        'translator',
-        this.translatorModel
+        "translator",
+        this.translatorModel,
       );
     }
 
     if (providerChanged || supModelChanged || !this.supervisorClient) {
-      this.supervisorClient = LlmClientFactory.createClient(
+      this.supervisorClient = await LlmClientFactory.getOrCreateClient(
         this.activeProvider,
-        'supervisor',
-        this.supervisorModel
+        "supervisor",
+        this.supervisorModel,
       );
     }
   }
@@ -163,30 +189,30 @@ export class LlmService {
     return this.activeProvider;
   }
 
-  getClient(role: LlmRole): ILlmClient {
-    if (role === 'supervisor') {
+  async getClient(role: LlmRole): Promise<ILlmClient> {
+    if (role === "supervisor") {
       if (!this.supervisorClient) {
-        this.supervisorClient = LlmClientFactory.createClient(
+        this.supervisorClient = await LlmClientFactory.getOrCreateClient(
           this.activeProvider,
-          'supervisor',
-          this.supervisorModel
+          "supervisor",
+          this.supervisorModel,
         );
       }
       return this.supervisorClient;
     }
 
     if (!this.translatorClient) {
-      this.translatorClient = LlmClientFactory.createClient(
+      this.translatorClient = await LlmClientFactory.getOrCreateClient(
         this.activeProvider,
-        'translator',
-        this.translatorModel
+        "translator",
+        this.translatorModel,
       );
     }
     return this.translatorClient;
   }
 
   async callChat(role: LlmRole, params: LlmRoleChatParams): Promise<string> {
-    const client = this.getClient(role);
+    const client = await this.getClient(role);
     return await client.chat({
       messages: params.messages,
       temperature: params.temperature,
@@ -198,30 +224,45 @@ export class LlmService {
   async getAiCapability(role?: LlmRole): Promise<AiCapability> {
     // If specific role requested, query that client directly
     if (role) {
-      return await this.getClient(role).getCapability();
+      const client = await this.getClient(role);
+      return await client.getCapability();
     }
 
     // Default resolution order: supervisor if enabled, otherwise translator
     if (this.enableSupervisor) {
-      const supCap = await this.getClient('supervisor').getCapability();
+      const client = await this.getClient("supervisor");
+      const supCap = await client.getCapability();
       if (supCap.hasAi) {
         return supCap;
       }
     }
 
-    return await this.getClient('translator').getCapability();
+    const client = await this.getClient("translator");
+    return await client.getCapability();
   }
 
   // --- Utility & Connection Check methods for popup/options presentation ---
 
   async checkOllamaConnection(): Promise<{ models: string[] }> {
-    const client = new OllamaClient('translator', this.translatorModel, this.storage);
+    const client = new OllamaClient(
+      "translator",
+      this.translatorModel,
+      this.storage,
+    );
+    await client.init();
     const res = await client.checkConnection();
     return { models: res.models || [] };
   }
 
-  async fetchOpenRouterModels(forceRefresh: boolean = false): Promise<OpenRouterModelItem[]> {
-    const client = new OpenRouterClient('translator', this.translatorModel, this.storage);
+  async fetchOpenRouterModels(
+    forceRefresh: boolean = false,
+  ): Promise<OpenRouterModelItem[]> {
+    const client = new OpenRouterClient(
+      "translator",
+      this.translatorModel,
+      this.storage,
+    );
+    await client.init();
     return await client.fetchModels(forceRefresh);
   }
 
@@ -229,7 +270,12 @@ export class LlmService {
     keyInfo: Record<string, unknown>;
     models: OpenRouterModelItem[];
   }> {
-    const client = new OpenRouterClient('translator', this.translatorModel, this.storage);
+    const client = new OpenRouterClient(
+      "translator",
+      this.translatorModel,
+      this.storage,
+    );
+    await client.init();
     const res = await client.checkConnection();
     const models = await client.fetchModels(true);
 

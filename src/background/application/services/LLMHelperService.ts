@@ -4,20 +4,36 @@
  * Handles AI-powered glossary extraction from bilingual or monolingual reference materials.
  */
 
-import { ILLMHelperService, ExtractedGlossaryResult } from '../../domain/llm/ILLMHelperService';
-import { LlmService } from './LlmService';
-import { CharacterGlossaryMap, TermGlossaryMap } from '@shared/domain/entities/Glossary';
-import { Logger } from '@shared/utils/logger';
-import { LanguageInfo } from '@shared/domain/value-objects/Language';
-import { AiCapability } from '../../domain/llm/LlmRole';
+import {
+  ILLMHelperService,
+  ExtractedGlossaryResult,
+} from "../../domain/llm/ILLMHelperService";
+import { LlmService } from "./LlmService";
+import {
+  CharacterGlossaryMap,
+  TermGlossaryMap,
+} from "@shared/domain/entities/Glossary";
+import { Logger } from "@shared/utils/logger";
+import { LanguageInfo } from "@shared/domain/value-objects/Language";
+import { AiCapability } from "../../domain/llm/LlmRole";
 
 export class LLMHelperService implements ILLMHelperService {
   private static instance: LLMHelperService | null = null;
   private readonly llmService: LlmService;
-  private logger: Logger = new Logger('LLMHelperService');
+  private logger: Logger = new Logger("LLMHelperService");
+
+  private initialized: boolean = false;
 
   private constructor(llmService: LlmService = LlmService.getInstance()) {
     this.llmService = llmService;
+  }
+
+  async init(): Promise<void> {
+    if (this.initialized) return;
+
+    await this.llmService.init();
+
+    this.initialized = true;
   }
 
   static getInstance(llmService?: LlmService): LLMHelperService {
@@ -46,7 +62,7 @@ export class LLMHelperService implements ILLMHelperService {
     const { sourceText, targetText, targetLang, signal } = params;
     const capability = await this.getAiCapability();
     if (!capability.hasAi) {
-      throw new Error('AI Provider (Ollama or OpenRouter) is not configured.');
+      throw new Error("AI Provider (Ollama or OpenRouter) is not configured.");
     }
 
     const resolvedTargetLang = targetLang.promptName;
@@ -78,10 +94,10 @@ ${sourceText.slice(0, 10000)}
 === TARGET REFERENCE MATERIAL (${resolvedTargetLang}) ===
 ${targetText.slice(0, 10000)}`;
 
-    const raw = await this.llmService.callChat('supervisor', {
+    const raw = await this.llmService.callChat("supervisor", {
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       temperature: 0.1,
       jsonMode: true,
@@ -102,7 +118,7 @@ ${targetText.slice(0, 10000)}`;
     const { sourceText, targetLang, signal } = params;
     const capability = await this.getAiCapability();
     if (!capability.hasAi) {
-      throw new Error('AI Provider (Ollama or OpenRouter) is not configured.');
+      throw new Error("AI Provider (Ollama or OpenRouter) is not configured.");
     }
 
     const resolvedTargetLang = targetLang.promptName;
@@ -131,10 +147,10 @@ ${sourceText.slice(0, 12000)}
 
 Target Language: ${resolvedTargetLang}`;
 
-    const raw = await this.llmService.callChat('supervisor', {
+    const raw = await this.llmService.callChat("supervisor", {
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       temperature: 0.2,
       jsonMode: true,
@@ -146,13 +162,16 @@ Target Language: ${resolvedTargetLang}`;
 
   private parseAndSanitizeResult(rawText: string): ExtractedGlossaryResult {
     const cleanText = rawText
-      .replace(/<think[\s\S]*?<\/think>/gi, '')
-      .replace(/<thought[\s\S]*?<\/thought>/gi, '')
+      .replace(/<think[\s\S]*?<\/think>/gi, "")
+      .replace(/<thought[\s\S]*?<\/thought>/gi, "")
       .trim();
 
     const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      this.logger.warn('Failed to parse JSON from AI Helper extraction output:', cleanText.slice(0, 300));
+      this.logger.warn(
+        "Failed to parse JSON from AI Helper extraction output:",
+        cleanText.slice(0, 300),
+      );
       return { characters: {}, terms: {} };
     }
 
@@ -161,25 +180,27 @@ Target Language: ${resolvedTargetLang}`;
       const characters: CharacterGlossaryMap = {};
       const terms: TermGlossaryMap = {};
 
-      if (parsed.characters && typeof parsed.characters === 'object') {
+      if (parsed.characters && typeof parsed.characters === "object") {
         for (const [name, val] of Object.entries(parsed.characters)) {
           if (!name.trim()) continue;
-          if (typeof val === 'string') {
+          if (typeof val === "string") {
             characters[name.trim()] = { canonical: val.trim(), aliases: [] };
-          } else if (val && typeof val === 'object') {
+          } else if (val && typeof val === "object") {
             const charObj = val as any;
             const canonical = (charObj.canonical || name).trim();
             const aliases = Array.isArray(charObj.aliases)
-              ? charObj.aliases.map((a: string) => String(a).trim()).filter(Boolean)
+              ? charObj.aliases
+                  .map((a: string) => String(a).trim())
+                  .filter(Boolean)
               : [];
             characters[name.trim()] = { canonical, aliases };
           }
         }
       }
 
-      if (parsed.terms && typeof parsed.terms === 'object') {
+      if (parsed.terms && typeof parsed.terms === "object") {
         for (const [src, tgt] of Object.entries(parsed.terms)) {
-          if (src.trim() && typeof tgt === 'string' && tgt.trim()) {
+          if (src.trim() && typeof tgt === "string" && tgt.trim()) {
             terms[src.trim()] = tgt.trim();
           }
         }
@@ -187,7 +208,10 @@ Target Language: ${resolvedTargetLang}`;
 
       return { characters, terms };
     } catch (err: any) {
-      this.logger.error('Error parsing JSON from LLM Helper:', err?.message || String(err));
+      this.logger.error(
+        "Error parsing JSON from LLM Helper:",
+        err?.message || String(err),
+      );
       return { characters: {}, terms: {} };
     }
   }

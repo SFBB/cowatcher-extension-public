@@ -1,5 +1,8 @@
-import { CharacterGlossaryMap, TermGlossaryMap } from '@shared/domain/entities/Glossary';
-import { LanguageInfo } from '@shared/domain/value-objects/Language';
+import {
+  CharacterGlossaryMap,
+  TermGlossaryMap,
+} from "@shared/domain/entities/Glossary";
+import { LanguageInfo } from "@shared/domain/value-objects/Language";
 
 export interface ExtractedGlossaryResult {
   characters: CharacterGlossaryMap;
@@ -7,6 +10,8 @@ export interface ExtractedGlossaryResult {
 }
 
 export interface ILLMHelperService {
+  init(): Promise<void>;
+
   /**
    * Mode 1: Extract characters and terminology aligned across bilingual source and target reference texts.
    */

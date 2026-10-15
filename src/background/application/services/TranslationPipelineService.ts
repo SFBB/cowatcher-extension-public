@@ -3,19 +3,23 @@
  * Dual-model subtitle translation & supervisor review pipeline coordinator.
  */
 
-import { TranslateCueItem, ReviewCueItem, PrecedingContextItem } from '@shared/types/Messages';
-import { ContextDTO } from '@shared/domain/entities/Context';
-import { TranslationProvider } from '@shared/domain/entities/PipelineTypes';
-import { GlossaryService } from './GlossaryService';
-import { LlmService } from './LlmService';
-import { ITrackCacheRepository } from '@shared/domain/repositories/ITrackCacheRepository';
-import { TrackCacheRepositoryFactory } from '../../infrastructure/cache/TrackCacheRepositoryFactory';
-import { TranslatorRegistry } from '../../domain/translation/TranslatorRegistry';
-import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
-import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
-import { ExtensionSettings } from '@shared/domain/constants/SettingsDefaults';
-import { Language, LanguageInfo } from '@shared/domain/value-objects/Language';
-import { Logger } from '@shared/utils/logger';
+import {
+  TranslateCueItem,
+  ReviewCueItem,
+  PrecedingContextItem,
+} from "@shared/types/Messages";
+import { ContextDTO } from "@shared/domain/entities/Context";
+import { TranslationProvider } from "@shared/domain/entities/PipelineTypes";
+import { GlossaryService } from "./GlossaryService";
+import { LlmService } from "./LlmService";
+import { ITrackCacheRepository } from "@shared/domain/repositories/ITrackCacheRepository";
+import { TrackCacheRepositoryFactory } from "../../infrastructure/cache/TrackCacheRepositoryFactory";
+import { TranslatorRegistry } from "../../domain/translation/TranslatorRegistry";
+import { BrowserStorageFactory } from "@shared/infrastructure/storage/BrowserStorageFactory";
+import { NCW_STORAGE_KEYS } from "@shared/domain/constants/StorageKeys";
+import { ExtensionSettings } from "@shared/domain/constants/SettingsDefaults";
+import { Language, LanguageInfo } from "@shared/domain/value-objects/Language";
+import { Logger } from "@shared/utils/logger";
 
 interface QueueTask<T> {
   taskFn: () => Promise<T>;
@@ -64,7 +68,7 @@ class PipelineTaskQueue {
     const pending = this.queue;
     this.queue = [];
     for (const item of pending) {
-      item.reject(new Error('Pipeline task queue cleared'));
+      item.reject(new Error("Pipeline task queue cleared"));
     }
   }
 }
@@ -79,10 +83,10 @@ export class TranslationPipelineService {
 
   private currentActiveAbortController: AbortController | null = null;
   private isCurrentTaskUrgent: boolean = false;
-  private activeProvider: TranslationProvider = 'google';
+  private activeProvider: TranslationProvider = "google";
   private targetLanguage: LanguageInfo = Language.DEFAULT;
 
-  private logger: Logger = new Logger('TranslationPipelineService');
+  private logger: Logger = new Logger("TranslationPipelineService");
 
   private constructor() {
     this.translationQueue = new PipelineTaskQueue(1);
@@ -90,29 +94,36 @@ export class TranslationPipelineService {
     this.glossaryService = GlossaryService.getInstance();
     this.llmService = LlmService.getInstance();
     this.cacheRepository = TrackCacheRepositoryFactory.getRepository();
+  }
+
+  async init(): Promise<void> {
+    await this.llmService.init();
 
     const storage = BrowserStorageFactory.getStorage();
-    storage.get<Partial<ExtensionSettings>>([NCW_STORAGE_KEYS.SETTINGS]).then((res) => {
-      const s = res[NCW_STORAGE_KEYS.SETTINGS];
-      if (s?.aiProvider) this.activeProvider = s.aiProvider;
-      if (s?.targetLanguage) this.targetLanguage = s.targetLanguage;
-    });
+    storage
+      .get<Partial<ExtensionSettings>>([NCW_STORAGE_KEYS.SETTINGS])
+      .then((res) => {
+        const s = res[NCW_STORAGE_KEYS.SETTINGS];
+        if (s?.aiProvider) this.activeProvider = s.aiProvider;
+        if (s?.targetLanguage) this.targetLanguage = s.targetLanguage;
+      });
 
     storage.onChanged((changes) => {
       if (changes[NCW_STORAGE_KEYS.SETTINGS]?.newValue) {
-        const s = changes[NCW_STORAGE_KEYS.SETTINGS].newValue as Partial<ExtensionSettings>;
+        const s = changes[NCW_STORAGE_KEYS.SETTINGS]
+          .newValue as Partial<ExtensionSettings>;
         if (s.aiProvider && s.aiProvider !== this.activeProvider) {
           this.logger.info(
-            'Translation',
-            `Active provider changed from ${this.activeProvider} to ${s.aiProvider}`
+            "Translation",
+            `Active provider changed from ${this.activeProvider} to ${s.aiProvider}`,
           );
           this.activeProvider = s.aiProvider;
           this.clearQueues();
         }
         if (s.targetLanguage && s.targetLanguage !== this.targetLanguage) {
           this.logger.info(
-            'Translation',
-            `Target language changed from ${this.targetLanguage} to ${s.targetLanguage}`
+            "Translation",
+            `Target language changed from ${this.targetLanguage} to ${s.targetLanguage}`,
           );
           this.targetLanguage = s.targetLanguage;
           this.clearQueues();
@@ -137,12 +148,15 @@ export class TranslationPipelineService {
   }
 
   clearQueues(): void {
-    this.logger.info('Translation', 'Clearing pending translation and supervisor queues.');
+    this.logger.info(
+      "Translation",
+      "Clearing pending translation and supervisor queues.",
+    );
     this.translationQueue.clear();
     this.supervisorQueue.clear();
     if (this.currentActiveAbortController) {
       try {
-        this.currentActiveAbortController.abort('Queues get cleaned');
+        this.currentActiveAbortController.abort("Queues get cleaned");
       } catch {
         // Ignore
       }
@@ -164,7 +178,11 @@ export class TranslationPipelineService {
     showSummary?: string;
     episodeNumber?: string;
     episodeSummary?: string;
-  }): Promise<{ success: boolean; context: ContextDTO | null; cached: boolean }> {
+  }): Promise<{
+    success: boolean;
+    context: ContextDTO | null;
+    cached: boolean;
+  }> {
     return this.supervisorQueue.enqueue(async () => {
       const {
         title,
@@ -186,11 +204,11 @@ export class TranslationPipelineService {
       }
 
       const episode = {
-        seasonId: seasonId || 'unknown',
+        seasonId: seasonId || "unknown",
         videoId,
         episodeNumber,
         title,
-        synopsis: episodeSummary || 'unknown',
+        synopsis: episodeSummary || "unknown",
       };
 
       const ctx = await this.glossaryService.getOrCreateContext({
@@ -220,7 +238,7 @@ export class TranslationPipelineService {
       }
 
       // 2. For Google Translate, skip LLM warmup
-      if (this.activeProvider === 'google') {
+      if (this.activeProvider === "google") {
         const updated = await this.glossaryService.updateWarmupContext({
           showId,
           targetLanguage: this.targetLanguage,
@@ -302,13 +320,24 @@ export class TranslationPipelineService {
     movieId?: string;
     mainTitle?: string;
     urgent?: boolean;
-  }): Promise<{ success: boolean; results?: Record<number, string>; error?: string }> {
+  }): Promise<{
+    success: boolean;
+    results?: Record<number, string>;
+    error?: string;
+  }> {
     const isUrgent = Boolean(params.urgent);
 
-    if (isUrgent && this.currentActiveAbortController && !this.isCurrentTaskUrgent) {
-      this.logger.info('Translation', 'Aborting non-urgent prefetch for urgent Seek Burst...');
+    if (
+      isUrgent &&
+      this.currentActiveAbortController &&
+      !this.isCurrentTaskUrgent
+    ) {
+      this.logger.info(
+        "Translation",
+        "Aborting non-urgent prefetch for urgent Seek Burst...",
+      );
       try {
-        this.currentActiveAbortController.abort('Urgent tasks happen!');
+        this.currentActiveAbortController.abort("Urgent tasks happen!");
       } catch {
         // Ignore
       }
@@ -321,18 +350,29 @@ export class TranslationPipelineService {
       const signal = this.currentActiveAbortController.signal;
 
       try {
-        const { items, contextItems = [], trackHash, showId, movieId, mainTitle } = params;
+        const {
+          items,
+          contextItems = [],
+          trackHash,
+          showId,
+          movieId,
+          mainTitle,
+        } = params;
         if (!items || items.length === 0) return { success: true, results: {} };
 
         // If there is not a show id, which means we will not persist this context, which means even we give a temporaray one, it still has no meaning. So we don't give any context currently.
         // If we find some platform without a valid show id, we will consider to give some temporaray one.
         // But right now, we don't support it.
         const ctx = showId
-          ? await this.glossaryService.getContextForShow(showId, this.targetLanguage)
+          ? await this.glossaryService.getContextForShow(
+              showId,
+              this.targetLanguage,
+            )
           : null;
 
         const activeProvider: TranslationProvider = this.activeProvider;
-        const translator = TranslatorRegistry.getTranslator(activeProvider);
+        const translator =
+          await TranslatorRegistry.getTranslator(activeProvider);
 
         const response = await translator.translateBatch({
           items,
@@ -344,7 +384,10 @@ export class TranslationPipelineService {
         });
 
         if (!response.success || !response.results) {
-          return { success: false, error: response.error || 'Translation failed' };
+          return {
+            success: false,
+            error: response.error || "Translation failed",
+          };
         }
 
         const resultMap = response.results;
@@ -352,22 +395,24 @@ export class TranslationPipelineService {
         // Cache translated cues
         if (trackHash && Object.keys(resultMap).length > 0) {
           const activeTranslationModel =
-            activeProvider === 'google' ? 'google' : this.llmService.getClient('translator').model;
+            activeProvider === "google"
+              ? "google"
+              : (await this.llmService.getClient("translator")).model;
 
           if (movieId) {
             this.cacheRepository
               .saveTranslatedCues({
                 trackHash,
                 movieId: movieId,
-                showTitle: ctx?.mainTitle || ctx?.title || mainTitle || '',
+                showTitle: ctx?.mainTitle || ctx?.title || mainTitle || "",
                 targetLanguage: this.targetLanguage.promptName,
                 provider: activeProvider,
                 translationModel: activeTranslationModel,
-                supervisorModel: 'none',
+                supervisorModel: "none",
                 items,
                 results: resultMap,
               })
-              .catch((e) => this.logger.warn('Translation', e));
+              .catch((e) => this.logger.warn("Translation", e));
           }
         }
 
@@ -396,7 +441,7 @@ export class TranslationPipelineService {
     showId?: string;
     movieId?: string;
     mainTitle?: string;
-    status?: 'reviewed' | 'pre_reviewed';
+    status?: "reviewed" | "pre_reviewed";
   }): Promise<{
     success: boolean;
     corrections?: Record<number, string>;
@@ -412,11 +457,14 @@ export class TranslationPipelineService {
         showId,
         movieId,
         mainTitle,
-        status = 'reviewed',
+        status = "reviewed",
       } = params;
 
       let ctx = showId
-        ? await this.glossaryService.getContextForShow(showId, this.targetLanguage)
+        ? await this.glossaryService.getContextForShow(
+            showId,
+            this.targetLanguage,
+          )
         : null;
 
       if (!items || items.length === 0) {
@@ -426,11 +474,11 @@ export class TranslationPipelineService {
       const activeProvider: TranslationProvider = this.activeProvider;
 
       // For Google Translate (or providers with no supervisor), return raw translations immediately
-      if (activeProvider === 'google') {
+      if (activeProvider === "google") {
         return { success: true, corrections: {}, updatedContext: ctx?.toDTO() };
       }
 
-      const translator = TranslatorRegistry.getTranslator(activeProvider);
+      const translator = await TranslatorRegistry.getTranslator(activeProvider);
 
       try {
         const reviewRes = await translator.reviewBatch({
@@ -438,7 +486,7 @@ export class TranslationPipelineService {
             return {
               id: i.id,
               rawText: i.rawText,
-              transText: i.transText ?? '',
+              transText: i.transText ?? "",
             };
           }),
           contextItems,
@@ -451,9 +499,16 @@ export class TranslationPipelineService {
           return { success: false, error: reviewRes.error };
         }
 
-        const corrections = (reviewRes.corrections || {}) as Record<number, string>;
+        const corrections = (reviewRes.corrections || {}) as Record<
+          number,
+          string
+        >;
 
-        if (ctx && (reviewRes.newCharacters || reviewRes.newTerms) && ctx.showId) {
+        if (
+          ctx &&
+          (reviewRes.newCharacters || reviewRes.newTerms) &&
+          ctx.showId
+        ) {
           ctx = await this.glossaryService.updateWarmupContext({
             showId: ctx.showId,
             targetLanguage: this.targetLanguage,
@@ -471,16 +526,21 @@ export class TranslationPipelineService {
           for (const item of items) {
             const corrected = corrections[item.id];
             const finalText =
-              corrected && corrected.trim().length > 0 ? corrected.trim() : item.transText || '';
+              corrected && corrected.trim().length > 0
+                ? corrected.trim()
+                : item.transText || "";
             const used: Record<string, number> = {};
 
             for (const [k, v] of Object.entries(effectiveTerms)) {
-              if ((v && finalText.includes(v)) || (k && item.rawText && item.rawText.includes(k))) {
+              if (
+                (v && finalText.includes(v)) ||
+                (k && item.rawText && item.rawText.includes(k))
+              ) {
                 used[k] = ctx.getTermVersion(k);
               }
             }
             for (const [k, v] of Object.entries(effectiveChars)) {
-              const val = typeof v === 'string' ? v : v?.canonical || '';
+              const val = typeof v === "string" ? v : v?.canonical || "";
               if (
                 (val && finalText.includes(val)) ||
                 (k && item.rawText && item.rawText.includes(k))
@@ -497,15 +557,19 @@ export class TranslationPipelineService {
 
         // Save reviewed cues to cache
         if (trackHash && items.length > 0) {
-          const activeTranslationModel = this.llmService.getClient('translator').model;
-          const activeSupervisorModel = this.llmService.getClient('supervisor').model;
+          const activeTranslationModel = (
+            await this.llmService.getClient("translator")
+          ).model;
+          const activeSupervisorModel = (
+            await this.llmService.getClient("supervisor")
+          ).model;
 
           if (movieId) {
             this.cacheRepository
               .saveReviewedCues({
                 trackHash,
                 movieId: movieId,
-                showTitle: ctx?.mainTitle || ctx?.title || mainTitle || '',
+                showTitle: ctx?.mainTitle || ctx?.title || mainTitle || "",
                 targetLanguage: this.targetLanguage.promptName,
                 provider: activeProvider,
                 translationModel: activeTranslationModel,
@@ -519,7 +583,12 @@ export class TranslationPipelineService {
           }
         }
 
-        return { success: true, corrections, usedTermsMap, updatedContext: ctx?.toDTO() };
+        return {
+          success: true,
+          corrections,
+          usedTermsMap,
+          updatedContext: ctx?.toDTO(),
+        };
       } catch (err: any) {
         return { success: false, error: err.message };
       }
@@ -530,7 +599,12 @@ export class TranslationPipelineService {
     showId: string;
     targetLanguage: LanguageInfo;
     pairs: Array<{ originalText: string; translatedText: string }>;
-  }): Promise<{ success: boolean; charactersAdded: number; termsAdded: number; error?: string }> {
+  }): Promise<{
+    success: boolean;
+    charactersAdded: number;
+    termsAdded: number;
+    error?: string;
+  }> {
     const { showId, targetLanguage, pairs } = params;
     if (!pairs || pairs.length === 0) {
       return { success: true, charactersAdded: 0, termsAdded: 0 };
@@ -538,12 +612,12 @@ export class TranslationPipelineService {
 
     try {
       this.logger.info(
-        'Translation',
-        `Extracting terms from ${pairs.length} native bilingual dialogue pairs for show (${showId})`
+        "Translation",
+        `Extracting terms from ${pairs.length} native bilingual dialogue pairs for show (${showId})`,
       );
 
-      let sourceText = '';
-      let targetText = '';
+      let sourceText = "";
+      let targetText = "";
       for (const p of pairs) {
         if (!p.originalText || !p.translatedText) continue;
         sourceText += `${p.originalText}\n`;
@@ -555,8 +629,9 @@ export class TranslationPipelineService {
         return { success: true, charactersAdded: 0, termsAdded: 0 };
       }
 
-      const supervisorClient = this.llmService.getClient('supervisor');
-      const resolvedTargetLang = targetLanguage?.promptName || 'target language';
+      const supervisorClient = await this.llmService.getClient("supervisor");
+      const resolvedTargetLang =
+        targetLanguage?.promptName || "target language";
 
       const systemPrompt = `You are an expert bilingual subtitle translation supervisor and named-entity alignment assistant.
 Task: Analyze the provided source-language dialogue and authoritative target-language translation reference texts.
@@ -583,16 +658,16 @@ Output Requirements:
 
       const response = await supervisorClient.chat({
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
         ],
         jsonMode: true,
       });
 
-      const raw = (response || '').trim();
+      const raw = (response || "").trim();
       const cleanJson = raw
-        .replace(/^```json\s*/i, '')
-        .replace(/```\s*$/i, '')
+        .replace(/^```json\s*/i, "")
+        .replace(/```\s*$/i, "")
         .trim();
       const parsed = JSON.parse(cleanJson);
 
@@ -602,8 +677,8 @@ Output Requirements:
       const numTerms = Object.keys(terms).length;
 
       this.logger.info(
-        'Translation',
-        `Supervisor extracted ${numChars} characters and ${numTerms} terms from native subtitles.`
+        "Translation",
+        `Supervisor extracted ${numChars} characters and ${numTerms} terms from native subtitles.`,
       );
 
       if (numChars > 0 || numTerms > 0) {
@@ -617,8 +692,17 @@ Output Requirements:
 
       return { success: true, charactersAdded: numChars, termsAdded: numTerms };
     } catch (err: any) {
-      this.logger.warn('Translation', 'Failed to extract terms from native subtitles:', err);
-      return { success: false, charactersAdded: 0, termsAdded: 0, error: err?.message };
+      this.logger.warn(
+        "Translation",
+        "Failed to extract terms from native subtitles:",
+        err,
+      );
+      return {
+        success: false,
+        charactersAdded: 0,
+        termsAdded: 0,
+        error: err?.message,
+      };
     }
   }
 }

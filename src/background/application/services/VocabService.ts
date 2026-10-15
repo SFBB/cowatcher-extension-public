@@ -4,18 +4,22 @@
  * Maintains extractor configuration (target language, difficulty, model, provider) as internal state.
  */
 
-import { TranslateCueItem, EpisodeVocabData, VocabWordItem } from '@shared/types/Messages';
-import { ITrackCacheRepository } from '@shared/domain/repositories/ITrackCacheRepository';
-import { TrackCacheRepositoryFactory } from '../../infrastructure/cache/TrackCacheRepositoryFactory';
-import { LlmService } from './LlmService';
-import { ExtensionSettings, NCW_CONSTANTS } from '@shared/utils/constants';
-import { IBrowserStorage } from '@shared/infrastructure/storage/IBrowserStorage';
-import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
-import { ContentBackgroundBus } from '@shared/infrastructure/bus/ContentBackgroundBus';
-import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
-import { Language, LanguageInfo } from '@shared/domain/value-objects/Language';
-import { Logger } from '@shared/utils/logger';
-import { LLMProvider } from '@shared/domain/entities/PipelineTypes';
+import {
+  TranslateCueItem,
+  EpisodeVocabData,
+  VocabWordItem,
+} from "@shared/types/Messages";
+import { ITrackCacheRepository } from "@shared/domain/repositories/ITrackCacheRepository";
+import { TrackCacheRepositoryFactory } from "../../infrastructure/cache/TrackCacheRepositoryFactory";
+import { LlmService } from "./LlmService";
+import { ExtensionSettings, NCW_CONSTANTS } from "@shared/utils/constants";
+import { IBrowserStorage } from "@shared/infrastructure/storage/IBrowserStorage";
+import { BrowserStorageFactory } from "@shared/infrastructure/storage/BrowserStorageFactory";
+import { ContentBackgroundBus } from "@shared/infrastructure/bus/ContentBackgroundBus";
+import { NCW_STORAGE_KEYS } from "@shared/domain/constants/StorageKeys";
+import { Language, LanguageInfo } from "@shared/domain/value-objects/Language";
+import { Logger } from "@shared/utils/logger";
+import { LLMProvider } from "@shared/domain/entities/PipelineTypes";
 
 interface VocabTaskItem {
   taskFn: () => Promise<unknown>;
@@ -64,14 +68,14 @@ class VocabTaskQueue {
     const pending = this.queue;
     this.queue = [];
     for (const item of pending) {
-      item.reject(new Error('Vocab queue cleared'));
+      item.reject(new Error("Vocab queue cleared"));
     }
   }
 }
 
 export interface VocabServiceConfig {
   enabled: boolean;
-  sourceLanguage: LanguageInfo | 'auto';
+  sourceLanguage: LanguageInfo | "auto";
   targetLanguage: LanguageInfo;
   difficulty: string; // This should have a domain entity/vo
   customPrompt: string;
@@ -88,29 +92,42 @@ export class VocabService {
   private readonly cacheRepository: ITrackCacheRepository;
   private config: VocabServiceConfig;
 
-  private logger: Logger = new Logger('VocabService');
+  private logger: Logger = new Logger("VocabService");
 
-  private constructor(storage: IBrowserStorage = BrowserStorageFactory.getStorage()) {
+  private constructor(
+    storage: IBrowserStorage = BrowserStorageFactory.getStorage(),
+  ) {
     this.storage = storage;
     this.cacheRepository = TrackCacheRepositoryFactory.getRepository();
     this.queue = new VocabTaskQueue(1);
     this.llmService = LlmService.getInstance();
     this.config = {
       enabled: Boolean(NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorEnabled),
-      sourceLanguage: NCW_CONSTANTS.DEFAULT_SETTINGS.vocabSourceLanguage || 'auto',
-      targetLanguage: NCW_CONSTANTS.DEFAULT_SETTINGS.targetLanguage || Language.DEFAULT,
-      difficulty: NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorDifficulty || 'medium',
-      customPrompt: NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorCustomPrompt || '',
-      provider: NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorProvider || 'openrouter',
-      model: NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorModel || 'deepseek/deepseek-chat',
+      sourceLanguage:
+        NCW_CONSTANTS.DEFAULT_SETTINGS.vocabSourceLanguage || "auto",
+      targetLanguage:
+        NCW_CONSTANTS.DEFAULT_SETTINGS.targetLanguage || Language.DEFAULT,
+      difficulty:
+        NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorDifficulty || "medium",
+      customPrompt:
+        NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorCustomPrompt || "",
+      provider:
+        NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorProvider || "openrouter",
+      model:
+        NCW_CONSTANTS.DEFAULT_SETTINGS.vocabExtractorModel ||
+        "deepseek/deepseek-chat",
     };
+  }
 
-    this.initFromStorage();
+  async init(): Promise<void> {
+    await this.llmService.init();
+    await this.initFromStorage();
 
     this.storage.onChanged((changes) => {
       if (changes[NCW_STORAGE_KEYS.SETTINGS]?.newValue) {
         this.updateConfigFromSettings(
-          changes[NCW_STORAGE_KEYS.SETTINGS].newValue as Partial<ExtensionSettings>
+          changes[NCW_STORAGE_KEYS.SETTINGS]
+            .newValue as Partial<ExtensionSettings>,
         );
       }
     });
@@ -124,7 +141,9 @@ export class VocabService {
   }
 
   async initFromStorage(): Promise<void> {
-    const res = await this.storage.get<Partial<ExtensionSettings>>([NCW_STORAGE_KEYS.SETTINGS]);
+    const res = await this.storage.get<Partial<ExtensionSettings>>([
+      NCW_STORAGE_KEYS.SETTINGS,
+    ]);
     if (res && res[NCW_STORAGE_KEYS.SETTINGS]) {
       this.updateConfigFromSettings(res[NCW_STORAGE_KEYS.SETTINGS]);
     }
@@ -133,19 +152,23 @@ export class VocabService {
   updateConfigFromSettings(settings: Partial<ExtensionSettings>): void {
     if (!settings) return;
     const rawProvider =
-      settings.vocabExtractorProvider || settings.aiProvider || this.config.provider;
-    const provider: LLMProvider = rawProvider === 'openrouter' ? 'openrouter' : 'ollama';
+      settings.vocabExtractorProvider ||
+      settings.aiProvider ||
+      this.config.provider;
+    const provider: LLMProvider =
+      rawProvider === "openrouter" ? "openrouter" : "ollama";
     const model =
-      provider === 'openrouter'
-        ? settings.vocabExtractorModel || 'deepseek/deepseek-chat'
-        : settings.vocabExtractorOllamaModel || 'qwen2.5:7b';
+      provider === "openrouter"
+        ? settings.vocabExtractorModel || "deepseek/deepseek-chat"
+        : settings.vocabExtractorOllamaModel || "qwen2.5:7b";
 
     this.config = {
       enabled:
         settings.vocabExtractorEnabled !== undefined
           ? Boolean(settings.vocabExtractorEnabled)
           : this.config.enabled,
-      sourceLanguage: settings.vocabSourceLanguage || this.config.sourceLanguage,
+      sourceLanguage:
+        settings.vocabSourceLanguage || this.config.sourceLanguage,
       targetLanguage: settings.targetLanguage
         ? Language.resolve(settings.targetLanguage)
         : this.config.targetLanguage,
@@ -193,10 +216,10 @@ export class VocabService {
     movieId: string; // TODO: Show id?
     cues: TranslateCueItem[];
     showTitle: string;
-    sourceLanguage?: LanguageInfo | 'auto';
+    sourceLanguage?: LanguageInfo | "auto";
     trackHash?: string;
   }): Promise<void> {
-    const { movieId, cues, showTitle, sourceLanguage, trackHash = '' } = params;
+    const { movieId, cues, showTitle, sourceLanguage, trackHash = "" } = params;
 
     if (!this.config.enabled) return;
     if (!movieId || !cues || cues.length === 0) return;
@@ -216,12 +239,16 @@ export class VocabService {
       model,
     } = this.config;
     const resolvedInputSrc =
-      sourceLanguage && sourceLanguage !== 'auto' ? Language.resolve(sourceLanguage) : undefined;
-    const srcLang: LanguageInfo | 'auto' =
-      cfgSrcLang && cfgSrcLang !== 'auto' ? cfgSrcLang : resolvedInputSrc || 'auto';
+      sourceLanguage && sourceLanguage !== "auto"
+        ? Language.resolve(sourceLanguage)
+        : undefined;
+    const srcLang: LanguageInfo | "auto" =
+      cfgSrcLang && cfgSrcLang !== "auto"
+        ? cfgSrcLang
+        : resolvedInputSrc || "auto";
 
     const CHUNK_SIZE = 30;
-    const srcLangKey = typeof srcLang === 'object' ? srcLang.code : srcLang;
+    const srcLangKey = typeof srcLang === "object" ? srcLang.code : srcLang;
     for (let i = 0; i < cues.length; i += CHUNK_SIZE) {
       const chunk = cues.slice(i, i + CHUNK_SIZE);
       const chunkSig = `${chunk[0]?.id || i}_${chunk[chunk.length - 1]?.id || i}_${chunk.length}_${difficulty}_${srcLangKey}_${customPrompt.slice(0, 30)}`;
@@ -277,7 +304,7 @@ export class VocabService {
           return result;
         })
         .catch((e) => {
-          this.logger.warn('Vocabulary', 'Vocab queue task error:', e);
+          this.logger.warn("Vocabulary", "Vocab queue task error:", e);
         });
     }
   }
@@ -287,27 +314,34 @@ export class VocabService {
     options: {
       movieId: string;
       showTitle: string;
-      sourceLanguage: LanguageInfo | 'auto';
+      sourceLanguage: LanguageInfo | "auto";
       targetLanguage: LanguageInfo;
       difficulty: string;
       customPrompt: string;
       vocabExtractorProvider: LLMProvider;
       model: string;
-    }
+    },
   ): Promise<{ vocab: VocabWordItem[] }> {
-    const { movieId, showTitle, sourceLanguage, targetLanguage, difficulty, customPrompt, model } =
-      options;
+    const {
+      movieId,
+      showTitle,
+      sourceLanguage,
+      targetLanguage,
+      difficulty,
+      customPrompt,
+      model,
+    } = options;
 
     if (!cuesBatch || cuesBatch.length === 0) return { vocab: [] };
 
     const resolvedTargetLang = Language.resolve(targetLanguage).promptName;
     const resolvedSourceLang =
-      sourceLanguage && sourceLanguage !== 'auto'
+      sourceLanguage && sourceLanguage !== "auto"
         ? Language.resolve(sourceLanguage).promptName
-        : 'the original dialogue language (auto-detected)';
+        : "the original dialogue language (auto-detected)";
     const dialoguesText = cuesBatch
-      .map((c) => `[ID:${c.id}]: ${c.rawText.replace(/\s+/g, ' ')}`)
-      .join('\n');
+      .map((c) => `[ID:${c.id}]: ${c.rawText.replace(/\s+/g, " ")}`)
+      .join("\n");
 
     const prompt = `You are an expert language vocabulary extractor.
 Extract meaningful, difficult, idiomatic, or important vocabulary, phrasal verbs, slang, or key terms from these subtitle lines for a learner.
@@ -315,7 +349,7 @@ Show Title: "${showTitle}"
 Source Language: ${resolvedSourceLang}
 Target Language: ${resolvedTargetLang}
 Difficulty Level: ${difficulty}
-${customPrompt ? `Special instructions: ${customPrompt}\n` : ''}
+${customPrompt ? `Special instructions: ${customPrompt}\n` : ""}
 
 Output strictly JSON:
 {
@@ -335,8 +369,8 @@ Dialogue excerpt:
 ${dialoguesText}`;
 
     try {
-      const raw = await this.llmService.callChat('translator', {
-        messages: [{ role: 'user', content: prompt }],
+      const raw = await this.llmService.callChat("translator", {
+        messages: [{ role: "user", content: prompt }],
         temperature: 0.2,
         jsonMode: true,
       });
@@ -350,14 +384,18 @@ ${dialoguesText}`;
       const validList: VocabWordItem[] = [];
       const now = Date.now();
       for (const item of rawList) {
-        if (item && typeof item.word === 'string' && item.word.trim().length > 0) {
+        if (
+          item &&
+          typeof item.word === "string" &&
+          item.word.trim().length > 0
+        ) {
           validList.push({
             word: item.word.trim(),
-            pos: String(item.pos || ''),
-            phonetic: String(item.phonetic || ''),
-            meaning: String(item.meaning || ''),
-            sentence: String(item.sentence || ''),
-            sentenceTranslation: String(item.sentenceTranslation || ''),
+            pos: String(item.pos || ""),
+            phonetic: String(item.phonetic || ""),
+            meaning: String(item.meaning || ""),
+            sentence: String(item.sentence || ""),
+            sentenceTranslation: String(item.sentenceTranslation || ""),
             timestamp: now,
             frequency: 1,
           });
@@ -373,13 +411,13 @@ ${dialoguesText}`;
           difficulty,
           customPrompt,
           model,
-          validList
+          validList,
         );
       }
 
       return { vocab: validList };
     } catch (err: any) {
-      this.logger.warn('Vocabulary', 'Vocab extraction batch failed:', err);
+      this.logger.warn("Vocabulary", "Vocab extraction batch failed:", err);
       return { vocab: [] };
     }
   }
@@ -387,12 +425,12 @@ ${dialoguesText}`;
   private async mergeVocabData(
     movieId: string, // TODO: Show id.
     showTitle: string,
-    sourceLanguage: LanguageInfo | 'auto',
+    sourceLanguage: LanguageInfo | "auto",
     targetLanguage: LanguageInfo,
     difficulty: string,
     customPrompt: string,
     model: string,
-    newWords: VocabWordItem[]
+    newWords: VocabWordItem[],
   ): Promise<void> {
     const storageKey = `${NCW_STORAGE_KEYS.VOCAB_PREFIX}${movieId}`;
     const res = await this.storage.get<EpisodeVocabData>([storageKey]);
@@ -424,22 +462,22 @@ ${dialoguesText}`;
     mergedWords.sort((a, b) => b.timestamp - a.timestamp);
 
     const srcLangStr =
-      typeof sourceLanguage === 'object' && sourceLanguage !== null
+      typeof sourceLanguage === "object" && sourceLanguage !== null
         ? sourceLanguage.code
-        : sourceLanguage || 'auto';
+        : sourceLanguage || "auto";
     const tgtLangStr =
-      typeof targetLanguage === 'object' && targetLanguage !== null
+      typeof targetLanguage === "object" && targetLanguage !== null
         ? targetLanguage.code
-        : String(targetLanguage || 'en');
+        : String(targetLanguage || "en");
 
     const updatedData: EpisodeVocabData = {
       movieId,
-      showTitle: showTitle || existing?.showTitle || '',
-      sourceLanguage: srcLangStr || existing?.sourceLanguage || 'auto',
-      targetLanguage: tgtLangStr || existing?.targetLanguage || 'en',
-      difficulty: difficulty || existing?.difficulty || 'medium',
-      customPrompt: customPrompt || existing?.customPrompt || '',
-      model: model || existing?.model || '',
+      showTitle: showTitle || existing?.showTitle || "",
+      sourceLanguage: srcLangStr || existing?.sourceLanguage || "auto",
+      targetLanguage: tgtLangStr || existing?.targetLanguage || "en",
+      difficulty: difficulty || existing?.difficulty || "medium",
+      customPrompt: customPrompt || existing?.customPrompt || "",
+      model: model || existing?.model || "",
       updatedAt: Date.now(),
       totalWords: mergedWords.length,
       words: mergedWords,

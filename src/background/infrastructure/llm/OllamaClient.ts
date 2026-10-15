@@ -1,13 +1,20 @@
-import { ILlmClient, LlmChatRequest, LlmConnectionTestResult } from '../../domain/llm/ILlmClient';
-import { LlmRole, AiCapability } from '../../domain/llm/LlmRole';
-import { LLMProvider } from '@shared/domain/entities/PipelineTypes';
-import { DEFAULT_SETTINGS, ExtensionSettings } from '@shared/domain/constants/SettingsDefaults';
-import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
-import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
-import { IBrowserStorage } from '@shared/infrastructure/storage/IBrowserStorage';
+import {
+  ILlmClient,
+  LlmChatRequest,
+  LlmConnectionTestResult,
+} from "../../domain/llm/ILlmClient";
+import { LlmRole, AiCapability } from "../../domain/llm/LlmRole";
+import { LLMProvider } from "@shared/domain/entities/PipelineTypes";
+import {
+  DEFAULT_SETTINGS,
+  ExtensionSettings,
+} from "@shared/domain/constants/SettingsDefaults";
+import { NCW_STORAGE_KEYS } from "@shared/domain/constants/StorageKeys";
+import { BrowserStorageFactory } from "@shared/infrastructure/storage/BrowserStorageFactory";
+import { IBrowserStorage } from "@shared/infrastructure/storage/IBrowserStorage";
 
 export class OllamaClient implements ILlmClient {
-  readonly providerId: LLMProvider = 'ollama';
+  readonly providerId: LLMProvider = "ollama";
   readonly role: LlmRole;
   readonly model: string;
 
@@ -17,16 +24,19 @@ export class OllamaClient implements ILlmClient {
   constructor(
     role: LlmRole,
     model: string,
-    storage: IBrowserStorage = BrowserStorageFactory.getStorage()
+    storage: IBrowserStorage = BrowserStorageFactory.getStorage(),
   ) {
     this.role = role;
     this.model = model;
     this.storage = storage;
+  }
 
-    this.initFromStorage();
+  async init(): Promise<void> {
+    await this.initFromStorage();
     this.storage.onChanged((changes) => {
       if (changes[NCW_STORAGE_KEYS.SETTINGS]?.newValue) {
-        const settings = changes[NCW_STORAGE_KEYS.SETTINGS].newValue as Partial<ExtensionSettings>;
+        const settings = changes[NCW_STORAGE_KEYS.SETTINGS]
+          .newValue as Partial<ExtensionSettings>;
         if (settings.ollamaHost) {
           this.host = settings.ollamaHost;
         }
@@ -35,7 +45,9 @@ export class OllamaClient implements ILlmClient {
   }
 
   private async initFromStorage(): Promise<void> {
-    const res = await this.storage.get<Partial<ExtensionSettings>>([NCW_STORAGE_KEYS.SETTINGS]);
+    const res = await this.storage.get<Partial<ExtensionSettings>>([
+      NCW_STORAGE_KEYS.SETTINGS,
+    ]);
     const host = res?.[NCW_STORAGE_KEYS.SETTINGS]?.ollamaHost;
     if (host) {
       this.host = host;
@@ -43,19 +55,27 @@ export class OllamaClient implements ILlmClient {
   }
 
   async getCapability(): Promise<AiCapability> {
-    const isSupervisor = this.role === 'supervisor';
+    const isSupervisor = this.role === "supervisor";
     return {
       hasAi: true,
-      provider: 'ollama',
+      provider: "ollama",
       model: this.model,
       isSupervisor,
     };
   }
 
-  async chat(request: Omit<LlmChatRequest, 'model'> & { model?: string }): Promise<string> {
-    const { model, messages, temperature = 0.2, jsonMode = false, signal } = request;
-    const host = (this.host || 'http://localhost:11434').replace(/\/+$/, '');
-    const modelToUse = model || this.model || 'translategemma:4b';
+  async chat(
+    request: Omit<LlmChatRequest, "model"> & { model?: string },
+  ): Promise<string> {
+    const {
+      model,
+      messages,
+      temperature = 0.2,
+      jsonMode = false,
+      signal,
+    } = request;
+    const host = (this.host || "http://localhost:11434").replace(/\/+$/, "");
+    const modelToUse = model || this.model || "translategemma:4b";
 
     const payload: Record<string, unknown> = {
       model: modelToUse,
@@ -64,12 +84,12 @@ export class OllamaClient implements ILlmClient {
       options: { temperature },
     };
     if (jsonMode) {
-      payload.format = 'json';
+      payload.format = "json";
     }
 
     const response = await fetch(`${host}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal,
     });
@@ -77,7 +97,7 @@ export class OllamaClient implements ILlmClient {
     if (!response.ok) {
       if (response.status === 403) {
         throw new Error(
-          '403 Forbidden: Ollama Origin verification blocked. Please configure OLLAMA_ORIGINS="*" or reload the extension.'
+          '403 Forbidden: Ollama Origin verification blocked. Please configure OLLAMA_ORIGINS="*" or reload the extension.',
         );
       }
       const errorText = await response.text();
@@ -85,7 +105,7 @@ export class OllamaClient implements ILlmClient {
     }
 
     const data = await response.json();
-    return data.message?.content || '';
+    return data.message?.content || "";
   }
 
   async checkConnection(): Promise<LlmConnectionTestResult> {
@@ -93,22 +113,26 @@ export class OllamaClient implements ILlmClient {
     const url = `${host}/api/tags`;
 
     const res = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
     });
 
     if (!res.ok) {
       if (res.status === 403) {
         throw new Error(
-          '403 Forbidden: Ollama Origin verification blocked. Please configure OLLAMA_ORIGINS="*" or reload extension.'
+          '403 Forbidden: Ollama Origin verification blocked. Please configure OLLAMA_ORIGINS="*" or reload extension.',
         );
       }
-      throw new Error(`Ollama returned status ${res.status}: ${res.statusText}`);
+      throw new Error(
+        `Ollama returned status ${res.status}: ${res.statusText}`,
+      );
     }
 
     const data = await res.json();
     const rawList = Array.isArray(data.models) ? data.models : [];
-    const models = rawList.map((m: { name?: string; model?: string }) => m.name || m.model || '');
+    const models = rawList.map(
+      (m: { name?: string; model?: string }) => m.name || m.model || "",
+    );
     return { ok: true, models };
   }
 }
