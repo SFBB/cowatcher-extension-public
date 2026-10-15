@@ -124,17 +124,23 @@ export class LlmTranslatorService implements ITranslatorService {
   }
 
   /**
-   * Cleans ID markers (e.g., [643], [643]:, 【643】, 【643】：) and extraneous wrapper quotes
+   * Cleans ID markers (e.g., [643], [643-644]:, 【643】：) and extraneous wrapper quotes
    */
   private cleanTranslationText(text: string): string {
     if (!text) return "";
     return (
       text
-        // Strip leading brackets and IDs: [643]:, 【643】：, [643] -, 643., etc.
-        .replace(/^(?:\[|【|\()\s*\d+\s*(?:\]|】|\))\s*[:：\-.]?\s*/, "")
-        .replace(/^(\d+)\s*[:：\-.]\s*/, "")
-        // Strip any residual [id] or 【id】 markers within text
-        .replace(/(?:\[|【)\s*\d+\s*(?:\]|】)\s*[:：]?\s*/g, "")
+        // Strip leading brackets and IDs/ranges: [643]:, [643-644]:, 【643-644】：, etc.
+        .replace(
+          /^(?:\[|【|\()\s*\d+(?:\s*[-~至到]\s*\d+)?\s*(?:\]|】|\))\s*[:：\-.]?\s*/,
+          "",
+        )
+        .replace(/^(\d+(?:\s*[-~至到]\s*\d+)?)\s*[:：\-.]\s*/, "")
+        // Strip any residual [id] or [id-id] or 【id】 markers within text
+        .replace(
+          /(?:\[|【)\s*\d+(?:\s*[-~至到]\s*\d+)?\s*(?:\]|】)\s*[:：]?\s*/g,
+          "",
+        )
         // Strip wrapping quotes
         .replace(/^["'“”](.*)["'“”]$/, "$1")
         .trim()
@@ -143,7 +149,8 @@ export class LlmTranslatorService implements ITranslatorService {
 
   /**
    * Robustly parses numbered subtitles from LLM response text.
-   * Extracts text segments bounded by target ID markers (e.g. [81]:, 【81】：, 81., etc.).
+   * Extracts text segments bounded by target ID markers (e.g. [81]:, [81-82]:, 【81】：, 81., etc.).
+   * Supports [start-end] ranges for split sentences, mapping the translation to all IDs in the range.
    * If an ID marker is missing in the output, it is omitted rather than blindly guessed by index,
    * completely preventing downstream cue misalignment.
    */
@@ -155,23 +162,36 @@ export class LlmTranslatorService implements ITranslatorService {
     const resultMap: Record<number, string> = {};
     if (!text) return resultMap;
 
-    // Pattern 1: Bracketed markers [123] or 【123】, preceded by start, newline, or whitespace
-    // Pattern 2: Line starters: 123. or 123: or 123： or #123: at the beginning of a line
+    // Pattern 1: Bracketed markers [123] or [123-124] or 【123-124】, preceded by start, newline, or whitespace
+    // Pattern 2: Line starters: 123. or 123-124: or 123： or #123: at the beginning of a line
     const markerRegex =
-      /(?:(?:^|\n|\s)(?:\[|【)\s*(\d+)\s*(?:\]|】)\s*[:：]?\s*|(?:^|\n)\s*(?:#)?\s*(\d+)\s*[\.:：]\s*)/g;
-    const markers: Array<{ id: number; start: number; end: number }> = [];
+      /(?:(?:^|\n|\s)(?:\[|【)\s*(\d+)(?:\s*[-~至到]\s*(\d+))?\s*(?:\]|】)\s*[:：]?\s*|(?:^|\n)\s*(?:#)?\s*(\d+)(?:\s*[-~至到]\s*(\d+))?\s*[\.:：]\s*)/g;
+    const markers: Array<{
+      startId: number;
+      endId: number;
+      start: number;
+      end: number;
+    }> = [];
 
     let match: RegExpExecArray | null;
     while ((match = markerRegex.exec(text)) !== null) {
-      const idStr = match[1] || match[2];
-      if (!idStr) continue;
-      const id = parseInt(idStr, 10);
-      if (targetIds.has(id)) {
-        markers.push({
-          id,
-          start: match.index,
-          end: match.index + match[0].length,
-        });
+      const startIdStr = match[1] || match[3];
+      const endIdStr = match[2] || match[4];
+      if (!startIdStr) continue;
+
+      const startId = parseInt(startIdStr, 10);
+      const endId = endIdStr ? parseInt(endIdStr, 10) : startId;
+
+      // Validate range: startId <= endId, reasonable span (<= 5 cues)
+      if (endId >= startId && endId - startId <= 5) {
+        if (targetIds.has(startId) || targetIds.has(endId)) {
+          markers.push({
+            startId,
+            endId,
+            start: match.index,
+            end: match.index + match[0].length,
+          });
+        }
       }
     }
 
@@ -183,7 +203,12 @@ export class LlmTranslatorService implements ITranslatorService {
           i + 1 < markers.length ? markers[i + 1].start : text.length;
         const rawChunk = text.slice(current.end, nextStart).trim();
         if (rawChunk) {
-          resultMap[current.id] = this.cleanTranslationText(rawChunk);
+          const cleanText = this.cleanTranslationText(rawChunk);
+          for (let id = current.startId; id <= current.endId; id++) {
+            if (targetIds.has(id)) {
+              resultMap[id] = cleanText;
+            }
+          }
         }
       }
       return resultMap;
@@ -262,10 +287,15 @@ ${contextBlock}
 Translate the numbered subtitle lines into ${targetLangPrompt}.
 Maintain natural dialogue tone and conversational context between speakers.
 Strictly adhere to the established character names, aliases, and terms in the glossary.
-Strictly translate every numbered line individually. Output every line ID without merging or omitting any lines.
 
-Return in this exact format:
-[index]: translated_text`;
+CRITICAL NUMBERING & FORMAT RULES:
+1. Translate line by line in this format:
+[index]: translated_text
+2. SPLIT SENTENCE / MERGE HANDLING:
+If consecutive lines belong to a single split sentence that must be translated together (e.g. [103] and [104]), combine their line IDs into a range:
+[103-104]: translated_text
+The next line MUST immediately resume with the next unmerged ID (e.g. [105]: ...).
+3. NEVER shift, renumber, or omit line numbers. Every input line ID must be accounted for either individually or in a [start-end] range.`;
 
     const userLines = items
       .map((item) => `[${item.id}]: ${item.rawText.replace(/\n+/g, " ")}`)
