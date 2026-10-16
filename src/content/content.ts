@@ -174,7 +174,7 @@ const logger: Logger = new Logger('content');
               'Content',
               `⚡ Instantly activated staged preloaded subtitle for ${currentVideoId} (${cues.length} cues, lang: ${currentSubtitleLanguage}).`
             );
-            subtitleManager.loadCues(cues, currentVideoId);
+            subtitleManager.loadCues(cues, currentVideoId, false, currentSubtitleLanguage);
             notifyVocabExtractor(cues, currentVideoId, currentSubtitleLanguage);
             return;
           }
@@ -198,7 +198,7 @@ const logger: Logger = new Logger('content');
             'Content',
             `⚡ Instantly activated staged unknown preloaded subtitle for ${currentVideoId} (${cues.length} cues, lang: ${currentSubtitleLanguage}).`
           );
-          subtitleManager.loadCues(cues, currentVideoId);
+          subtitleManager.loadCues(cues, currentVideoId, false, currentSubtitleLanguage);
           notifyVocabExtractor(cues, currentVideoId, currentSubtitleLanguage);
           return;
         }
@@ -321,7 +321,7 @@ const logger: Logger = new Logger('content');
           'Content',
           'Restoring subtitle cues from content script cache upon enabling translation.'
         );
-        subtitleManager.loadCues(lastParsedCues);
+        subtitleManager.loadCues(lastParsedCues, currentVideoId, false, currentSubtitleLanguage);
       }
     }
 
@@ -716,7 +716,7 @@ const logger: Logger = new Logger('content');
       if (data.movieId && !currentVideoId) {
         currentVideoId = data.movieId;
       }
-      subtitleManager.loadCues(cues, effectiveMid, Boolean(data.isAsr));
+      subtitleManager.loadCues(cues, effectiveMid, Boolean(data.isAsr), currentSubtitleLanguage);
       notifyVocabExtractor(cues, effectiveMid, currentSubtitleLanguage);
     }
   });

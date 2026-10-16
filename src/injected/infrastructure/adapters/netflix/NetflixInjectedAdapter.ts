@@ -20,10 +20,22 @@ interface InterceptedSubtitle {
   timestamp: number;
 }
 
+export interface InjectedTrackDetail {
+  trackId: string;
+  bcp47: string | null;
+  displayName: string;
+  trackType: string;
+  urls: string[];
+  rawText?: string;
+  interceptedAt?: number;
+}
+
 export class NetflixInjectedAdapter implements IInjectedAdapter {
   readonly platformId = STREAMING_PLATFORMS.NETFLIX;
 
   private kadmiumBridge: KadmiumPlayerBridge | null = null;
+  // Three-level track table: showId -> episodeId (movieId) -> trackId -> InjectedTrackDetail
+  private trackRegistry = new Map<string, Map<string, Map<string, InjectedTrackDetail>>>();
   private preloadedSubtitlesByMovieId = new Map<string, PreloadItem>();
   private latestUnknownPreload: PreloadItem | null = null;
   private lastEmittedSignature = '';
@@ -537,73 +549,155 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     return false;
   }
 
-  private findTrackInfoForSubtitleUrl(
-    url: string | null
-  ): { movieId: string | null; bcp47: string | null; trackId: string | null } | null {
-    if (!url) return null;
+  private getEffectiveShowId(movieId?: string): string {
+    if (this.cachedShowMetadata?.id) {
+      return String(this.cachedShowMetadata.id);
+    }
+    if (typeof document !== 'undefined' && document.documentElement?.dataset?.ncwShowId) {
+      return document.documentElement.dataset.ncwShowId;
+    }
+    return movieId || 'default_show';
+  }
+
+  private registerTrackEntry(
+    showId: string,
+    episodeId: string,
+    trackId: string,
+    data: Partial<InjectedTrackDetail>
+  ): InjectedTrackDetail {
+    let epMap = this.trackRegistry.get(showId);
+    if (!epMap) {
+      epMap = new Map();
+      this.trackRegistry.set(showId, epMap);
+    }
+    let trackMap = epMap.get(episodeId);
+    if (!trackMap) {
+      trackMap = new Map();
+      epMap.set(episodeId, trackMap);
+    }
+    let existing = trackMap.get(trackId);
+    if (!existing) {
+      existing = {
+        trackId,
+        bcp47: data.bcp47 || null,
+        displayName: data.displayName || '',
+        trackType: data.trackType || '',
+        urls: data.urls ? [...data.urls] : [],
+        rawText: data.rawText,
+        interceptedAt: data.interceptedAt,
+      };
+      trackMap.set(trackId, existing);
+    } else {
+      if (data.bcp47 && !existing.bcp47) existing.bcp47 = data.bcp47;
+      if (data.displayName && !existing.displayName) existing.displayName = data.displayName;
+      if (data.trackType && !existing.trackType) existing.trackType = data.trackType;
+      if (data.rawText) {
+        existing.rawText = data.rawText;
+        existing.interceptedAt = data.interceptedAt || Date.now();
+      }
+      if (data.urls) {
+        for (const u of data.urls) {
+          if (!existing.urls.includes(u)) {
+            existing.urls.push(u);
+          }
+        }
+      }
+    }
+    return existing;
+  }
+
+  private refreshTrackRegistryFromPlayer(): void {
     try {
       const vp = window.netflix?.appContext?.state?.playerApp?.getAPI()?.videoPlayer;
-      if (!vp) return null;
+      if (!vp) return;
       const sessions = vp.getAllPlayerSessionIds?.() || [];
 
       for (const sid of sessions) {
         const p = vp.getVideoPlayerBySessionId(sid);
         if (!p) continue;
+        const mid = String(p.getMovieId?.() || '');
+        if (!mid) continue;
+        const showId = this.getEffectiveShowId(mid);
         const internalP = typeof p.getInternalPlayer === 'function' ? p.getInternalPlayer() : null;
-        const mid = p.getMovieId?.();
 
-        // 1. Check current segment timedTextTrack
-        const currentTrack = internalP?.playback?.currentSegment?.tracks?.timedTextTrack;
-        const currentTrackUrls = currentTrack?.urls || [];
-        for (const trackUrl of currentTrackUrls) {
-          if (this.urlsMatchSubtitleTrack(trackUrl.url || trackUrl, url)) {
-            return {
-              movieId: mid ? String(mid) : null,
-              bcp47: currentTrack?.bcp47 || currentTrack?.language || null,
-              trackId: currentTrack?.trackId || currentTrack?.id || null,
-            };
-          }
-        }
-
-        // 2. Check getPlayerTextTracks()
+        // 1. Check getPlayerTextTracks()
         const playerTextTracks: any[] =
           typeof internalP?.getPlayerTextTracks === 'function'
             ? internalP.getPlayerTextTracks() || []
             : [];
         for (const pt of playerTextTracks) {
           if (!pt) continue;
-          const ptUrls = Array.isArray(pt.urls) ? pt.urls : [];
-          for (const u of ptUrls) {
-            if (this.urlsMatchSubtitleTrack(u?.url || u, url)) {
-              return {
-                movieId: mid ? String(mid) : null,
-                bcp47: pt.bcp47 || pt.language || null,
-                trackId: pt.trackId || pt.id || null,
-              };
-            }
+          const tid = String(pt.trackId || pt.id || pt.bcp47 || '');
+          if (!tid) continue;
+          const urls: string[] = [];
+          if (Array.isArray(pt.urls)) {
+            pt.urls.forEach((u: any) => {
+              const urlStr = typeof u === 'string' ? u : u?.url;
+              if (urlStr) urls.push(urlStr);
+            });
           }
+          this.registerTrackEntry(showId, mid, tid, {
+            bcp47: pt.bcp47 || pt.language || null,
+            displayName: pt.displayName || '',
+            trackType: pt.trackType || '',
+            urls,
+          });
         }
 
-        // 3. Check getTimedTextTrackList()
+        // 2. Check getTimedTextTrackList()
         if (typeof p.getTimedTextTrackList === 'function') {
           const trackList = p.getTimedTextTrackList() || [];
           for (const t of trackList) {
             if (!t) continue;
-            const extracted = this.kadmiumBridge?.extractUrlsFromDownloadableEntry(t) || [];
-            for (const eu of extracted) {
-              if (this.urlsMatchSubtitleTrack(eu, url)) {
-                return {
-                  movieId: mid ? String(mid) : null,
-                  bcp47: t.bcp47 || t.language || null,
-                  trackId: t.trackId || t.id || null,
-                };
-              }
+            const tid = String(t.trackId || t.id || t.bcp47 || '');
+            if (!tid) continue;
+            const urls = this.kadmiumBridge?.extractUrlsFromDownloadableEntry(t) || [];
+            this.registerTrackEntry(showId, mid, tid, {
+              bcp47: t.bcp47 || t.language || null,
+              displayName: t.displayName || '',
+              trackType: t.trackType || '',
+              urls,
+            });
+          }
+        }
+
+        // 3. Check current segment timedTextTrack
+        const currentTrack = internalP?.playback?.currentSegment?.tracks?.timedTextTrack;
+        if (currentTrack) {
+          const tid = String(currentTrack.trackId || currentTrack.id || currentTrack.bcp47 || '');
+          if (tid) {
+            const urls: string[] = [];
+            if (Array.isArray(currentTrack.urls)) {
+              currentTrack.urls.forEach((u: any) => {
+                const urlStr = typeof u === 'string' ? u : u?.url;
+                if (urlStr) urls.push(urlStr);
+              });
             }
+            this.registerTrackEntry(showId, mid, tid, {
+              bcp47: currentTrack.bcp47 || currentTrack.language || null,
+              displayName: currentTrack.displayName || '',
+              trackType: currentTrack.trackType || '',
+              urls,
+            });
           }
         }
       }
-    } catch (e) {
-      this.logger.warn('Netflix', 'Exception in findTrackInfoForSubtitleUrl:', e);
+    } catch (err) {
+      this.logger.warn('Netflix', 'Exception refreshing track registry from player:', err);
+    }
+  }
+
+  private findTrackByUrlInRegistry(
+    url: string
+  ): { showId: string; episodeId: string; track: InjectedTrackDetail } | null {
+    for (const [showId, epMap] of this.trackRegistry.entries()) {
+      for (const [episodeId, trackMap] of epMap.entries()) {
+        for (const track of trackMap.values()) {
+          if (track.urls.some((u) => this.urlsMatchSubtitleTrack(u, url))) {
+            return { showId, episodeId, track };
+          }
+        }
+      }
     }
     return null;
   }
@@ -624,15 +718,93 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
         return;
       }
 
-      // Intercept and absorb subtitle payload if an active native track probe is running
-      if (this.isProbingNativeTrack) {
-        if (this.activeNativeTrackProbe) {
-          this.activeNativeTrackProbe(url, text);
-        }
+      // Step 1: Look up 3-level Track Registry table
+      let matched = url ? this.findTrackByUrlInRegistry(url) : null;
+      if (!matched && url) {
+        // Step 2: If not in table, query internal player's player text tracks and refresh table
+        this.refreshTrackRegistryFromPlayer();
+        matched = this.findTrackByUrlInRegistry(url);
+      }
+
+      // Fallback for explicit calls (e.g. retry / direct player API)
+      if (!matched && explicitMovieId) {
+        const showId = this.getEffectiveShowId(explicitMovieId);
+        const trackId = explicitBcp47 || 'explicit_track';
+        const track = this.registerTrackEntry(showId, explicitMovieId, trackId, {
+          bcp47: explicitBcp47,
+          urls: url ? [url] : [],
+        });
+        matched = { showId, episodeId: explicitMovieId, track };
+      }
+
+      // Step 3: If still not found, this subtitle is unrelated to current player sessions -> drop!
+      if (!matched && url && !force) {
+        this.logger.info(
+          'Netflix',
+          `Dropping unrelated subtitle payload (not in track registry): ${url.slice(0, 80)}`
+        );
         return;
       }
 
-      // 1. 获取当前播放器及当前用户选中的字幕轨道 (getTextTrack / getTimedTextTrack)
+      const episodeId = matched?.episodeId || explicitMovieId || currentActiveId;
+      const track = matched?.track;
+
+      if (track) {
+        track.rawText = text;
+        track.interceptedAt = Date.now();
+        if (url && !track.urls.includes(url)) {
+          track.urls.push(url);
+        }
+      }
+
+      let trackBcp47 = explicitBcp47 || track?.bcp47 || null;
+      if (!trackBcp47 && text) {
+        const langMatch =
+          text.slice(0, 1000).match(/xml:lang=["']([^"']+)["']/i) ||
+          text.slice(0, 1000).match(/lang=["']([^"']+)["']/i);
+        if (langMatch && langMatch[1]) {
+          trackBcp47 = langMatch[1].trim();
+        }
+      }
+
+      // Step 4: Check if this payload belongs to the current playing episode
+      const isCurrentEpisode = String(episodeId) === String(currentActiveId);
+
+      // If this is for an upcoming / next episode (preload), cache it in trackRegistry and stage it
+      if (!isCurrentEpisode) {
+        this.logger.info(
+          'Netflix',
+          `📦 Cached preload subtitle for upcoming episode (${episodeId}, bcp=${trackBcp47 || 'unknown'}) in track registry.`
+        );
+        this.preloadedSubtitlesByMovieId.set(episodeId, {
+          url,
+          text,
+          bcp47: trackBcp47,
+          timestamp: Date.now(),
+        });
+        window.postMessage(
+          {
+            type: NCW_MESSAGE_TYPES.SUBTITLE_PRELOAD_STAGED,
+            movieId: episodeId,
+            url,
+            rawText: text,
+            bcp47: trackBcp47,
+            timestamp: Date.now(),
+          },
+          '*'
+        );
+        return;
+      }
+
+      // Step 5: For current episode, handle native track probe interception if active
+      if (this.isProbingNativeTrack) {
+        if (this.activeNativeTrackProbe) {
+          const absorbed = this.activeNativeTrackProbe(url, text);
+          if (absorbed) return;
+        }
+      }
+
+      // Verify user's currently selected track on player
       const activePlayer = this.kadmiumBridge?.getActivePlayer();
       const targetPlayer = activePlayer?.player;
       const internalP = typeof targetPlayer?.getInternalPlayer === 'function'
@@ -646,93 +818,27 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
         currentTrack = targetPlayer.getTimedTextTrack();
       }
 
-      // 用户未开启字幕或选了关闭，直接丢弃
       if (!currentTrack || this.kadmiumBridge?.isTimedTextTrackOff(currentTrack)) {
         return;
       }
 
       const currentTrackId = currentTrack.trackId || currentTrack.id;
       const currentBcp = (currentTrack.bcp47 || currentTrack.language || '').toLowerCase().trim();
-      const currentMovieId = String(targetPlayer?.getMovieId?.() || currentActiveId || '');
 
-      // 2. 校验轨道信息与剧集归属 (Episode & Track Lookup)
-      const trackMatch = this.findTrackInfoForSubtitleUrl(url);
-      const subtitleMovieId = explicitMovieId || trackMatch?.movieId;
-      let trackBcp47 = explicitBcp47 || trackMatch?.bcp47 || null;
-
-      // 3. 从 TTML/XML 内容头部提取语言标识兜底
-      if (!trackBcp47 && text) {
-        const langMatch =
-          text.slice(0, 1000).match(/xml:lang=["']([^"']+)["']/i) ||
-          text.slice(0, 1000).match(/lang=["']([^"']+)["']/i);
-        if (langMatch && langMatch[1]) {
-          trackBcp47 = langMatch[1].trim();
-        }
-      }
-
-      // 4. 从 getPlayerTextTracks() 比对 URL 是不是属于当前用户选中的字幕
-      const playerTextTracks: any[] =
-        typeof internalP?.getPlayerTextTracks === 'function'
-          ? internalP.getPlayerTextTracks() || []
-          : [];
-
-      const activePlayerTrack = playerTextTracks.find((pt: any) => {
-        if (!pt) return false;
-        if (currentTrackId && (pt.trackId === currentTrackId || pt.id === currentTrackId)) return true;
-        const ptBcp = (pt.bcp47 || pt.language || '').toLowerCase().trim();
-        return currentBcp && ptBcp === currentBcp;
-      });
-
-      // 核心校验：如果传入了实际 URL，去 getPlayerTextTracks 比对
-      if (url && !force && url !== 'player://internalP.getPlayerTextTracks/downloadPromise') {
-        const isUrlOfCurrentTrack = Boolean(
-          activePlayerTrack &&
-          Array.isArray(activePlayerTrack.urls) &&
-          activePlayerTrack.urls.some((u: any) => this.urlsMatchSubtitleTrack(u?.url || u, url))
-        );
-
-        if (!isUrlOfCurrentTrack) {
-          // 检查该 URL 是否属于其他已知的 text track（例如后台查询目标语言抓取的轨道）
-          const matchedOtherTrack = playerTextTracks.find((pt: any) =>
-            Array.isArray(pt.urls) && pt.urls.some((u: any) => this.urlsMatchSubtitleTrack(u?.url || u, url))
+      // Guard: if URL belongs to another track of current episode that is NOT active, drop
+      if (track && currentTrackId && track.trackId !== currentTrackId && !force) {
+        const trackBcp = (track.bcp47 || '').toLowerCase().trim();
+        if (trackBcp !== currentBcp) {
+          this.logger.info(
+            'Netflix',
+            `Dropping subtitle payload: Track (${track.trackId}, ${trackBcp}) does not match user active track (${currentTrackId}, ${currentBcp}).`
           );
-          if (matchedOtherTrack) {
-            const otherBcp = (matchedOtherTrack.bcp47 || matchedOtherTrack.language || '').toLowerCase().trim();
-            this.logger.info(
-              'Netflix',
-              `Dropping subtitle payload: URL belongs to track (${otherBcp || matchedOtherTrack.trackId}), but user active track is (${currentBcp || currentTrackId}).`
-            );
-            return;
-          }
-
-          // 如果 trackMatch 中匹配到的 trackId 与当前激活轨道不符，坚决丢弃
-          if (trackMatch?.trackId && currentTrackId && trackMatch.trackId !== currentTrackId) {
-            this.logger.info(
-              'Netflix',
-              `Dropping subtitle payload: URL trackId (${trackMatch.trackId}) does not match active trackId (${currentTrackId}).`
-            );
-            return;
-          }
+          return;
         }
-      }
-
-      // 5. 校验语言是否与当前激活轨道严格匹配
-      const payloadBcp = (trackBcp47 || '').toLowerCase().trim();
-      if (
-        currentBcp &&
-        payloadBcp &&
-        currentBcp !== payloadBcp &&
-        !currentBcp.startsWith(payloadBcp) &&
-        !payloadBcp.startsWith(currentBcp)
-      ) {
-        this.logger.info(
-          'Netflix',
-          `Dropping subtitle payload: language (${payloadBcp}) does not match user active track (${currentBcp}).`
-        );
-        return;
       }
 
       // Suppress residual payloads from probed track
+      const payloadBcp = (trackBcp47 || '').toLowerCase().trim();
       if (this.probingTargetBcp) {
         if (payloadBcp && (payloadBcp.includes(this.probingTargetBcp) || this.probingTargetBcp.includes(payloadBcp))) {
           this.logger.info(
@@ -743,72 +849,15 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
         }
       }
 
-      const v = document.querySelector('video');
-      const isActivelyPlaying = v && !v.paused && v.currentTime > 30;
-
-      // 1. Preloaded episode
-      if (subtitleMovieId && currentMovieId && subtitleMovieId !== currentMovieId) {
-        this.logger.info(
-          'Netflix',
-          `📦 Staged preloaded subtitle for upcoming episode (${subtitleMovieId}). Current episode (${currentMovieId}) continues.`
-        );
-        this.preloadedSubtitlesByMovieId.set(subtitleMovieId, {
-          url,
-          text,
-          bcp47: trackBcp47,
-          timestamp: Date.now(),
-        });
-        window.postMessage(
-          {
-            type: NCW_MESSAGE_TYPES.SUBTITLE_PRELOAD_STAGED,
-            movieId: subtitleMovieId,
-            url,
-            rawText: text,
-            bcp47: trackBcp47,
-            timestamp: Date.now(),
-          },
-          '*'
-        );
-        return;
-      }
-
-      // 2. Unknown incoming preload
-      if (
-        !subtitleMovieId &&
-        currentMovieId &&
-        isActivelyPlaying &&
-        this.lastInterceptedSubtitle?.text
-      ) {
-        this.logger.info(
-          'Netflix',
-          `📦 Staged unknown incoming subtitle as next episode preload (currentTime=${v.currentTime.toFixed(1)}s, activeId=${currentMovieId}).`
-        );
-        this.latestUnknownPreload = { url, text, bcp47: trackBcp47, timestamp: Date.now() };
-        window.postMessage(
-          {
-            type: NCW_MESSAGE_TYPES.SUBTITLE_PRELOAD_STAGED,
-            movieId: null,
-            url,
-            rawText: text,
-            bcp47: trackBcp47,
-            timestamp: Date.now(),
-          },
-          '*'
-        );
-        return;
-      }
-
-      const effectiveMovieId = subtitleMovieId || currentMovieId;
-
       this.lastInterceptedSubtitle = {
-        movieId: effectiveMovieId,
+        movieId: episodeId,
         url: url || window.location.href,
         text,
         bcp47: trackBcp47,
         timestamp: Date.now(),
       };
 
-      const signature = `${effectiveMovieId || ''}_${text.length}_${text.slice(0, 80)}_${text.slice(-80)}`;
+      const signature = `${episodeId}_${text.length}_${text.slice(0, 80)}_${text.slice(-80)}`;
       if (!force && signature === this.lastEmittedSignature) {
         return;
       }
@@ -817,7 +866,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
       window.postMessage(
         {
           type: NCW_MESSAGE_TYPES.SUBTITLE_RAW_DATA,
-          movieId: effectiveMovieId,
+          movieId: episodeId,
           url: url || window.location.href,
           pageUrl: window.location.href,
           rawText: text,
@@ -828,7 +877,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
       );
       this.logger.info(
         'Netflix',
-        `Intercepted subtitle payload for episode (${effectiveMovieId || 'active'}):`,
+        `Intercepted subtitle payload for episode (${episodeId}):`,
         url ? url.slice(0, 80) : 'unknown'
       );
     } catch (e) {
@@ -932,6 +981,28 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
         typeof targetPlayer.getInternalPlayer === 'function'
           ? targetPlayer.getInternalPlayer()
           : null;
+
+      this.refreshTrackRegistryFromPlayer();
+      const effectiveMid = _movieId || String(targetPlayer.getMovieId?.() || '');
+      const showId = this.getEffectiveShowId(effectiveMid);
+      const epTracks = this.trackRegistry.get(showId)?.get(effectiveMid);
+
+      if (epTracks) {
+        for (const tr of epTracks.values()) {
+          if (this.matchesLanguage(tr, targetLanguageCode) && tr.rawText && tr.rawText.length > 50) {
+            this.logger.info(
+              'Netflix',
+              `Target track ${tr.bcp47 || targetLanguageCode} already cached in 3-level track registry, returning directly.`
+            );
+            onResult({
+              found: true,
+              rawText: tr.rawText,
+              bcp47: tr.bcp47 || targetLanguageCode,
+            });
+            return;
+          }
+        }
+      }
 
       // 1. Get track list from internal player or target player
       let trackList: any[] = [];

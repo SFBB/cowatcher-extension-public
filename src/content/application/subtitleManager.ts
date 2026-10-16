@@ -1,18 +1,28 @@
-import { SubtitleOverlay } from '../presentation/SubtitleOverlay';
-import { IAdDetector } from '../domain/adapters/IAdDetector';
-import { ExtensionSettings, NCW_CONSTANTS, PipelineConfig } from '@shared/utils/constants';
-import { IStreamingAdapter, VideoMetadata } from '../domain/adapters/IStreamingAdapter';
-import { computeTrackHash } from '@shared/utils/hash';
-import { ContentMessageService } from './services/ContentMessageService';
-import { BrowserPlatformFactory } from '@shared/infrastructure/platform/BrowserPlatformFactory';
-import { IBrowserPlatform } from '@shared/infrastructure/platform/IBrowserPlatform';
-import { PrecedingContextItem } from '@shared/types/Messages';
-import { Context } from '@shared/domain/entities/Context';
-import { TranslationStatus } from '@shared/domain/entities/Translation';
-import { Language } from '@shared/domain/value-objects/Language';
-import { SubtitleCue, createSubtitleCue } from '@shared/domain/entities/Subtitle';
-import { SubtitleAlignmentService } from '../domain/services/SubtitleAlignmentService';
-import { Logger } from '@shared/utils/logger';
+import { SubtitleOverlay } from "../presentation/SubtitleOverlay";
+import { IAdDetector } from "../domain/adapters/IAdDetector";
+import {
+  ExtensionSettings,
+  NCW_CONSTANTS,
+  PipelineConfig,
+} from "@shared/utils/constants";
+import {
+  IStreamingAdapter,
+  VideoMetadata,
+} from "../domain/adapters/IStreamingAdapter";
+import { computeTrackHash } from "@shared/utils/hash";
+import { ContentMessageService } from "./services/ContentMessageService";
+import { BrowserPlatformFactory } from "@shared/infrastructure/platform/BrowserPlatformFactory";
+import { IBrowserPlatform } from "@shared/infrastructure/platform/IBrowserPlatform";
+import { PrecedingContextItem } from "@shared/types/Messages";
+import { Context } from "@shared/domain/entities/Context";
+import { TranslationStatus } from "@shared/domain/entities/Translation";
+import { Language } from "@shared/domain/value-objects/Language";
+import {
+  SubtitleCue,
+  createSubtitleCue,
+} from "@shared/domain/entities/Subtitle";
+import { SubtitleAlignmentService } from "../domain/services/SubtitleAlignmentService";
+import { Logger } from "@shared/utils/logger";
 
 export type CueItem = SubtitleCue;
 
@@ -27,7 +37,11 @@ export class SubtitleManager {
   cues: CueItem[] = [];
   translationMap: Map<
     number,
-    { text: string; status: TranslationStatus; usedTerms?: Record<string, number> }
+    {
+      text: string;
+      status: TranslationStatus;
+      usedTerms?: Record<string, number>;
+    }
   > = new Map();
   cueStateMap: Map<number, TranslationStatus> = new Map();
   canonicalReviewIndex: number = 0;
@@ -42,11 +56,11 @@ export class SubtitleManager {
   isTranslating: boolean = false;
   isReviewing: boolean = false;
   isPreReviewing: boolean = false;
-  currentTrackHash: string = '';
+  currentTrackHash: string = "";
   currentContext: Context = Context.createEmpty(Language.DEFAULT);
 
   activeCueId: number | null = null;
-  _lastCueSig: string = '';
+  _lastCueSig: string = "";
   rafId: number | null = null;
   _lastContentTime: number | null = null;
   _emptyCueSince: number | null = null;
@@ -61,16 +75,17 @@ export class SubtitleManager {
   private rawAsrCues: CueItem[] = [];
   private asrMergeIndex: number = 0;
   private isMergingAsr: boolean = false;
+  private currentRawLanguage: string = ""; // bcp code
 
   private messageService: ContentMessageService;
 
-  private logger: Logger = new Logger('SubtitleManager');
+  private logger: Logger = new Logger("SubtitleManager");
 
   constructor(
     overlay: SubtitleOverlay,
     adDetector: IAdDetector,
     settings: Partial<ExtensionSettings> = {},
-    adapter?: IStreamingAdapter
+    adapter?: IStreamingAdapter,
   ) {
     this.overlay = overlay;
     this.adDetector = adDetector;
@@ -99,17 +114,21 @@ export class SubtitleManager {
 
     this.messageService.onCuesStale((payload) => {
       if (!payload) return;
-      const currentMid = String(this.currentMovieId || '');
-      const matchesEpisode = payload.movieId && String(payload.movieId) === currentMid;
+      const currentMid = String(this.currentMovieId || "");
+      const matchesEpisode =
+        payload.movieId && String(payload.movieId) === currentMid;
       const matchesEpisodeList =
         Array.isArray(payload.movieIds) &&
         payload.movieIds.some((id: string) => String(id) === currentMid);
-      const matchesTrack = payload.trackHash && payload.trackHash === this.currentTrackHash;
+      const matchesTrack =
+        payload.trackHash && payload.trackHash === this.currentTrackHash;
       const matchesShowTitle =
         payload.showTitle &&
         this.currentContext &&
         ((this.currentContext.mainTitle &&
-          payload.showTitle.toLowerCase().includes(this.currentContext.mainTitle.toLowerCase())) ||
+          payload.showTitle
+            .toLowerCase()
+            .includes(this.currentContext.mainTitle.toLowerCase())) ||
           (this.currentContext.mainTitle &&
             this.currentContext.mainTitle
               .toLowerCase()
@@ -127,13 +146,13 @@ export class SubtitleManager {
         matchesShowId
       ) {
         this.logger.info(
-          'Subtitle',
-          `Cues invalidated (${payload.invalidatedCount || 0} cues). Clearing in-memory translations to re-translate with updated glossary.`
+          "Subtitle",
+          `Cues invalidated (${payload.invalidatedCount || 0} cues). Clearing in-memory translations to re-translate with updated glossary.`,
         );
         this.translationMap.clear();
         this.cueStateMap.clear();
         this.canonicalReviewIndex = 0;
-        this._lastCueSig = '';
+        this._lastCueSig = "";
         this.onTick();
         if (this.video) {
           this.checkPipeline(this.getEffectiveTime());
@@ -148,8 +167,16 @@ export class SubtitleManager {
 
   isSameSubtitle(newCues: CueItem[], isAsr = false): boolean {
     const targetCues =
-      isAsr && this.isAsrTrack && this.rawAsrCues.length > 0 ? this.rawAsrCues : this.cues;
-    if (!targetCues || targetCues.length === 0 || !newCues || newCues.length === 0) return false;
+      isAsr && this.isAsrTrack && this.rawAsrCues.length > 0
+        ? this.rawAsrCues
+        : this.cues;
+    if (
+      !targetCues ||
+      targetCues.length === 0 ||
+      !newCues ||
+      newCues.length === 0
+    )
+      return false;
     if (targetCues.length !== newCues.length) return false;
     const mid = Math.floor(newCues.length / 2);
     const last = newCues.length - 1;
@@ -162,31 +189,36 @@ export class SubtitleManager {
   }
 
   getCueStatus(cueId: number): TranslationStatus {
-    return this.cueStateMap.get(cueId) || 'untranslated';
+    return this.cueStateMap.get(cueId) || "untranslated";
   }
 
   isCueTranslated(cueId: number): boolean {
     const status = this.getCueStatus(cueId);
     return (
-      (status === 'raw' ||
-        status === 'pre_reviewing' ||
-        status === 'pre_reviewed' ||
-        status === 'reviewing' ||
-        status === 'reviewed') &&
+      (status === "raw" ||
+        status === "pre_reviewing" ||
+        status === "pre_reviewed" ||
+        status === "reviewing" ||
+        status === "reviewed") &&
       this.translationMap.has(cueId)
     );
   }
 
   isCueReviewed(cueId: number): boolean {
-    return this.getCueStatus(cueId) === 'reviewed';
+    return this.getCueStatus(cueId) === "reviewed";
   }
 
   checkCueStaleness(cueId: number): boolean {
     const trans = this.translationMap.get(cueId);
-    if (!trans || !trans.usedTerms || Object.keys(trans.usedTerms).length === 0) return false;
+    if (!trans || !trans.usedTerms || Object.keys(trans.usedTerms).length === 0)
+      return false;
 
     if (this.currentContext.checkTermStaleness(trans.usedTerms)) {
-      this.logger.info('Subtitle', `Cue #${cueId} uses outdated glossary terms:`, trans.usedTerms);
+      this.logger.info(
+        "Subtitle",
+        `Cue #${cueId} uses outdated glossary terms:`,
+        trans.usedTerms,
+      );
       this.markCueStaleWithLookahead(cueId, Object.keys(trans.usedTerms));
       return true;
     }
@@ -194,7 +226,7 @@ export class SubtitleManager {
   }
 
   markCueStaleWithLookahead(cueId: number, staleTermKeys: string[]): void {
-    this.cueStateMap.set(cueId, 'stale');
+    this.cueStateMap.set(cueId, "stale");
     this.translationMap.delete(cueId);
 
     const cueIdx = this.cues.findIndex((c) => c.id === cueId);
@@ -206,11 +238,16 @@ export class SubtitleManager {
         if (aheadTrans && aheadTrans.usedTerms) {
           const sharesStaleTerm = staleTermKeys.some((termKey) => {
             const norm = termKey.toLowerCase();
-            return aheadTrans.usedTerms && aheadTrans.usedTerms[norm] !== undefined;
+            return (
+              aheadTrans.usedTerms && aheadTrans.usedTerms[norm] !== undefined
+            );
           });
           if (sharesStaleTerm) {
-            this.logger.info('Subtitle', `Propagated staleness to cue #${aheadCue.id}`);
-            this.cueStateMap.set(aheadCue.id, 'stale');
+            this.logger.info(
+              "Subtitle",
+              `Propagated staleness to cue #${aheadCue.id}`,
+            );
+            this.cueStateMap.set(aheadCue.id, "stale");
             this.translationMap.delete(aheadCue.id);
           }
         }
@@ -232,19 +269,27 @@ export class SubtitleManager {
         }
       }
       if (hasInvalidatedActive) {
-        this._lastCueSig = '';
+        this._lastCueSig = "";
         this.onTick();
         this.checkPipeline(effectiveTime);
       }
     }
   }
 
-  loadCues(cues: CueItem[], movieId: string | number | null = null, isAsr = false): void {
+  loadCues(
+    cues: CueItem[],
+    movieId: string | number | null = null,
+    isAsr = false,
+    language?: string, // bcp code
+  ): void {
     if (!cues || cues.length === 0) return;
+    if (language) {
+      this.currentRawLanguage = language;
+    }
     if (this.isSameSubtitle(cues, isAsr)) {
       this.logger.info(
-        'Subtitle',
-        `Subtitle cues already loaded (${cues.length} cues). Skipping reload.`
+        "Subtitle",
+        `Subtitle cues already loaded (${cues.length} cues). Skipping reload.`,
       );
       return;
     }
@@ -261,7 +306,7 @@ export class SubtitleManager {
     const epoch = Date.now();
     this.sessionEpoch = epoch;
     this.lastCuesLoadedAt = epoch;
-    this.currentTrackHash = '';
+    this.currentTrackHash = "";
     this.translationMap.clear();
     this.cueStateMap.clear();
     this.canonicalReviewIndex = 0;
@@ -271,7 +316,8 @@ export class SubtitleManager {
     this.activeCueId = null;
     this._hasLoggedEndOfCues = false;
 
-    const shouldMergeAsr = isAsr && this.settings.enableAutomaticAsrMerging !== false;
+    const shouldMergeAsr =
+      isAsr && this.settings.enableAutomaticAsrMerging !== false;
     this.isAsrTrack = shouldMergeAsr;
 
     if (shouldMergeAsr) {
@@ -280,8 +326,8 @@ export class SubtitleManager {
       this.isMergingAsr = false;
       this.cues = [];
       this.logger.info(
-        'Subtitle',
-        `Loaded ${cues.length} raw ASR subtitle fragments. Initializing ASR auto-merge pipeline...`
+        "Subtitle",
+        `Loaded ${cues.length} raw ASR subtitle fragments. Initializing ASR auto-merge pipeline...`,
       );
     } else {
       this.rawAsrCues = [];
@@ -292,20 +338,23 @@ export class SubtitleManager {
       this.loadSubtitlesForCurrentTrack(cues, epoch);
 
       this.logger.info(
-        'Subtitle',
-        `Loaded ${cues.length} subtitle cues for movie (${this.currentMovieId || 'active'}).`
+        "Subtitle",
+        `Loaded ${cues.length} subtitle cues for movie (${this.currentMovieId || "active"}).`,
       );
     }
 
     if (this.settings.enabled !== false) {
       // 1. Immediately tick to display active cue (or placeholder) and trigger pipeline
-      if (typeof document !== 'undefined') {
-        if (!this.video || (document.body && !document.body.contains(this.video))) {
-          const v = document.querySelector('video');
+      if (typeof document !== "undefined") {
+        if (
+          !this.video ||
+          (document.body && !document.body.contains(this.video))
+        ) {
+          const v = document.querySelector("video");
           if (v) this.attachVideo(v);
         }
       }
-      if (this.overlay && typeof this.overlay.mountToPlayer === 'function') {
+      if (this.overlay && typeof this.overlay.mountToPlayer === "function") {
         this.overlay.mountToPlayer();
       }
 
@@ -350,7 +399,7 @@ export class SubtitleManager {
     this.rawAsrCues = [];
     this.asrMergeIndex = 0;
     this.isMergingAsr = false;
-    this.currentTrackHash = '';
+    this.currentTrackHash = "";
     this.translationMap.clear();
     this.cueStateMap.clear();
     this.canonicalReviewIndex = 0;
@@ -358,19 +407,22 @@ export class SubtitleManager {
     this.isReviewing = false;
     this.isPreReviewing = false;
     this.activeCueId = null;
-    this._lastCueSig = '';
+    this._lastCueSig = "";
     this._hasLoggedEndOfCues = false;
 
     if (this.overlay) {
       this.overlay.hide(true);
     }
 
-    this.logger.info('Subtitle', 'Cleared subtitle cues and hid overlay.');
+    this.logger.info("Subtitle", "Cleared subtitle cues and hid overlay.");
   }
 
   onEpisodeChange(newMovieId: string | number | null): void {
     const newIdStr = newMovieId ? String(newMovieId) : null;
-    this.logger.info('Subtitle', `Episode switch detected (${newIdStr || 'new'}).`);
+    this.logger.info(
+      "Subtitle",
+      `Episode switch detected (${newIdStr || "new"}).`,
+    );
     this.sessionEpoch = Date.now();
 
     // Check if newIdStr is confirmed to belong to the currently active show:
@@ -380,7 +432,7 @@ export class SubtitleManager {
       (this.currentContext?.episodes?.some((e) => e.videoId === newIdStr) ||
         (this.latestMetadata?.videoId === newIdStr &&
           this.latestMetadata?.showId === this.currentShowId) ||
-        (this.currentMovieId === newIdStr && this.currentShowId))
+        (this.currentMovieId === newIdStr && this.currentShowId)),
     );
 
     // Only retain cues if the cues currently in memory were explicitly loaded for THIS new movie ID:
@@ -393,13 +445,13 @@ export class SubtitleManager {
 
     if (cuesBelongToNewEpisode) {
       this.logger.info(
-        'Subtitle',
-        `Retaining ${this.cues.length} cues confirmed for episode (${newIdStr}).`
+        "Subtitle",
+        `Retaining ${this.cues.length} cues confirmed for episode (${newIdStr}).`,
       );
     } else {
       this.logger.info(
-        'Subtitle',
-        `Resetting cues for episode switch (previous: ${this.currentMovieId}, next: ${newIdStr}).`
+        "Subtitle",
+        `Resetting cues for episode switch (previous: ${this.currentMovieId}, next: ${newIdStr}).`,
       );
       this.cues = [];
       this.currentMovieId = newIdStr;
@@ -409,12 +461,12 @@ export class SubtitleManager {
     if (!isKnownEpisodeOfCurrentShow) {
       if (this.currentShowId && this.isContextValid()) {
         this.logger.info(
-          'Subtitle',
-          `📺 Episode ${newIdStr} does not belong to show ${this.currentShowId}. Unloading old show context.`
+          "Subtitle",
+          `📺 Episode ${newIdStr} does not belong to show ${this.currentShowId}. Unloading old show context.`,
         );
         this.messageService.unloadContext(
           this.currentShowId,
-          this.settings.targetLanguage || Language.DEFAULT
+          this.settings.targetLanguage || Language.DEFAULT,
         );
       }
       this.currentShowId = null;
@@ -424,8 +476,8 @@ export class SubtitleManager {
       }
       if (newIdStr && this.adapter?.requestMetadata) {
         this.logger.info(
-          'Subtitle',
-          `Requesting fresh metadata from streaming adapter for episode (${newIdStr}).`
+          "Subtitle",
+          `Requesting fresh metadata from streaming adapter for episode (${newIdStr}).`,
         );
         this.adapter.requestMetadata(newIdStr);
       }
@@ -434,20 +486,20 @@ export class SubtitleManager {
     this.translationMap.clear();
     this.cueStateMap.clear();
     this.canonicalReviewIndex = 0;
-    this.currentTrackHash = '';
+    this.currentTrackHash = "";
     this.hasWarmedUpForEpisode = false;
     this.isTranslating = false;
     this.isReviewing = false;
     this.isPreReviewing = false;
     this.activeCueId = null;
-    this._lastCueSig = '';
+    this._lastCueSig = "";
     this._lastContentTime = null;
     this._emptyCueSince = null;
     this.cadmiumOffset = 0;
     this.domOffset = 0;
     this._lastNativeCalibAt = 0;
     this._hasLoggedEndOfCues = false;
-    if (typeof document !== 'undefined' && document.documentElement) {
+    if (typeof document !== "undefined" && document.documentElement) {
       delete document.documentElement.dataset.ncwSegmentAtomic;
       delete document.documentElement.dataset.ncwSegmentTime;
       delete document.documentElement.dataset.ncwSegmentSyncAt;
@@ -460,13 +512,17 @@ export class SubtitleManager {
     }
     this.overlay.hide(true);
 
-    if (this.adDetector && typeof this.adDetector.reset === 'function') {
+    if (this.adDetector && typeof this.adDetector.reset === "function") {
       this.adDetector.reset();
     }
 
     // Only notify background if this is confirmed to be an episode of the current show.
     // If it's a cross-show or unconfirmed switch, we wait until onMetadataLoaded arrives with confirmed show metadata!
-    if (isKnownEpisodeOfCurrentShow && this.isContextValid() && this.currentShowId) {
+    if (
+      isKnownEpisodeOfCurrentShow &&
+      this.isContextValid() &&
+      this.currentShowId
+    ) {
       let currentShowInfo: VideoMetadata | null = null;
       if (this.adapter) {
         try {
@@ -476,7 +532,9 @@ export class SubtitleManager {
         }
       }
       const targetLanguage = this.settings.targetLanguage || Language.DEFAULT;
-      const matchedEpisode = this.currentContext?.episodes?.find((e) => e.videoId === newIdStr);
+      const matchedEpisode = this.currentContext?.episodes?.find(
+        (e) => e.videoId === newIdStr,
+      );
       this.messageService
         .notifyEpisodeChanged(
           this.currentShowId,
@@ -489,7 +547,7 @@ export class SubtitleManager {
           matchedEpisode?.episodeNumber !== undefined
             ? String(matchedEpisode.episodeNumber)
             : undefined,
-          currentShowInfo?.seasonId
+          currentShowInfo?.seasonId,
         )
         .catch(() => {});
     }
@@ -528,13 +586,13 @@ export class SubtitleManager {
     // When a different show is switched into, unload the previous show's Context and load the new show's glossary context.
     if (newShowId && this.currentShowId && newShowId !== this.currentShowId) {
       this.logger.info(
-        'Subtitle',
-        `📺 Show switch detected from ${this.currentShowId} to ${newShowId}. Unloading old show context and loading new.`
+        "Subtitle",
+        `📺 Show switch detected from ${this.currentShowId} to ${newShowId}. Unloading old show context and loading new.`,
       );
       if (this.isContextValid()) {
         this.messageService.unloadContext(
           this.currentShowId,
-          this.settings.targetLanguage || Language.DEFAULT
+          this.settings.targetLanguage || Language.DEFAULT,
         );
       }
       this.currentContext = Context.createEmpty(this.settings.targetLanguage);
@@ -542,8 +600,8 @@ export class SubtitleManager {
       this.loadGlossaryAndNotify(meta);
     } else if (newShowId && !this.currentShowId) {
       this.logger.info(
-        'Subtitle',
-        `📺 Show context initialized with showId: ${newShowId}. Loading context.`
+        "Subtitle",
+        `📺 Show context initialized with showId: ${newShowId}. Loading context.`,
       );
       this.currentContext = Context.createEmpty(this.settings.targetLanguage);
       this.currentShowId = newShowId;
@@ -593,7 +651,7 @@ export class SubtitleManager {
         meta.episodeSummary,
         meta.videoId || this.currentMovieId || undefined,
         meta.episodeNum !== undefined ? String(meta.episodeNum) : undefined,
-        meta.seasonId
+        meta.seasonId,
       )
       .catch(() => {});
   }
@@ -602,20 +660,24 @@ export class SubtitleManager {
    * Warm up Context with Supervisor Model (gemma4:e4b)
    */
   warmupShowContext(force = false, metadataOverride?: VideoMetadata): void {
-    if (!this.isContextValid() || this.settings.enableSupervisor === false) return;
+    if (!this.isContextValid() || this.settings.enableSupervisor === false)
+      return;
     if (!this.currentShowId) {
-      this.logger.info('Glossary', 'Try to warmup show context without a valid show id!');
+      this.logger.info(
+        "Glossary",
+        "Try to warmup show context without a valid show id!",
+      );
       return;
     } else {
       this.logger.info(
-        'Glossary',
-        `Try to warmup show context with show id ${this.currentShowId}!`
+        "Glossary",
+        `Try to warmup show context with show id ${this.currentShowId}!`,
       );
     }
     if (this.settings.targetLanguage === undefined) {
       this.logger.info(
-        'Glossary',
-        `There is no target lanaguage when trying to warm up show context of show ${this.currentShowId}.`
+        "Glossary",
+        `There is no target lanaguage when trying to warm up show context of show ${this.currentShowId}.`,
       );
       setTimeout(() => this.warmupShowContext(force, metadataOverride), 300);
       return;
@@ -624,10 +686,10 @@ export class SubtitleManager {
 
     let showInfo: VideoMetadata = metadataOverride ||
       this.latestMetadata || {
-        fullTitle: '',
-        mainTitle: '',
-        episodeTitle: '',
-        videoId: this.currentMovieId || '',
+        fullTitle: "",
+        mainTitle: "",
+        episodeTitle: "",
+        videoId: this.currentMovieId || "",
       };
     if (!metadataOverride && !this.latestMetadata && this.adapter) {
       showInfo = this.adapter.getVideoInfo();
@@ -652,12 +714,12 @@ export class SubtitleManager {
 
     const sampleDialogues = this.cues
       .slice(0, 8)
-      .map((c) => `[${c.id}]: ${c.rawText.replace(/\n+/g, ' ')}`)
-      .join('\n');
+      .map((c) => `[${c.id}]: ${c.rawText.replace(/\n+/g, " ")}`)
+      .join("\n");
 
     this.logger.info(
-      'Subtitle',
-      `Supervisor warming up context for "${showInfo.fullTitle || showInfo.mainTitle || 'Streaming'}" (showId=${showInfo.showId || this.currentShowId || 'N/A'})...`
+      "Subtitle",
+      `Supervisor warming up context for "${showInfo.fullTitle || showInfo.mainTitle || "Streaming"}" (showId=${showInfo.showId || this.currentShowId || "N/A"})...`,
     );
 
     this.messageService
@@ -674,7 +736,7 @@ export class SubtitleManager {
       .then((res) => {
         if (!this.isContextValid()) return;
         if (res && res.success && res.context) {
-          this.logger.info('Subtitle', 'Context warmed up successfully.');
+          this.logger.info("Subtitle", "Context warmed up successfully.");
           this.currentContext = Context.fromDTO(res.context);
           if (res.context.showId) {
             this.currentShowId = res.context.showId;
@@ -683,19 +745,22 @@ export class SubtitleManager {
         }
       })
       .catch((e) => {
-        this.logger.warn('Subtitle', e);
+        this.logger.warn("Subtitle", e);
       });
   }
 
   /**
    * Request cached cues for this subtitle track
    */
-  async requestSubtitleCache(trackHash: string, cues: CueItem[]): Promise<boolean> {
+  async requestSubtitleCache(
+    trackHash: string,
+    cues: CueItem[],
+  ): Promise<boolean> {
     if (!this.isContextValid() || !trackHash) return false;
     const epoch = this.sessionEpoch;
 
     try {
-      const targetLangCode = this.settings.targetLanguage?.code || 'en';
+      const targetLangCode = this.settings.targetLanguage?.code || "en";
       const res = await this.messageService.getSubtitleCache({
         trackHash,
         movieId: this.currentMovieId || undefined,
@@ -703,7 +768,8 @@ export class SubtitleManager {
       });
 
       if (!this.isContextValid()) return false;
-      if (this.sessionEpoch !== epoch || this.currentTrackHash !== trackHash) return false;
+      if (this.sessionEpoch !== epoch || this.currentTrackHash !== trackHash)
+        return false;
 
       if (res && res.hit && res.cachedCues) {
         const cached = res.cachedCues;
@@ -715,17 +781,24 @@ export class SubtitleManager {
           const id = parseInt(idStr, 10);
           if (isNaN(id) || !entry || !entry.transText) continue;
 
-          const entryStatus: TranslationStatus = (entry.status as TranslationStatus) || 'raw';
-          if (entryStatus === 'stale') continue;
+          const entryStatus: TranslationStatus =
+            (entry.status as TranslationStatus) || "raw";
+          if (entryStatus === "stale") continue;
 
           // Check if cached entry has stale terms against live context
-          if (entry.usedTerms && this.currentContext.checkTermStaleness(entry.usedTerms)) {
-            this.cueStateMap.set(id, 'stale');
+          if (
+            entry.usedTerms &&
+            this.currentContext.checkTermStaleness(entry.usedTerms)
+          ) {
+            this.cueStateMap.set(id, "stale");
             continue;
           }
 
           const existing = this.translationMap.get(id);
-          if (!existing || (existing.status !== 'reviewed' && entryStatus === 'reviewed')) {
+          if (
+            !existing ||
+            (existing.status !== "reviewed" && entryStatus === "reviewed")
+          ) {
             this.translationMap.set(id, {
               text: entry.transText,
               status: entryStatus,
@@ -733,21 +806,22 @@ export class SubtitleManager {
             });
             this.cueStateMap.set(id, entryStatus);
             hitCount++;
-            if (entryStatus === 'reviewed' || entryStatus === 'pre_reviewed') reviewedCount++;
+            if (entryStatus === "reviewed" || entryStatus === "pre_reviewed")
+              reviewedCount++;
             else rawCount++;
           }
         }
 
         this.logger.info(
-          'Subtitle',
-          `Loaded ${hitCount} cached cues for track (${trackHash.slice(0, 8)}...) [${reviewedCount} reviewed, ${rawCount} raw, out of ${cues.length} total].`
+          "Subtitle",
+          `Loaded ${hitCount} cached cues for track (${trackHash.slice(0, 8)}...) [${reviewedCount} reviewed, ${rawCount} raw, out of ${cues.length} total].`,
         );
 
         if (this.video) {
           const effectiveTime = this.getEffectiveTime();
           const activeCues = this.findActiveCues(effectiveTime);
           if (activeCues.some((c) => this.translationMap.has(c.id))) {
-            this._lastCueSig = '';
+            this._lastCueSig = "";
             this.onTick();
           }
         }
@@ -756,7 +830,7 @@ export class SubtitleManager {
       }
       return false;
     } catch (e) {
-      this.logger.warn('Subtitle', 'Request cache error:', e);
+      this.logger.warn("Subtitle", "Request cache error:", e);
       return false;
     }
   }
@@ -770,7 +844,7 @@ export class SubtitleManager {
   private async loadSubtitlesForCurrentTrack(
     cues: CueItem[],
     epoch: number,
-    trackHash?: string
+    trackHash?: string,
   ): Promise<void> {
     if (!cues || cues.length === 0) return;
 
@@ -779,7 +853,7 @@ export class SubtitleManager {
       if (this.sessionEpoch !== epoch || this.cues !== cues) return;
 
       this.currentTrackHash = hash;
-      this.logger.info('Subtitle', `Subtitle Track Hash: ${hash}`);
+      this.logger.info("Subtitle", `Subtitle Track Hash: ${hash}`);
 
       // 1. Query persistent cache
       const cacheHit = await this.requestSubtitleCache(hash, cues);
@@ -788,9 +862,16 @@ export class SubtitleManager {
 
       // 2. If not fully covered by cache and native subtitles are preferred, try native track
       if (!cacheHit && this.settings.preferNativeSubtitles !== false) {
-        const nativeLoaded = await this.tryLoadNativeBilingualSubtitles(cues, epoch, hash);
+        const nativeLoaded = await this.tryLoadNativeBilingualSubtitles(
+          cues,
+          epoch,
+          hash,
+        );
         if (nativeLoaded) {
-          this.logger.info('Subtitle', '✅ Native official bilingual subtitles loaded and active.');
+          this.logger.info(
+            "Subtitle",
+            "✅ Native official bilingual subtitles loaded and active.",
+          );
           return;
         }
       }
@@ -804,8 +885,12 @@ export class SubtitleManager {
         this.checkPipeline(effectiveTime);
       }
     } catch (e) {
-      this.logger.warn('Subtitle', 'Track hash / subtitle load error:', e);
-      if (this.video && this.settings.enabled !== false && this.sessionEpoch === epoch) {
+      this.logger.warn("Subtitle", "Track hash / subtitle load error:", e);
+      if (
+        this.video &&
+        this.settings.enabled !== false &&
+        this.sessionEpoch === epoch
+      ) {
         const effectiveTime = this.getEffectiveTime();
         this.onTick();
         this.checkPipeline(effectiveTime);
@@ -819,25 +904,32 @@ export class SubtitleManager {
   private async tryLoadNativeBilingualSubtitles(
     cues: CueItem[],
     epoch: number,
-    trackHash?: string
+    trackHash?: string,
   ): Promise<boolean> {
     if (this.settings.preferNativeSubtitles === false) return false;
-    if (!this.adapter || typeof this.adapter.fetchNativeTargetTrack !== 'function') return false;
+    if (
+      !this.adapter ||
+      typeof this.adapter.fetchNativeTargetTrack !== "function"
+    )
+      return false;
 
     const targetLang = this.settings.targetLanguage || Language.DEFAULT;
     this.logger.info(
-      'Subtitle',
-      `Checking native target subtitle track for language: ${targetLang.code || 'default'}...`
+      "Subtitle",
+      `Checking native target subtitle track for language: ${targetLang.code || "default"}...`,
     );
 
     try {
       const nativeCues = await this.adapter.fetchNativeTargetTrack(
         targetLang,
-        this.currentMovieId || undefined
+        this.currentMovieId || undefined,
       );
 
       if (!nativeCues || nativeCues.length === 0) {
-        this.logger.info('Subtitle', 'No native target subtitle track returned from platform.');
+        this.logger.info(
+          "Subtitle",
+          "No native target subtitle track returned from platform.",
+        );
         return false;
       }
 
@@ -847,17 +939,35 @@ export class SubtitleManager {
 
       // Guard: Check if the returned native track is literally identical to the source cues (same language)
       if (this.cues.length > 0 && nativeCues.length > 0) {
-        const sampleCheckCount = Math.min(this.cues.length, nativeCues.length, 10);
+        const sampleCheckCount = Math.min(
+          this.cues.length,
+          nativeCues.length,
+          10,
+        );
         let identicalCount = 0;
         for (let i = 0; i < sampleCheckCount; i++) {
-          if ((this.cues[i].rawText || '').trim() === (nativeCues[i].text || '').trim()) {
+          if (
+            (this.cues[i].rawText || "").trim() ===
+            (nativeCues[i].text || "").trim()
+          ) {
             identicalCount++;
           }
         }
         if (identicalCount >= sampleCheckCount * 0.7) {
+          const isTargetLangFamilyMatch = this.isLanguageMatchingTarget(
+            this.currentRawLanguage,
+            targetLang.code,
+          );
+          if (isTargetLangFamilyMatch) {
+            this.logger.info(
+              "Subtitle",
+              `Native target track text and language (${this.currentRawLanguage}) match current source track (${targetLang.code}). Satisfied without translation.`,
+            );
+            return true;
+          }
           this.logger.info(
-            'Subtitle',
-            'Native target track text is identical to current source track (same language). Skipping self-alignment.'
+            "Subtitle",
+            "Native target track text is identical to current source track (same language). Skipping self-alignment.",
           );
           return false;
         }
@@ -865,31 +975,35 @@ export class SubtitleManager {
 
       const alignResult = SubtitleAlignmentService.align(this.cues, nativeCues);
       this.logger.info(
-        'Subtitle',
-        `Native track alignment result: ${alignResult.totalMatched}/${alignResult.totalSource} cues matched (${(alignResult.matchCoverage * 100).toFixed(1)}% coverage).`
+        "Subtitle",
+        `Native track alignment result: ${alignResult.totalMatched}/${alignResult.totalSource} cues matched (${(alignResult.matchCoverage * 100).toFixed(1)}% coverage).`,
       );
 
       // If coverage is at least 70%, adopt native subtitles
       if (alignResult.matchCoverage >= 0.7) {
         const resultsMap: Record<number, string> = {};
-        const pairs: Array<{ originalText: string; translatedText: string }> = [];
+        const pairs: Array<{ originalText: string; translatedText: string }> =
+          [];
 
         alignResult.alignedMap.forEach((matchedText, cueId) => {
           this.translationMap.set(cueId, {
             text: matchedText,
-            status: 'reviewed',
+            status: "reviewed",
           });
-          this.cueStateMap.set(cueId, 'reviewed');
+          this.cueStateMap.set(cueId, "reviewed");
           resultsMap[cueId] = matchedText;
 
           const srcCue = this.cues.find((c) => c.id === cueId);
           if (srcCue) {
-            pairs.push({ originalText: srcCue.rawText, translatedText: matchedText });
+            pairs.push({
+              originalText: srcCue.rawText,
+              translatedText: matchedText,
+            });
           }
         });
 
         // Immediately update presentation
-        this._lastCueSig = '';
+        this._lastCueSig = "";
         this.onTick();
 
         // Persist aligned native subtitles into TrackCacheRepository
@@ -899,12 +1013,12 @@ export class SubtitleManager {
           this.messageService
             .saveSubtitleCache({
               trackHash: effectiveHash,
-              movieId: this.currentMovieId || '',
-              showTitle: showInfo?.mainTitle || showInfo?.fullTitle || '',
-              targetLanguage: targetLang.code || 'en',
-              provider: 'netflix_native',
-              translationModel: 'official',
-              supervisorModel: 'official',
+              movieId: this.currentMovieId || "",
+              showTitle: showInfo?.mainTitle || showInfo?.fullTitle || "",
+              targetLanguage: targetLang.code || "en",
+              provider: "netflix_native",
+              translationModel: "official",
+              supervisorModel: "official",
               results: resultsMap,
             })
             .catch(() => {});
@@ -913,14 +1027,15 @@ export class SubtitleManager {
         // Supervisor Glossary Extraction from Native Subtitles (if enabled)
         if (this.settings.extractTermsFromNativeSubtitles && pairs.length > 0) {
           const showInfo = this.adapter.getVideoInfo();
-          const showId = showInfo?.showId || this.currentShowId || this.currentMovieId || '';
+          const showId =
+            showInfo?.showId || this.currentShowId || this.currentMovieId || "";
           this.messageService
             .extractTermsFromNativeBilingualCues({
               showId,
               targetLanguage: targetLang,
               pairs,
             })
-            .catch((e) => this.logger.warn('Subtitle', e));
+            .catch((e) => this.logger.warn("Subtitle", e));
         }
 
         return true;
@@ -928,15 +1043,38 @@ export class SubtitleManager {
 
       return false;
     } catch (err) {
-      this.logger.warn('Subtitle', 'Error during native subtitle loading:', err);
+      this.logger.warn(
+        "Subtitle",
+        "Error during native subtitle loading:",
+        err,
+      );
       return false;
+    }
+  }
+
+  private isLanguageMatchingTarget(
+    rawLangStr: string,
+    targetLangCode: string,
+  ): boolean {
+    if (!rawLangStr || !targetLangCode) return false;
+    try {
+      const rawLang = Language.resolve(rawLangStr);
+      const targetLang = Language.resolve(targetLangCode);
+      return rawLang.code.toLowerCase() === targetLang.code.toLowerCase();
+    } catch {
+      return rawLangStr
+        .toLowerCase()
+        .startsWith(targetLangCode.toLowerCase().slice(0, 2));
     }
   }
 
   /**
    * Helper: Extract up to `maxContext` preceding cues with their original and translated text
    */
-  getPrecedingContextItems(targetCueIndex: number, maxContext = 3): PrecedingContextItem[] {
+  getPrecedingContextItems(
+    targetCueIndex: number,
+    maxContext = 3,
+  ): PrecedingContextItem[] {
     if (!this.cues || this.cues.length === 0 || targetCueIndex <= 0) return [];
     const start = Math.max(0, targetCueIndex - maxContext);
     const contextCues = this.cues.slice(start, targetCueIndex);
@@ -955,13 +1093,13 @@ export class SubtitleManager {
     this.detachVideo();
     this.video = videoEl;
 
-    this.video.addEventListener('timeupdate', this.onTick);
-    this.video.addEventListener('seeking', this.onSeeking);
-    this.video.addEventListener('seeked', this.onSeeked);
-    this.video.addEventListener('play', this.startRafLoop.bind(this));
-    this.video.addEventListener('pause', this.stopRafLoop.bind(this));
+    this.video.addEventListener("timeupdate", this.onTick);
+    this.video.addEventListener("seeking", this.onSeeking);
+    this.video.addEventListener("seeked", this.onSeeked);
+    this.video.addEventListener("play", this.startRafLoop.bind(this));
+    this.video.addEventListener("pause", this.stopRafLoop.bind(this));
 
-    this.logger.info('Subtitle', 'Attached to video element.');
+    this.logger.info("Subtitle", "Attached to video element.");
 
     if (!this.video.paused) {
       this.startRafLoop();
@@ -970,16 +1108,16 @@ export class SubtitleManager {
 
   detachVideo(): void {
     if (this.video) {
-      this.video.removeEventListener('timeupdate', this.onTick);
-      this.video.removeEventListener('seeking', this.onSeeking);
-      this.video.removeEventListener('seeked', this.onSeeked);
+      this.video.removeEventListener("timeupdate", this.onTick);
+      this.video.removeEventListener("seeking", this.onSeeking);
+      this.video.removeEventListener("seeked", this.onSeeked);
       this.stopRafLoop();
       this.video = null;
     }
   }
 
   bindVideoEvents(): void {
-    const video = document.querySelector('video');
+    const video = document.querySelector("video");
     if (video) {
       this.attachVideo(video);
     }
@@ -1006,7 +1144,7 @@ export class SubtitleManager {
   getContentTime(): number {
     if (!this.video) return 0;
 
-    if (typeof document !== 'undefined' && document.documentElement) {
+    if (typeof document !== "undefined" && document.documentElement) {
       const atomicStr = document.documentElement.dataset?.ncwSegmentAtomic;
       let baseTime = NaN;
       let syncAt = NaN;
@@ -1014,11 +1152,12 @@ export class SubtitleManager {
       let rate = (this.video && this.video.playbackRate) || 1.0;
 
       if (atomicStr) {
-        const parts = atomicStr.split('|');
+        const parts = atomicStr.split("|");
         if (parts.length >= 4) {
           baseTime = parseFloat(parts[0]);
           syncAt = parseFloat(parts[1]);
-          isPaused = parts[2] === '1' || Boolean(this.video && this.video.paused);
+          isPaused =
+            parts[2] === "1" || Boolean(this.video && this.video.paused);
           rate = parseFloat(parts[3]) || rate;
         }
       }
@@ -1029,11 +1168,12 @@ export class SubtitleManager {
         const isPausedStr = document.documentElement.dataset?.ncwIsPaused;
         const rateStr = document.documentElement.dataset?.ncwPlaybackRate;
 
-        if (segStr !== undefined && segStr !== '') {
+        if (segStr !== undefined && segStr !== "") {
           baseTime = parseFloat(segStr);
-          syncAt = parseFloat(syncStr || '0');
-          isPaused = isPausedStr === 'true' || Boolean(this.video && this.video.paused);
-          rate = parseFloat(rateStr || '1') || rate;
+          syncAt = parseFloat(syncStr || "0");
+          isPaused =
+            isPausedStr === "true" || Boolean(this.video && this.video.paused);
+          rate = parseFloat(rateStr || "1") || rate;
         }
       }
 
@@ -1046,7 +1186,9 @@ export class SubtitleManager {
         let calculatedTime = baseTime;
         if (!isNaN(syncAt) && isFinite(syncAt)) {
           const now =
-            typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+            typeof performance !== "undefined" && performance.now
+              ? performance.now()
+              : Date.now();
           const elapsedMs = Math.max(0, now - syncAt);
           if (elapsedMs < 5000) {
             calculatedTime = baseTime + (elapsedMs / 1000) * rate;
@@ -1055,7 +1197,7 @@ export class SubtitleManager {
 
         if (
           !this.video.seeking &&
-          typeof this._lastContentTime === 'number' &&
+          typeof this._lastContentTime === "number" &&
           this._lastContentTime > 0
         ) {
           const delta = calculatedTime - this._lastContentTime;
@@ -1069,7 +1211,8 @@ export class SubtitleManager {
       }
     }
 
-    const rawTime = typeof this.video.currentTime === 'number' ? this.video.currentTime : 0;
+    const rawTime =
+      typeof this.video.currentTime === "number" ? this.video.currentTime : 0;
     this._lastContentTime = rawTime;
     return rawTime;
   }
@@ -1084,17 +1227,18 @@ export class SubtitleManager {
       this.cadmiumOffset = datasetCadmium;
     }
     const validCadmium =
-      typeof this.cadmiumOffset === 'number' && Math.abs(this.cadmiumOffset) <= 180
+      typeof this.cadmiumOffset === "number" &&
+      Math.abs(this.cadmiumOffset) <= 180
         ? this.cadmiumOffset
         : 0;
 
     const domOffset =
-      this.settings.enableDomSubtitleSync && typeof this.domOffset === 'number'
+      this.settings.enableDomSubtitleSync && typeof this.domOffset === "number"
         ? this.domOffset
         : 0;
 
     const manualOffset =
-      typeof this.settings.subSyncOffset === 'number'
+      typeof this.settings.subSyncOffset === "number"
         ? this.settings.subSyncOffset
         : this.manualOffset || 0;
     this.manualOffset = manualOffset;
@@ -1103,28 +1247,29 @@ export class SubtitleManager {
   }
 
   setCadmiumOffset(offset: number): void {
-    if (typeof offset === 'number' && !isNaN(offset)) {
+    if (typeof offset === "number" && !isNaN(offset)) {
       this.cadmiumOffset = offset;
     }
   }
 
   setAdOffset(offset: number): void {
-    if (typeof offset === 'number' && !isNaN(offset)) {
+    if (typeof offset === "number" && !isNaN(offset)) {
       this.cadmiumOffset = -offset;
     }
   }
 
   calibrateOffsetFromNativeSubtitles(): void {
     if (!this.settings.enableDomSubtitleSync) return;
-    if (typeof document === 'undefined') return;
+    if (typeof document === "undefined") return;
     if (!this.video || !this.cues || this.cues.length === 0) return;
-    const timedTextContainer = document.querySelector('.player-timedtext');
+    const timedTextContainer = document.querySelector(".player-timedtext");
     if (!timedTextContainer) return;
 
     const nativeText = timedTextContainer.textContent?.trim();
     if (!nativeText || nativeText.length < 3) return;
 
-    const norm = (s: string) => s.replace(/[\s\p{P}\p{S}]+/gu, '').toLowerCase();
+    const norm = (s: string) =>
+      s.replace(/[\s\p{P}\p{S}]+/gu, "").toLowerCase();
     const cleanNative = norm(nativeText);
     if (cleanNative.length < 3) return;
 
@@ -1143,7 +1288,8 @@ export class SubtitleManager {
 
     if (candidates.length > 0) {
       const match = candidates.reduce((prev, curr) => {
-        return Math.abs(curr.startTime - objectiveTime) < Math.abs(prev.startTime - objectiveTime)
+        return Math.abs(curr.startTime - objectiveTime) <
+          Math.abs(prev.startTime - objectiveTime)
           ? curr
           : prev;
       });
@@ -1157,8 +1303,8 @@ export class SubtitleManager {
         Math.abs((this.domOffset || 0) - neededDomOffset) > 1.0
       ) {
         this.logger.info(
-          'Subtitle',
-          `Auto-calibrated DOM offset: ${(this.domOffset || 0).toFixed(2)}s -> ${neededDomOffset.toFixed(2)}s (matched cue #${match.id}: "${match.rawText.replace(/\n+/g, ' ').slice(0, 30)}")`
+          "Subtitle",
+          `Auto-calibrated DOM offset: ${(this.domOffset || 0).toFixed(2)}s -> ${neededDomOffset.toFixed(2)}s (matched cue #${match.id}: "${match.rawText.replace(/\n+/g, " ").slice(0, 30)}")`,
         );
         this.domOffset = neededDomOffset;
       }
@@ -1174,7 +1320,7 @@ export class SubtitleManager {
     this._emptyCueSince = null;
     this.overlay.hide(true);
     this.activeCueId = null;
-    this._lastCueSig = '';
+    this._lastCueSig = "";
   }
 
   onSeeked(): void {
@@ -1188,8 +1334,8 @@ export class SubtitleManager {
     if (this.cues.length === 0 && !this.isAsrTrack) return;
     const effectiveTime = this.getEffectiveTime();
     this.logger.info(
-      'Subtitle',
-      `Timeline jump detected at ${effectiveTime.toFixed(2)}s (contentTime: ${this.getContentTime().toFixed(2)}s, raw: ${this.video.currentTime.toFixed(2)}s, domOffset: ${(this.domOffset || 0).toFixed(2)}s, manualOffset: ${(this.manualOffset || 0).toFixed(2)}s)`
+      "Subtitle",
+      `Timeline jump detected at ${effectiveTime.toFixed(2)}s (contentTime: ${this.getContentTime().toFixed(2)}s, raw: ${this.video.currentTime.toFixed(2)}s, domOffset: ${(this.domOffset || 0).toFixed(2)}s, manualOffset: ${(this.manualOffset || 0).toFixed(2)}s)`,
     );
 
     if (this.isAsrTrack) {
@@ -1206,12 +1352,19 @@ export class SubtitleManager {
     }
     if (!this.video || this.cues.length === 0) return;
 
-    if (this.settings.enabled === false || Boolean(this.adDetector?.isAdPlaying)) {
+    if (
+      this.settings.enabled === false ||
+      Boolean(this.adDetector?.isAdPlaying)
+    ) {
       this._emptyCueSince = null;
-      if (this.overlay.isVisible || this.activeCueId !== null || this._lastCueSig !== '') {
+      if (
+        this.overlay.isVisible ||
+        this.activeCueId !== null ||
+        this._lastCueSig !== ""
+      ) {
         this.overlay.hide(true);
         this.activeCueId = null;
-        this._lastCueSig = '';
+        this._lastCueSig = "";
       }
       return;
     }
@@ -1237,9 +1390,9 @@ export class SubtitleManager {
       const cueSig = activeCues
         .map((c) => {
           const entry = this.translationMap.get(c.id);
-          return `${c.id}:${entry ? entry.text : ''}`;
+          return `${c.id}:${entry ? entry.text : ""}`;
         })
-        .join('|');
+        .join("|");
 
       if (this._lastCueSig !== cueSig) {
         this._lastCueSig = cueSig;
@@ -1251,28 +1404,33 @@ export class SubtitleManager {
             id: c.id,
             originalText: c.rawText,
             translatedText: entry ? entry.text : null,
-            position: c.position || 'bottom',
+            position: c.position || "bottom",
           };
         });
 
-        if (typeof this.overlay.showCues === 'function') {
+        if (typeof this.overlay.showCues === "function") {
           this.overlay.showCues(cueItems);
         } else {
-          this.overlay.show(cueItems[0].originalText, cueItems[0].translatedText);
+          this.overlay.show(
+            cueItems[0].originalText,
+            cueItems[0].translatedText,
+          );
         }
 
         const first = cueItems[0];
         const transPreview = first.translatedText
           ? ` -> "${first.translatedText}"`
-          : ' (pending translation)';
+          : " (pending translation)";
         this.logger.info(
-          'Subtitle',
-          `Cue #${first.id} [${activeCues[0].startTime.toFixed(1)}s - ${activeCues[0].endTime.toFixed(1)}s]: "${first.originalText.replace(/\n+/g, ' ').slice(0, 40)}"${transPreview}`
+          "Subtitle",
+          `Cue #${first.id} [${activeCues[0].startTime.toFixed(1)}s - ${activeCues[0].endTime.toFixed(1)}s]: "${first.originalText.replace(/\n+/g, " ").slice(0, 40)}"${transPreview}`,
         );
       }
     } else {
       const nowMs =
-        typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+        typeof performance !== "undefined" && performance.now
+          ? performance.now()
+          : Date.now();
       if (!this._emptyCueSince) {
         this._emptyCueSince = nowMs;
       }
@@ -1281,9 +1439,9 @@ export class SubtitleManager {
       const emptyElapsed = nowMs - this._emptyCueSince;
 
       if (isPaused || emptyElapsed >= 80) {
-        if (this.activeCueId !== null || this._lastCueSig !== '') {
+        if (this.activeCueId !== null || this._lastCueSig !== "") {
           this.activeCueId = null;
-          this._lastCueSig = '';
+          this._lastCueSig = "";
           this.overlay.hide();
         }
       }
@@ -1295,8 +1453,8 @@ export class SubtitleManager {
         if (!this._hasLoggedEndOfCues) {
           this._hasLoggedEndOfCues = true;
           this.logger.info(
-            'Subtitle',
-            `Reached end of subtitle dialogue at ${effectiveTime.toFixed(1)}s (final cue #${lastCue.id} ended at ${lastCue.endTime.toFixed(1)}s, total cues: ${this.cues.length}).`
+            "Subtitle",
+            `Reached end of subtitle dialogue at ${effectiveTime.toFixed(1)}s (final cue #${lastCue.id} ended at ${lastCue.endTime.toFixed(1)}s, total cues: ${this.cues.length}).`,
           );
         }
       } else {
@@ -1365,9 +1523,15 @@ export class SubtitleManager {
     if (!this.rawAsrCues || this.rawAsrCues.length === 0) return;
 
     // Fast-forward raw merge index if user sought ahead of currently merged cues
-    const lastMergedTime = this.cues.length > 0 ? this.cues[this.cues.length - 1].endTime : 0;
-    if (currentTime > lastMergedTime + 10 && this.asrMergeIndex < this.rawAsrCues.length) {
-      const seekRawIdx = this.rawAsrCues.findIndex((c) => c.startTime >= currentTime - 2);
+    const lastMergedTime =
+      this.cues.length > 0 ? this.cues[this.cues.length - 1].endTime : 0;
+    if (
+      currentTime > lastMergedTime + 10 &&
+      this.asrMergeIndex < this.rawAsrCues.length
+    ) {
+      const seekRawIdx = this.rawAsrCues.findIndex(
+        (c) => c.startTime >= currentTime - 2,
+      );
       if (seekRawIdx >= 0 && seekRawIdx > this.asrMergeIndex) {
         this.asrMergeIndex = seekRawIdx;
       }
@@ -1377,19 +1541,23 @@ export class SubtitleManager {
 
     // Check if we need more merged cues ahead:
     // If cues is empty, or remaining buffer ahead is < 45 seconds
-    const needsMore = this.cues.length === 0 || lastMergedTime - currentTime < 45;
+    const needsMore =
+      this.cues.length === 0 || lastMergedTime - currentTime < 45;
     if (!needsMore) return;
 
     this.isMergingAsr = true;
     const epoch = this.sessionEpoch;
     const batchSize = Math.max(5, this.settings.asrMergeBatchSize || 15);
-    const chunk = this.rawAsrCues.slice(this.asrMergeIndex, this.asrMergeIndex + batchSize);
+    const chunk = this.rawAsrCues.slice(
+      this.asrMergeIndex,
+      this.asrMergeIndex + batchSize,
+    );
     this.asrMergeIndex += chunk.length;
 
     try {
       this.logger.info(
-        'Subtitle',
-        `ASR Merge: merging ${chunk.length} raw fragments [${chunk[0].id}..${chunk[chunk.length - 1].id}]...`
+        "Subtitle",
+        `ASR Merge: merging ${chunk.length} raw fragments [${chunk[0].id}..${chunk[chunk.length - 1].id}]...`,
       );
       const res = await this.messageService.mergeAsrBatch({
         items: chunk.map((c) => ({
@@ -1409,7 +1577,7 @@ export class SubtitleManager {
             startTime: c.startTime,
             endTime: c.endTime,
             rawText: c.rawText,
-          })
+          }),
         );
 
         const existingIds = new Set(this.cues.map((c) => c.id));
@@ -1418,8 +1586,8 @@ export class SubtitleManager {
         this.cues.sort((a, b) => a.startTime - b.startTime);
 
         this.logger.info(
-          'Subtitle',
-          `ASR Merge: successfully produced ${newCues.length} clean sentences (total active cues: ${this.cues.length}).`
+          "Subtitle",
+          `ASR Merge: successfully produced ${newCues.length} clean sentences (total active cues: ${this.cues.length}).`,
         );
 
         if (this.cues.length > 0 && !this.currentTrackHash) {
@@ -1431,7 +1599,7 @@ export class SubtitleManager {
         this.checkPipeline(effectiveTime);
       }
     } catch (err) {
-      this.logger.error('Subtitle', 'Error in ASR merge pipeline:', err);
+      this.logger.error("Subtitle", "Error in ASR merge pipeline:", err);
     } finally {
       this.isMergingAsr = false;
     }
@@ -1447,7 +1615,11 @@ export class SubtitleManager {
       this.checkAsrMergePipeline(currentTime);
     }
 
-    if (Boolean(this.adDetector?.isAdPlaying) || !this.settings.enabled || this.cues.length === 0)
+    if (
+      Boolean(this.adDetector?.isAdPlaying) ||
+      !this.settings.enabled ||
+      this.cues.length === 0
+    )
       return;
 
     const currentIdx = this.findCueIndexAtTime(currentTime);
@@ -1455,7 +1627,9 @@ export class SubtitleManager {
 
     const config = NCW_CONSTANTS.getPipelineConfig(this.settings);
     const currentCue = this.cues[currentIdx];
-    const isCurrentCueTranslated = currentCue ? this.isCueTranslated(currentCue.id) : true;
+    const isCurrentCueTranslated = currentCue
+      ? this.isCueTranslated(currentCue.id)
+      : true;
 
     // 1. Seek Burst: current playback cue untranslated -> urgently dispatch burst
     if (!isCurrentCueTranslated && !this.isTranslating) {
@@ -1474,7 +1648,10 @@ export class SubtitleManager {
     ) {
       const preReviewCues = this.cues
         .slice(currentIdx, Math.min(this.cues.length, currentIdx + 6))
-        .filter((c) => this.getCueStatus(c.id) === 'raw' && this.translationMap.has(c.id));
+        .filter(
+          (c) =>
+            this.getCueStatus(c.id) === "raw" && this.translationMap.has(c.id),
+        );
 
       if (preReviewCues.length > 0) {
         this.fetchEmergencyPreReview(preReviewCues, currentIdx);
@@ -1495,7 +1672,10 @@ export class SubtitleManager {
       }
     }
 
-    if (translatedAhead < (config.refillThreshold || 8) && !this.isTranslating) {
+    if (
+      translatedAhead < (config.refillThreshold || 8) &&
+      !this.isTranslating
+    ) {
       this.fetchNextTranslationBatch(currentIdx, config);
     }
 
@@ -1507,26 +1687,34 @@ export class SubtitleManager {
     }
   }
 
-  async fetchEmergencyPreReview(cuesToPreReview: CueItem[], currentIdx: number): Promise<void> {
+  async fetchEmergencyPreReview(
+    cuesToPreReview: CueItem[],
+    currentIdx: number,
+  ): Promise<void> {
     if (this.isPreReviewing || cuesToPreReview.length === 0) return;
     this.isPreReviewing = true;
     const epoch = this.sessionEpoch;
 
-    cuesToPreReview.forEach((c) => this.cueStateMap.set(c.id, 'pre_reviewing'));
+    cuesToPreReview.forEach((c) => this.cueStateMap.set(c.id, "pre_reviewing"));
 
     try {
       this.logger.info(
-        'Subtitle',
-        `Emergency Pre-Review: polishing ${cuesToPreReview.length} cues around index ${currentIdx}...`
+        "Subtitle",
+        `Emergency Pre-Review: polishing ${cuesToPreReview.length} cues around index ${currentIdx}...`,
       );
-      const firstIdx = this.cues.findIndex((c) => c.id === cuesToPreReview[0].id);
-      const contextItems = this.getPrecedingContextItems(firstIdx >= 0 ? firstIdx : currentIdx, 3);
+      const firstIdx = this.cues.findIndex(
+        (c) => c.id === cuesToPreReview[0].id,
+      );
+      const contextItems = this.getPrecedingContextItems(
+        firstIdx >= 0 ? firstIdx : currentIdx,
+        3,
+      );
 
       const reviewItems = cuesToPreReview.map((c) =>
         createSubtitleCue({
           ...c,
-          transText: this.translationMap.get(c.id)?.text || c.transText || '',
-        })
+          transText: this.translationMap.get(c.id)?.text || c.transText || "",
+        }),
       );
 
       const res = await this.messageService.reviewBatch({
@@ -1535,13 +1723,16 @@ export class SubtitleManager {
         trackHash: this.currentTrackHash,
         showId: this.currentShowId || undefined,
         movieId: this.currentMovieId || undefined,
-        status: 'pre_reviewed',
+        status: "pre_reviewed",
       });
 
       if (this.sessionEpoch !== epoch) return;
 
       if (res && res.success) {
-        const corrections = (res.corrections || {}) as Record<string | number, string>;
+        const corrections = (res.corrections || {}) as Record<
+          string | number,
+          string
+        >;
         const usedTermsMap = res.usedTermsMap || {};
 
         if (res.updatedContext) {
@@ -1554,34 +1745,38 @@ export class SubtitleManager {
           const finalText =
             correctedText && correctedText.trim().length > 0
               ? correctedText.trim()
-              : existing?.text || '';
+              : existing?.text || "";
           const usedTerms = usedTermsMap[c.id] || existing?.usedTerms;
 
           this.translationMap.set(c.id, {
             text: finalText,
-            status: 'pre_reviewed',
+            status: "pre_reviewed",
             usedTerms,
           });
-          this.cueStateMap.set(c.id, 'pre_reviewed');
+          this.cueStateMap.set(c.id, "pre_reviewed");
         });
 
-        const activeCues = this.video ? this.findActiveCues(this.getEffectiveTime()) : [];
-        if (activeCues.some((c) => cuesToPreReview.some((pr) => pr.id === c.id))) {
-          this._lastCueSig = '';
+        const activeCues = this.video
+          ? this.findActiveCues(this.getEffectiveTime())
+          : [];
+        if (
+          activeCues.some((c) => cuesToPreReview.some((pr) => pr.id === c.id))
+        ) {
+          this._lastCueSig = "";
           this.onTick();
         }
       } else {
         cuesToPreReview.forEach((c) => {
-          if (this.cueStateMap.get(c.id) === 'pre_reviewing') {
-            this.cueStateMap.set(c.id, 'raw');
+          if (this.cueStateMap.get(c.id) === "pre_reviewing") {
+            this.cueStateMap.set(c.id, "raw");
           }
         });
       }
     } catch (err) {
-      this.logger.warn('Subtitle', 'Emergency Pre-Review error:', err);
+      this.logger.warn("Subtitle", "Emergency Pre-Review error:", err);
       cuesToPreReview.forEach((c) => {
-        if (this.cueStateMap.get(c.id) === 'pre_reviewing') {
-          this.cueStateMap.set(c.id, 'raw');
+        if (this.cueStateMap.get(c.id) === "pre_reviewing") {
+          this.cueStateMap.set(c.id, "raw");
         }
       });
     } finally {
@@ -1589,7 +1784,10 @@ export class SubtitleManager {
     }
   }
 
-  async fetchSeekBurstBatch(currentIdx: number, burstSize: number): Promise<void> {
+  async fetchSeekBurstBatch(
+    currentIdx: number,
+    burstSize: number,
+  ): Promise<void> {
     if (this.isTranslating) return;
     this.isTranslating = true;
 
@@ -1600,25 +1798,30 @@ export class SubtitleManager {
 
       if (missing.length > 0) {
         this.logger.info(
-          'Subtitle',
-          `Seek Burst (size=${burstSize}): urgently translating ${missing.length} cues around index ${currentIdx}...`
+          "Subtitle",
+          `Seek Burst (size=${burstSize}): urgently translating ${missing.length} cues around index ${currentIdx}...`,
         );
-        missing.forEach((c) => this.cueStateMap.set(c.id, 'translating'));
-        const firstMissingIdx = this.cues.findIndex((c) => c && c.id === missing[0].id);
+        missing.forEach((c) => this.cueStateMap.set(c.id, "translating"));
+        const firstMissingIdx = this.cues.findIndex(
+          (c) => c && c.id === missing[0].id,
+        );
         const contextItems = this.getPrecedingContextItems(
           firstMissingIdx >= 0 ? firstMissingIdx : currentIdx,
-          3
+          3,
         );
         await this.dispatchTranslationSubBatch(missing, contextItems, true);
       }
     } catch (err) {
-      this.logger.error('Subtitle', 'Error in fetchSeekBurstBatch:', err);
+      this.logger.error("Subtitle", "Error in fetchSeekBurstBatch:", err);
     } finally {
       this.isTranslating = false;
     }
   }
 
-  async fetchNextTranslationBatch(currentIdx: number, config: PipelineConfig): Promise<void> {
+  async fetchNextTranslationBatch(
+    currentIdx: number,
+    config: PipelineConfig,
+  ): Promise<void> {
     if (this.isTranslating) return;
     this.isTranslating = true;
 
@@ -1647,7 +1850,9 @@ export class SubtitleManager {
 
       const endIdx = Math.min(this.cues.length, startGapIdx + maxCues);
       const candidateCues = this.cues.slice(startGapIdx, endIdx);
-      const missing = candidateCues.filter((c) => c && !this.isCueTranslated(c.id));
+      const missing = candidateCues.filter(
+        (c) => c && !this.isCueTranslated(c.id),
+      );
 
       if (missing.length === 0) return;
 
@@ -1658,21 +1863,23 @@ export class SubtitleManager {
       if (missing.length >= minCues || isUrgent || isEpisodeEnd) {
         const payload = missing.slice(0, maxCues);
         this.logger.info(
-          'Subtitle',
-          `Dynamic Prefetch: translating ${payload.length} cues [index ${startGapIdx}..${startGapIdx + payload.length - 1}]...`
+          "Subtitle",
+          `Dynamic Prefetch: translating ${payload.length} cues [index ${startGapIdx}..${startGapIdx + payload.length - 1}]...`,
         );
-        payload.forEach((c) => this.cueStateMap.set(c.id, 'translating'));
+        payload.forEach((c) => this.cueStateMap.set(c.id, "translating"));
 
-        const firstMissingIdx = this.cues.findIndex((c) => c && c.id === payload[0].id);
+        const firstMissingIdx = this.cues.findIndex(
+          (c) => c && c.id === payload[0].id,
+        );
         const contextItems = this.getPrecedingContextItems(
           firstMissingIdx >= 0 ? firstMissingIdx : startGapIdx,
-          3
+          3,
         );
 
         await this.dispatchTranslationSubBatch(payload, contextItems);
       }
     } catch (err) {
-      this.logger.error('Subtitle', 'Error in fetchNextTranslationBatch:', err);
+      this.logger.error("Subtitle", "Error in fetchNextTranslationBatch:", err);
     } finally {
       this.isTranslating = false;
     }
@@ -1681,7 +1888,7 @@ export class SubtitleManager {
   dispatchTranslationSubBatch(
     batch: CueItem[],
     contextItems: PrecedingContextItem[] = [],
-    isUrgent = false
+    isUrgent = false,
   ): Promise<void> {
     const epoch = this.sessionEpoch;
     return new Promise<void>((resolve) => {
@@ -1703,10 +1910,10 @@ export class SubtitleManager {
           if (epoch !== this.sessionEpoch) return resolve();
 
           if (!response || !response.success) {
-            this.logger.warn('Subtitle', response?.error || 'Empty response');
+            this.logger.warn("Subtitle", response?.error || "Empty response");
             batch.forEach((c) => {
-              if (this.cueStateMap.get(c.id) === 'translating') {
-                this.cueStateMap.set(c.id, 'untranslated');
+              if (this.cueStateMap.get(c.id) === "translating") {
+                this.cueStateMap.set(c.id, "untranslated");
               }
             });
             return resolve();
@@ -1714,41 +1921,49 @@ export class SubtitleManager {
 
           if (response.results) {
             const resEntries = Object.entries(response.results);
-            this.logger.info('Subtitle', `Received translation for ${resEntries.length} cues.`);
+            this.logger.info(
+              "Subtitle",
+              `Received translation for ${resEntries.length} cues.`,
+            );
             for (const [idStr, translatedText] of resEntries) {
               const id = parseInt(idStr, 10);
               if (!this.translationMap.has(id)) {
-                this.translationMap.set(id, { text: String(translatedText), status: 'raw' });
+                this.translationMap.set(id, {
+                  text: String(translatedText),
+                  status: "raw",
+                });
               }
-              this.cueStateMap.set(id, 'raw');
+              this.cueStateMap.set(id, "raw");
             }
 
             batch.forEach((c) => {
-              if (this.cueStateMap.get(c.id) === 'translating') {
-                this.cueStateMap.set(c.id, 'untranslated');
+              if (this.cueStateMap.get(c.id) === "translating") {
+                this.cueStateMap.set(c.id, "untranslated");
               }
             });
 
-            const nowCues = this.video ? this.findActiveCues(this.getEffectiveTime()) : [];
+            const nowCues = this.video
+              ? this.findActiveCues(this.getEffectiveTime())
+              : [];
             const hasActiveNewlyTranslated = nowCues.some((c) => {
               const newTrans =
                 response.results![c.id] ||
                 (response.results as Record<string, string>)[String(c.id)];
-              return typeof newTrans === 'string' && newTrans.trim().length > 0;
+              return typeof newTrans === "string" && newTrans.trim().length > 0;
             });
 
             if (hasActiveNewlyTranslated) {
-              this._lastCueSig = '';
+              this._lastCueSig = "";
               this.onTick();
             }
           }
           resolve();
         })
         .catch((e) => {
-          this.logger.error('Subtitle', e);
+          this.logger.error("Subtitle", e);
           batch.forEach((c) => {
-            if (this.cueStateMap.get(c.id) === 'translating') {
-              this.cueStateMap.set(c.id, 'untranslated');
+            if (this.cueStateMap.get(c.id) === "translating") {
+              this.cueStateMap.set(c.id, "untranslated");
             }
           });
           resolve();
@@ -1757,14 +1972,19 @@ export class SubtitleManager {
   }
 
   processSupervisorReviewQueue(pipelineConfig?: PipelineConfig): void {
-    if (this.isReviewing || !this.settings.enabled || this.settings.enableSupervisor === false)
+    if (
+      this.isReviewing ||
+      !this.settings.enabled ||
+      this.settings.enableSupervisor === false
+    )
       return;
     if (!this.isContextValid()) {
       this.detachVideo();
       return;
     }
 
-    const config = pipelineConfig || NCW_CONSTANTS.getPipelineConfig(this.settings);
+    const config =
+      pipelineConfig || NCW_CONSTANTS.getPipelineConfig(this.settings);
     const epoch = this.sessionEpoch;
     const reviewBatchSize = Math.max(1, config.reviewBatchSize || 8);
     const toReview: {
@@ -1785,12 +2005,12 @@ export class SubtitleManager {
       const state = this.getCueStatus(cue.id);
       const entry = this.translationMap.get(cue.id);
 
-      if (state === 'reviewed') {
+      if (state === "reviewed") {
         this.canonicalReviewIndex = i + 1;
         continue;
       }
 
-      if (state === 'raw' || state === 'pre_reviewed') {
+      if (state === "raw" || state === "pre_reviewed") {
         if (entry && entry.text) {
           toReview.push({
             id: cue.id,
@@ -1803,7 +2023,11 @@ export class SubtitleManager {
         } else {
           break;
         }
-      } else if (state === 'untranslated' || state === 'stale' || state === 'translating') {
+      } else if (
+        state === "untranslated" ||
+        state === "stale" ||
+        state === "translating"
+      ) {
         break;
       }
     }
@@ -1811,10 +2035,12 @@ export class SubtitleManager {
     if (toReview.length === 0) return;
 
     this.isReviewing = true;
-    toReview.forEach((r) => this.cueStateMap.set(r.id, 'reviewing'));
+    toReview.forEach((r) => this.cueStateMap.set(r.id, "reviewing"));
 
     const firstReviewIdx =
-      toReview[0]?.cueIndex !== undefined ? toReview[0].cueIndex : this.canonicalReviewIndex;
+      toReview[0]?.cueIndex !== undefined
+        ? toReview[0].cueIndex
+        : this.canonicalReviewIndex;
     const contextItems = this.getPrecedingContextItems(firstReviewIdx, 3);
 
     this.messageService
@@ -1826,21 +2052,24 @@ export class SubtitleManager {
             transText: r.trans,
             startTime: r.start,
             endTime: r.end,
-            status: 'reviewing',
-          })
+            status: "reviewing",
+          }),
         ),
         contextItems: contextItems,
         trackHash: this.currentTrackHash,
         movieId: this.currentMovieId || undefined,
         showId: this.currentShowId || undefined,
-        status: 'reviewed',
+        status: "reviewed",
       })
       .then((res) => {
         this.isReviewing = false;
         if (epoch !== this.sessionEpoch) return;
 
         if (res && res.success) {
-          const corrections = (res.corrections || {}) as Record<string | number, string>;
+          const corrections = (res.corrections || {}) as Record<
+            string | number,
+            string
+          >;
           const usedTermsMap = res.usedTermsMap || {};
 
           if (res.updatedContext) {
@@ -1848,37 +2077,46 @@ export class SubtitleManager {
           }
 
           toReview.forEach((r) => {
-            const correctedText = corrections[r.id] || corrections[String(r.id)];
+            const correctedText =
+              corrections[r.id] || corrections[String(r.id)];
             const finalText =
-              correctedText && correctedText.trim().length > 0 ? correctedText.trim() : r.trans;
-            const usedTerms = usedTermsMap[r.id] || this.translationMap.get(r.id)?.usedTerms;
+              correctedText && correctedText.trim().length > 0
+                ? correctedText.trim()
+                : r.trans;
+            const usedTerms =
+              usedTermsMap[r.id] || this.translationMap.get(r.id)?.usedTerms;
 
             this.translationMap.set(r.id, {
               text: finalText,
-              status: 'reviewed',
+              status: "reviewed",
               usedTerms,
             });
-            this.cueStateMap.set(r.id, 'reviewed');
-            this.canonicalReviewIndex = Math.max(this.canonicalReviewIndex, r.cueIndex + 1);
+            this.cueStateMap.set(r.id, "reviewed");
+            this.canonicalReviewIndex = Math.max(
+              this.canonicalReviewIndex,
+              r.cueIndex + 1,
+            );
           });
 
-          const activeCues = this.video ? this.findActiveCues(this.getEffectiveTime()) : [];
+          const activeCues = this.video
+            ? this.findActiveCues(this.getEffectiveTime())
+            : [];
           const hasRealChange = activeCues.some((c) => {
             const corr = corrections[c.id] || corrections[String(c.id)];
             const existing = this.translationMap.get(c.id)?.text;
-            return corr && corr.trim() !== (existing || '').trim();
+            return corr && corr.trim() !== (existing || "").trim();
           });
           if (hasRealChange) {
-            this._lastCueSig = '';
+            this._lastCueSig = "";
             this.onTick();
           }
 
           this.processSupervisorReviewQueue(config);
         } else {
           toReview.forEach((r) => {
-            if (this.cueStateMap.get(r.id) === 'reviewing') {
+            if (this.cueStateMap.get(r.id) === "reviewing") {
               const entry = this.translationMap.get(r.id);
-              this.cueStateMap.set(r.id, entry?.status || 'raw');
+              this.cueStateMap.set(r.id, entry?.status || "raw");
             }
           });
         }
@@ -1886,9 +2124,9 @@ export class SubtitleManager {
       .catch(() => {
         this.isReviewing = false;
         toReview.forEach((r) => {
-          if (this.cueStateMap.get(r.id) === 'reviewing') {
+          if (this.cueStateMap.get(r.id) === "reviewing") {
             const entry = this.translationMap.get(r.id);
-            this.cueStateMap.set(r.id, entry?.status || 'raw');
+            this.cueStateMap.set(r.id, entry?.status || "raw");
           }
         });
       });
@@ -1909,7 +2147,9 @@ export class SubtitleManager {
       }
     }
     if (newSettings.enableDomSubtitleSync !== undefined) {
-      this.settings.enableDomSubtitleSync = Boolean(newSettings.enableDomSubtitleSync);
+      this.settings.enableDomSubtitleSync = Boolean(
+        newSettings.enableDomSubtitleSync,
+      );
       if (!this.settings.enableDomSubtitleSync) {
         this.domOffset = 0;
       }
@@ -1920,15 +2160,19 @@ export class SubtitleManager {
     const newLangCode = newSettings.targetLanguage
       ? Language.resolve(newSettings.targetLanguage).code
       : oldLangCode;
-    const langChanged = Boolean(oldLangCode && newLangCode && oldLangCode !== newLangCode);
+    const langChanged = Boolean(
+      oldLangCode && newLangCode && oldLangCode !== newLangCode,
+    );
 
     const providerChanged = Boolean(
-      newSettings.aiProvider && oldAiProvider && newSettings.aiProvider !== oldAiProvider
+      newSettings.aiProvider &&
+      oldAiProvider &&
+      newSettings.aiProvider !== oldAiProvider,
     );
 
     const preferNativeChanged = Boolean(
       newSettings.preferNativeSubtitles !== undefined &&
-      (newSettings.preferNativeSubtitles !== false) !== oldPreferNative
+      (newSettings.preferNativeSubtitles !== false) !== oldPreferNative,
     );
 
     if (this.settings.enabled === false) {
@@ -1939,8 +2183,8 @@ export class SubtitleManager {
       this.isPreReviewing = false;
     } else if (providerChanged || langChanged || preferNativeChanged) {
       this.logger.info(
-        'Subtitle',
-        `Translation settings switched (provider: "${oldAiProvider}" -> "${newSettings.aiProvider}", targetLang: "${oldLangCode}" -> "${newLangCode}", preferNative: ${oldPreferNative} -> ${this.settings.preferNativeSubtitles !== false}). Resetting translation pipeline.`
+        "Subtitle",
+        `Translation settings switched (provider: "${oldAiProvider}" -> "${newSettings.aiProvider}", targetLang: "${oldLangCode}" -> "${newLangCode}", preferNative: ${oldPreferNative} -> ${this.settings.preferNativeSubtitles !== false}). Resetting translation pipeline.`,
       );
       if (this.isContextValid()) {
         this.messageService.clearQueues().catch(() => {});
@@ -1959,32 +2203,43 @@ export class SubtitleManager {
 
       if (this.cues && this.cues.length > 0) {
         this.warmupShowContext(true);
-        this.loadSubtitlesForCurrentTrack(this.cues, epoch, this.currentTrackHash);
+        this.loadSubtitlesForCurrentTrack(
+          this.cues,
+          epoch,
+          this.currentTrackHash,
+        );
       }
     } else if (!wasEnabled && this.settings.enabled) {
-      this.logger.info('Subtitle', 'Subtitle translation enabled.');
+      this.logger.info("Subtitle", "Subtitle translation enabled.");
       this.warmupShowContext();
 
       if (!this.video || !document.body.contains(this.video)) {
-        const v = document.querySelector('video');
+        const v = document.querySelector("video");
         if (v) this.attachVideo(v);
       }
       this.overlay.mountToPlayer();
 
       if (this.cues && this.cues.length > 0) {
-        this.logger.info('Subtitle', `Resuming with ${this.cues.length} cues loaded.`);
+        this.logger.info(
+          "Subtitle",
+          `Resuming with ${this.cues.length} cues loaded.`,
+        );
         if (this.video) {
           const epoch = Date.now();
           this.sessionEpoch = epoch;
-          this.loadSubtitlesForCurrentTrack(this.cues, epoch, this.currentTrackHash);
+          this.loadSubtitlesForCurrentTrack(
+            this.cues,
+            epoch,
+            this.currentTrackHash,
+          );
           if (!this.video.paused) {
             this.startRafLoop();
           }
         }
       } else {
         this.logger.info(
-          'Subtitle',
-          'Subtitle translation enabled but 0 cues loaded. Requesting subtitle track...'
+          "Subtitle",
+          "Subtitle translation enabled but 0 cues loaded. Requesting subtitle track...",
         );
         if (this.adapter) {
           this.adapter.requestSubtitleRetry();
