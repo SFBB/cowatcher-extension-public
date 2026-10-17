@@ -26,6 +26,7 @@
   },
   "permissions": [
     "storage",
+    "unlimitedStorage",
     "declarativeNetRequest"
   ],
   "host_permissions": [
