@@ -17,6 +17,7 @@ We support:
 - [x] Free traditional translation services (Google Translate), local Ollama models, and cloud OpenRouter models
 - [x] One-click vocabulary saving for effortless language acquisition
 - [x] Instant hover/click word definitions without leaving the player
+- [x] Track your watching, to know how much time you spent on it
 - [ ] Support for both Chrome and Firefox
 
 Your CoWatcher!
