@@ -25,6 +25,7 @@ import { NCW_STORAGE_KEYS } from "@shared/domain/constants/StorageKeys";
 import { NCW_MESSAGE_TYPES } from "@shared/domain/constants/MessageTypes";
 
 import { LLMHelperService } from "../application/services/LLMHelperService";
+import { WatchHistoryService } from "../application/services/WatchHistoryService";
 import { Context } from "@shared/domain/entities/Context";
 import { Logger } from "@shared/utils/logger";
 
@@ -36,6 +37,7 @@ export class BackgroundMessageService {
   private readonly vocabService: VocabService;
   private readonly llmService: LlmService;
   private readonly llmHelperService: LLMHelperService;
+  private readonly watchHistoryService: WatchHistoryService;
   private readonly storage: IBrowserStorage;
   private readonly platform: IBrowserPlatform;
   private readonly cacheRepository: ITrackCacheRepository;
@@ -55,6 +57,7 @@ export class BackgroundMessageService {
     this.vocabService = VocabService.getInstance();
     this.llmService = LlmService.getInstance();
     this.llmHelperService = LLMHelperService.getInstance();
+    this.watchHistoryService = WatchHistoryService.getInstance();
 
     this.storage.onChanged((changes) => {
       if (changes[NCW_STORAGE_KEYS.SETTINGS]?.newValue) {
@@ -632,6 +635,46 @@ export class BackgroundMessageService {
               sendResponse(
                 res as MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.LOOKUP_WORD_DEFINITION]["response"],
               );
+            });
+            return true;
+          }
+
+          // --- Watch History & Analytics ---
+          case NCW_CONSTANTS.MESSAGE_TYPES.RECORD_WATCH_SESSION: {
+            this.watchHistoryService.recordSession(message.session).then((success) => {
+              sendResponse({
+                success,
+              } as MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.RECORD_WATCH_SESSION]["response"]);
+            });
+            return true;
+          }
+
+          case NCW_CONSTANTS.MESSAGE_TYPES.GET_WATCH_HISTORY: {
+            this.watchHistoryService.getWatchHistory().then((data) => {
+              sendResponse({
+                success: true,
+                shows: data.shows,
+                recentSessions: data.recentSessions,
+                stats: data.stats,
+              } as MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.GET_WATCH_HISTORY]["response"]);
+            });
+            return true;
+          }
+
+          case NCW_CONSTANTS.MESSAGE_TYPES.CLEAR_WATCH_HISTORY: {
+            this.watchHistoryService.clearWatchHistory().then((success) => {
+              sendResponse({
+                success,
+              } as MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.CLEAR_WATCH_HISTORY]["response"]);
+            });
+            return true;
+          }
+
+          case NCW_CONSTANTS.MESSAGE_TYPES.DELETE_SHOW_HISTORY: {
+            this.watchHistoryService.deleteShowHistory(message.showId).then((success) => {
+              sendResponse({
+                success,
+              } as MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.DELETE_SHOW_HISTORY]["response"]);
             });
             return true;
           }

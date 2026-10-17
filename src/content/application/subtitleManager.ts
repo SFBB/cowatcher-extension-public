@@ -25,6 +25,7 @@ import { SubtitleAlignmentService } from "../domain/services/SubtitleAlignmentSe
 import { Logger } from "@shared/utils/logger";
 
 import { SubtitleLearningManager } from "./learning/SubtitleLearningManager";
+import { WatchHistoryTracker } from "./history/WatchHistoryTracker";
 
 export type CueItem = SubtitleCue;
 
@@ -35,6 +36,7 @@ export class SubtitleManager {
   settings: Partial<ExtensionSettings>;
   platform: IBrowserPlatform;
   learningManager?: SubtitleLearningManager;
+  historyTracker?: WatchHistoryTracker;
 
   video: HTMLVideoElement | null = null;
   cues: CueItem[] = [];
@@ -107,6 +109,10 @@ export class SubtitleManager {
         this.settings as any
       );
       this.overlay.setLearningManager(this.learningManager);
+      this.historyTracker = new WatchHistoryTracker(
+        this.adapter,
+        this.messageService
+      );
     }
 
     this.bindVideoEvents = this.bindVideoEvents.bind(this);
@@ -606,6 +612,9 @@ export class SubtitleManager {
   onMetadataLoaded(meta: VideoMetadata): void {
     if (!meta) return;
     this.latestMetadata = meta;
+    if (this.historyTracker) {
+      this.historyTracker.onMetadataLoaded(meta);
+    }
     if (meta.videoId) {
       this.currentMovieId = meta.videoId;
       this.learningManager?.onShowContext(
@@ -1128,6 +1137,10 @@ export class SubtitleManager {
     this.detachVideo();
     this.video = videoEl;
 
+    if (this.historyTracker) {
+      this.historyTracker.attachVideo(videoEl);
+    }
+
     this.video.addEventListener("timeupdate", this.onTick);
     this.video.addEventListener("seeking", this.onSeeking);
     this.video.addEventListener("seeked", this.onSeeked);
@@ -1142,6 +1155,9 @@ export class SubtitleManager {
   }
 
   detachVideo(): void {
+    if (this.historyTracker) {
+      this.historyTracker.detachVideo();
+    }
     if (this.video) {
       this.video.removeEventListener("timeupdate", this.onTick);
       this.video.removeEventListener("seeking", this.onSeeking);

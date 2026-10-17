@@ -14,8 +14,23 @@ export type PrecedingContextItem = SubtitleCue;
 
 import { VocabWordItem, EpisodeVocabData } from '../domain/entities/Vocabulary';
 import { SubtitleToken, LearningCueItem, WordLookupRequest, WordLookupResult } from '../domain/entities/SubtitleLearning';
+import { WatchSession, ShowWatchSummary, WatchHistoryStats, DailyWatchStat, ShowEpisodeProgress } from '../domain/entities/WatchHistory';
 
-export { VocabWordItem, EpisodeVocabData, TrackCacheRecord, MergeAsrCueItem, SubtitleToken, LearningCueItem, WordLookupRequest, WordLookupResult };
+export {
+  VocabWordItem,
+  EpisodeVocabData,
+  TrackCacheRecord,
+  MergeAsrCueItem,
+  SubtitleToken,
+  LearningCueItem,
+  WordLookupRequest,
+  WordLookupResult,
+  WatchSession,
+  ShowWatchSummary,
+  WatchHistoryStats,
+  DailyWatchStat,
+  ShowEpisodeProgress,
+};
 
 export interface OpenRouterModelItem {
   id: string;
@@ -383,6 +398,41 @@ export type MessagePayloadMap = {
     };
     response: {
       success: boolean;
+    };
+  };
+  NCW_RECORD_WATCH_SESSION: {
+    request: {
+      session: WatchSession;
+    };
+    response: {
+      success: boolean;
+      error?: string;
+    };
+  };
+  NCW_GET_WATCH_HISTORY: {
+    request: void;
+    response: {
+      success: boolean;
+      shows: ShowWatchSummary[];
+      recentSessions: WatchSession[];
+      stats: WatchHistoryStats;
+      error?: string;
+    };
+  };
+  NCW_CLEAR_WATCH_HISTORY: {
+    request: void;
+    response: {
+      success: boolean;
+      error?: string;
+    };
+  };
+  NCW_DELETE_SHOW_HISTORY: {
+    request: {
+      showId: string;
+    };
+    response: {
+      success: boolean;
+      error?: string;
     };
   };
 };

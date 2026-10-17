@@ -148,4 +148,22 @@ export class OptionsMessageService {
   }): Promise<{ success: boolean; invalidatedCount: number; error?: string }> {
     return await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.MARK_CUES_STALE, params);
   }
+
+  // --- Watch History & Analytics ---
+
+  async getWatchHistory() {
+    return await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.GET_WATCH_HISTORY, undefined);
+  }
+
+  async clearWatchHistory(): Promise<boolean> {
+    const res = await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.CLEAR_WATCH_HISTORY, undefined);
+    return res.success;
+  }
+
+  async deleteShowHistory(showId: string): Promise<boolean> {
+    const res = await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.DELETE_SHOW_HISTORY, {
+      showId,
+    });
+    return res.success;
+  }
 }

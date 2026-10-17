@@ -842,3 +842,250 @@ button {
   transform: translateY(0);
   opacity: 1;
 }
+
+/* ==========================================================================
+   Watch History & Analytics Styles
+   ========================================================================== */
+
+.history-charts-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 960px) {
+  .history-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Immersion Calendar Heatmap */
+.heatmap-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.heatmap-calendar-body {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.heatmap-day-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 9.5px;
+  color: var(--text-dim);
+  width: 20px;
+  text-align: right;
+  padding-top: 1px;
+  user-select: none;
+}
+
+.heatmap-day-label {
+  height: 12px;
+  line-height: 12px;
+}
+
+.heatmap-weeks-container {
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.heatmap-week-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.heatmap-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #1e1e24;
+  transition: transform 0.1s ease, outline 0.1s ease;
+  cursor: pointer;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.3);
+  outline: 1.5px solid #fff;
+  z-index: 10;
+}
+
+.heatmap-cell.level-0 { background: #1e1e24; }
+.heatmap-cell.level-1 { background: #0e4429; }
+.heatmap-cell.level-2 { background: #006d32; }
+.heatmap-cell.level-3 { background: #26a641; }
+.heatmap-cell.level-4 { background: #39d353; }
+
+/* History Shows List */
+.history-shows-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.history-show-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.history-show-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.history-show-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: #18181f;
+  cursor: pointer;
+  user-select: none;
+}
+
+.history-show-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.history-show-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-show-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.history-show-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.history-show-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Platform Badges */
+.platform-badge {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.platform-badge.netflix {
+  background: rgba(229, 9, 20, 0.15);
+  color: #e50914;
+  border: 1px solid rgba(229, 9, 20, 0.35);
+}
+
+.platform-badge.youtube {
+  background: rgba(255, 0, 0, 0.15);
+  color: #ff4444;
+  border: 1px solid rgba(255, 0, 0, 0.35);
+}
+
+.platform-badge.tver {
+  background: rgba(0, 180, 216, 0.15);
+  color: #00b4d8;
+  border: 1px solid rgba(0, 180, 216, 0.35);
+}
+
+.platform-badge.unknown {
+  background: rgba(140, 140, 154, 0.15);
+  color: #8c8c9a;
+  border: 1px solid rgba(140, 140, 154, 0.35);
+}
+
+/* Episodes & Session Intervals */
+.history-episodes-list {
+  padding: 16px 20px;
+  background: rgba(18, 18, 22, 0.6);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-ep-row {
+  background: #15151a;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-ep-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+}
+
+.history-ep-title {
+  font-weight: 600;
+  color: #eee;
+}
+
+.history-ep-time {
+  font-size: 12px;
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+.history-session-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  margin-top: 4px;
+}
+
+.history-session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.history-session-interval {
+  color: #a3e635;
+}
+
+.history-session-duration {
+  color: #93c5fd;
+  margin-left: 8px;
+}
+
+.history-session-date {
+  color: var(--text-dim);
+}
+

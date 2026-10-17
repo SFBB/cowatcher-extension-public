@@ -335,6 +335,13 @@ export class ContentMessageService {
     );
   }
 
+  async recordWatchSession(session: import("@shared/domain/entities/WatchHistory").WatchSession) {
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.RECORD_WATCH_SESSION,
+      { session },
+    );
+  }
+
   onSettingsChanged(
     callback: (settings: ExtensionSettings) => void,
   ): () => void {

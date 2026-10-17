@@ -34,6 +34,11 @@
           <span>Show Context & Memory</span>
           <span class="tab-count-badge" id="nav-context-count">0</span>
         </button>
+        <button class="nav-tab-btn" data-tab="history">
+          <span class="tab-icon">📊</span>
+          <span>Watch History</span>
+          <span class="tab-count-badge" id="nav-history-count">0</span>
+        </button>
         <button class="nav-tab-btn" data-tab="settings">
           <span class="tab-icon">⚙️</span>
           <span>Settings</span>
@@ -264,7 +269,107 @@
         </div>
       </section>
 
-      <!-- TAB 4: GLOBAL SETTINGS -->
+      <!-- TAB 4: WATCH HISTORY & ANALYTICS -->
+      <section id="pane-history" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h2 class="pane-title">📊 Viewing History & Analytics</h2>
+            <p class="pane-desc">
+              Tracks your active viewing sessions, time intervals, episodes, and immersion habits across Netflix, YouTube, and TVer.
+            </p>
+          </div>
+          <div class="pane-actions">
+            <button id="btn-refresh-history" class="btn-secondary">🔄 Refresh</button>
+            <button id="btn-export-history-csv" class="btn-primary">⬇️ Export History (.CSV)</button>
+            <button id="btn-clear-all-history" class="btn-danger">🗑️ Clear All History</button>
+          </div>
+        </div>
+
+        <!-- Overview Stat Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Time Watched</div>
+            <div class="stat-val" id="stat-history-time">0h 0m</div>
+            <div class="stat-sub">Active video playback time</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Tracked Shows</div>
+            <div class="stat-val" id="stat-history-shows">0</div>
+            <div class="stat-sub">Unique series & movies</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Episodes Watched</div>
+            <div class="stat-val" id="stat-history-episodes">0</div>
+            <div class="stat-sub">Across all platforms</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Viewing Sessions</div>
+            <div class="stat-val" id="stat-history-sessions">0</div>
+            <div class="stat-sub">Interval playback logs</div>
+          </div>
+        </div>
+
+        <!-- Graphs / Visualizations Section -->
+        <div class="history-charts-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 24px;">
+          <!-- Heatmap Card -->
+          <div class="settings-card" style="margin: 0; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <h3 class="card-title" style="margin: 0;">📅 Immersion Activity (Past 26 Weeks)</h3>
+              <div class="heatmap-legend" style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #888;">
+                <span>Less</span>
+                <span class="heatmap-cell level-0" style="width: 11px; height: 11px; border-radius: 2px; display: inline-block; background: #1f1f24;"></span>
+                <span class="heatmap-cell level-1" style="width: 11px; height: 11px; border-radius: 2px; display: inline-block; background: #0e4429;"></span>
+                <span class="heatmap-cell level-2" style="width: 11px; height: 11px; border-radius: 2px; display: inline-block; background: #006d32;"></span>
+                <span class="heatmap-cell level-3" style="width: 11px; height: 11px; border-radius: 2px; display: inline-block; background: #26a641;"></span>
+                <span class="heatmap-cell level-4" style="width: 11px; height: 11px; border-radius: 2px; display: inline-block; background: #39d353;"></span>
+                <span>More</span>
+              </div>
+            </div>
+            <div id="history-heatmap-container" style="overflow-x: auto; padding-bottom: 6px;">
+              <!-- Rendered dynamic calendar heatmap -->
+            </div>
+            <div id="heatmap-tooltip" style="font-size: 11.5px; color: #aaa; margin-top: 8px; min-height: 18px;">
+              Hover over a day to view watch details.
+            </div>
+          </div>
+
+          <!-- Trend Bar Chart Card -->
+          <div class="settings-card" style="margin: 0; padding: 20px; display: flex; flex-direction: column;">
+            <h3 class="card-title" style="margin-bottom: 14px;">📈 Recent 14-Day Watch Trend</h3>
+            <div style="flex: 1; display: flex; align-items: flex-end; position: relative; min-height: 120px;">
+              <canvas id="history-trend-canvas" width="360" height="130" style="width: 100%; height: 130px;"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input
+              type="text"
+              id="history-search"
+              placeholder="Search by show title, episode, or platform..."
+            />
+          </div>
+          <div class="filter-right" style="display: flex; align-items: center; gap: 14px;">
+            <select id="history-platform-filter" class="select-sm">
+              <option value="all">All Platforms</option>
+              <option value="netflix">Netflix</option>
+              <option value="youtube">YouTube</option>
+              <option value="tver">TVer</option>
+            </select>
+            <span id="history-list-count" class="counter-text">Showing 0 shows</span>
+          </div>
+        </div>
+
+        <!-- History Shows & Sessions Cards Container -->
+        <div class="history-shows-list" id="history-cards-grid">
+          <div class="empty-state">Loading watch history...</div>
+        </div>
+      </section>
+
+      <!-- TAB 5: GLOBAL SETTINGS -->
       <section id="pane-settings" class="tab-pane">
         <div class="pane-header">
           <div>
