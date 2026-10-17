@@ -6,16 +6,17 @@ English Documentation | [简体中文文档](README_zh.md) | [📖 Detailed Popu
 
 We support:
 
-- [x] Subtitle translation for Netflix & TVer
+- [x] Subtitle translation for Netflix & TVer & YouTube
 - [x] Official bilingual subtitle display from supported platforms
+- [x] Support YouTube ASR(automatically generated) subtitles merging into ordinary subtitles.
 - [x] Background vocabulary detection with seamless Anki learning workflow integration
 - [x] Character name consistency enforcement and manual glossary editing
 - [x] Subtitle translation caching so your tokens are never wasted on rewatches
 - [x] Native-grade subtitle typography: horizontal, vertical, and pixel-perfect native rendering
 - [x] Multi-tab support: stream across multiple tabs and platforms simultaneously without conflict
 - [x] Free traditional translation services (Google Translate), local Ollama models, and cloud OpenRouter models
-- [ ] One-click vocabulary saving for effortless language acquisition
-- [ ] Instant hover/click word definitions without leaving the player
+- [x] One-click vocabulary saving for effortless language acquisition
+- [x] Instant hover/click word definitions without leaving the player
 - [ ] Support for both Chrome and Firefox
 
 Your CoWatcher!
@@ -143,10 +144,10 @@ ollama pull gemma4:e2b
 
 ## 🗺️ Roadmap
 
-- Support additional streaming platforms.
-- Watch history & data synchronization: integrate with our companion tracking app to curate personal viewing archives and social sharing.
-- Multi-user synchronized co-watching (Watch Party / Co-Watching): watch together with friends remotely with synchronized playback and shared bilingual subtitles.
-- Audio-based translation fallback: audio-to-text (STT) for videos without native subtitles, with graceful fallback to real-time interpretation.
+- [ ] Support additional streaming platforms.
+- [ ] Watch history & data synchronization: integrate with our companion tracking app to curate personal viewing archives and social sharing.
+- [ ] Multi-user synchronized co-watching (Watch Party / Co-Watching): watch together with friends remotely with synchronized playback and shared bilingual subtitles.
+- [ ] Audio-based translation fallback: audio-to-text (STT) for videos without native subtitles, with graceful fallback to real-time interpretation.
 
 ---
 
