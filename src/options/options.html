@@ -183,10 +183,18 @@
             />
           </div>
           <div class="filter-right" style="display: flex; align-items: center; gap: 14px">
+            <select id="vocab-source-filter" class="select-sm">
+              <option value="all">All Sources</option>
+              <option value="user">⭐ User Marked Only</option>
+              <option value="ai">🤖 AI Extracted</option>
+            </select>
             <label class="select-all-label">
               <input type="checkbox" id="vocab-select-all" />
               <span>Select All</span>
             </label>
+            <button id="btn-export-user-vocab" class="btn-secondary btn-sm" title="Export only words marked by you with context sentences">
+              ⭐ Export User Vocab (.CSV)
+            </button>
             <button id="btn-export-selected-vocab" class="btn-primary btn-sm" disabled>
               ⬇️ Export Selected (0)
             </button>
@@ -381,6 +389,20 @@
               <label>
                 <input type="checkbox" id="cfg-enable-dom-sync" />
                 <span>DOM Subtitle Text Auto-Calibration (Default: Off)</span>
+              </label>
+            </div>
+
+            <div class="form-group checkbox-row">
+              <label>
+                <input type="checkbox" id="cfg-enable-learning" />
+                <span>Interactive Word Segmentation & Subtitle Learning</span>
+              </label>
+            </div>
+
+            <div class="form-group checkbox-row">
+              <label>
+                <input type="checkbox" id="cfg-auto-pause-learning" checked />
+                <span>Auto-pause video playback when clicking subtitle word</span>
               </label>
             </div>
           </div>

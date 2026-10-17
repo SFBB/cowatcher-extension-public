@@ -67,6 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportSelectedVocab = document.getElementById(
     'btn-export-selected-vocab'
   ) as HTMLButtonElement | null;
+  const vocabSourceFilter = document.getElementById(
+    'vocab-source-filter'
+  ) as HTMLSelectElement | null;
+  const btnExportUserVocab = document.getElementById('btn-export-user-vocab');
   const statVocabEpisodes = document.getElementById('stat-vocab-episodes');
   const statVocabWords = document.getElementById('stat-vocab-words');
   const vocabListCount = document.getElementById('vocab-list-count');
@@ -114,6 +118,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const cfgHideNative = document.getElementById('cfg-hide-native') as HTMLInputElement | null;
   const cfgEnableDomSync = document.getElementById(
     'cfg-enable-dom-sync'
+  ) as HTMLInputElement | null;
+  const cfgEnableLearning = document.getElementById(
+    'cfg-enable-learning'
+  ) as HTMLInputElement | null;
+  const cfgAutoPauseLearning = document.getElementById(
+    'cfg-auto-pause-learning'
   ) as HTMLInputElement | null;
   const cfgVocabEnabled = document.getElementById('cfg-vocab-enabled') as HTMLInputElement | null;
   const cfgVocabProvider = document.getElementById(
@@ -639,7 +649,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderVocabBank(): void {
     const query = (vocabSearchInput?.value || '').trim().toLowerCase();
-    const filtered = cachedVocabList.filter((v) => {
+    const sourceFilter = vocabSourceFilter ? vocabSourceFilter.value : 'all';
+
+    const processedList = cachedVocabList.map((v) => {
+      let words = v.words;
+      if (sourceFilter === 'user') {
+        words = words.filter((w) => w.source === 'user');
+      } else if (sourceFilter === 'ai') {
+        words = words.filter((w) => w.source !== 'user');
+      }
+      return { ...v, words };
+    });
+
+    const filtered = processedList.filter((v) => {
+      if (sourceFilter !== 'all' && v.words.length === 0) return false;
       if (!query) return true;
       const titleMatch =
         (v.showTitle && v.showTitle.toLowerCase().includes(query)) ||
@@ -781,7 +804,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isEpSelected = selectedVocabEpisodeIds.has(v.movieId);
                 const wordPreview = v.words
                   .slice(0, 6)
-                  .map((w) => `<span class="word-chip">${escapeHtml(w.word)}</span>`)
+                  .map((w) => {
+                    const isUser = w.source === 'user';
+                    return `<span class="word-chip ${isUser ? 'word-chip-user' : ''}" style="${isUser ? 'background: rgba(212,175,55,0.18); border-color: rgba(212,175,55,0.6); color: #ffd700;' : ''}">${isUser ? '⭐ ' : ''}${escapeHtml(w.word)}</span>`;
+                  })
                   .join('');
 
                 return `
@@ -988,6 +1014,14 @@ document.addEventListener('DOMContentLoaded', () => {
     exportMergedVocabCsv(selectedEpisodes, filename);
   });
 
+  btnExportUserVocab?.addEventListener('click', () => {
+    exportUserMarkedVocabCsv(cachedVocabList);
+  });
+
+  vocabSourceFilter?.addEventListener('change', () => {
+    renderVocabBank();
+  });
+
   btnClearAllVocab?.addEventListener('click', async () => {
     if (confirm('⚠️ Clear ALL collected vocabulary across all episodes?')) {
       const all = await storage.get<Record<string, unknown>>(null);
@@ -1034,6 +1068,10 @@ document.addEventListener('DOMContentLoaded', () => {
               w.frequency && w.frequency > 1
                 ? `<span style="color:var(--accent-red); font-size: 11px;">×${w.frequency}</span>`
                 : '';
+            const sourceBadge =
+              w.source === 'user'
+                ? '<span class="badge" style="background:rgba(212,175,55,0.2); color:#ffd700; border:1px solid #d4af37; font-size:10px;">⭐ User Marked</span>'
+                : '<span class="badge" style="background:#222; color:#888; font-size:10px;">🤖 AI</span>';
             const meaning = escapeHtml(w.meaning || '');
             const sentence = w.sentence
               ? `<div style="font-size: 12px; color: #999; margin-top: 4px;">"${escapeHtml(w.sentence)}"</div>`
@@ -1046,7 +1084,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div style="background:#16161b; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
                 <div style="display:flex; justify-content: space-between; align-items: center;">
                   <strong style="color:#fff; font-size: 14.5px;">${word}</strong>
-                  <div style="display: flex; gap: 6px;">${pos} ${pho} ${freq}</div>
+                  <div style="display: flex; gap: 6px; align-items: center;">${sourceBadge} ${pos} ${pho} ${freq}</div>
                 </div>
                 <div style="color: #46d369; font-size: 13px; margin: 4px 0;">${meaning}</div>
                 ${sentence}
@@ -1073,10 +1111,86 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeModalVocab) exportVocabCsv(activeModalVocab);
   });
 
+  function exportUserMarkedVocabCsv(episodes: EpisodeVocabData[]): void {
+    if (!episodes || episodes.length === 0) {
+      showToast('No vocabulary data available to export.');
+      return;
+    }
+
+    const headers = [
+      'Word',
+      'POS',
+      'Phonetic',
+      'Contextual Meaning',
+      'Example Sentence',
+      'Sentence Translation',
+      'Timestamp',
+      'Episode ID',
+      'Show Title',
+      'Date Added',
+    ];
+
+    const escapeCsv = (str: string | number): string => {
+      const s = String(str || '');
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : `"${s}"`;
+    };
+
+    const rows: string[][] = [];
+    episodes.forEach((ep) => {
+      const epTitle = ep.showTitle || '';
+      const epMid = ep.movieId || '';
+      ep.words.forEach((w) => {
+        if (w.source === 'user') {
+          const dateStr = w.createdAt ? new Date(w.createdAt).toLocaleString() : '';
+          rows.push([
+            escapeCsv(w.word || ''),
+            escapeCsv(w.pos || ''),
+            escapeCsv(w.phonetic || ''),
+            escapeCsv(w.meaning || ''),
+            escapeCsv(w.sentence || ''),
+            escapeCsv(w.sentenceTranslation || ''),
+            escapeCsv(
+              typeof w.timestamp === 'number'
+                ? `${Math.floor(w.timestamp / 60)}:${String(Math.floor(w.timestamp % 60)).padStart(2, '0')}`
+                : ''
+            ),
+            escapeCsv(epMid),
+            escapeCsv(epTitle),
+            escapeCsv(dateStr),
+          ]);
+        }
+      });
+    });
+
+    if (rows.length === 0) {
+      showToast('No user-marked vocabulary found to export.');
+      return;
+    }
+
+    const csvContent =
+      '\uFEFF' +
+      [headers.map((h) => `"${h}"`).join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `user_marked_vocabulary_${rows.length}_words.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 500);
+
+    showToast(`Exported ${rows.length} user-marked vocabulary words!`);
+  }
+
   function exportMergedVocabCsv(episodes: EpisodeVocabData[], filename: string): void {
     if (!episodes || episodes.length === 0) return;
     const headers = [
       'Word',
+      'Source',
       'POS',
       'Phonetic',
       'Contextual Meaning',
@@ -1100,6 +1214,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ep.words.forEach((w) => {
         rows.push([
           escapeCsv(w.word || ''),
+          escapeCsv(w.source === 'user' ? 'User Marked' : 'AI Extracted'),
           escapeCsv(w.pos || ''),
           escapeCsv(w.phonetic || ''),
           escapeCsv(w.meaning || ''),
@@ -1142,6 +1257,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const headers = [
       `Word (${srcLang})`,
+      'Source',
       'POS',
       'Phonetic',
       `Contextual Meaning (${tgtLang})`,
@@ -1158,6 +1274,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const rows = data.words.map((w) => [
       escapeCsv(w.word || ''),
+      escapeCsv(w.source === 'user' ? 'User Marked' : 'AI Extracted'),
       escapeCsv(w.pos || ''),
       escapeCsv(w.phonetic || ''),
       escapeCsv(w.meaning || ''),
@@ -1467,6 +1584,8 @@ document.addEventListener('DOMContentLoaded', () => {
       cfgExtractNativeTerms.checked = Boolean(currentSettings.extractTermsFromNativeSubtitles);
     if (cfgHideNative) cfgHideNative.checked = currentSettings.hideNativeSubtitles !== false;
     if (cfgEnableDomSync) cfgEnableDomSync.checked = Boolean(currentSettings.enableDomSubtitleSync);
+    if (cfgEnableLearning) cfgEnableLearning.checked = Boolean(currentSettings.enableSubtitleLearning);
+    if (cfgAutoPauseLearning) cfgAutoPauseLearning.checked = currentSettings.autoPauseOnTokenClick !== false;
 
     if (cfgVocabEnabled) cfgVocabEnabled.checked = Boolean(currentSettings.vocabExtractorEnabled);
     if (cfgVocabProvider)
@@ -1583,6 +1702,12 @@ document.addEventListener('DOMContentLoaded', () => {
       enableDomSubtitleSync: cfgEnableDomSync
         ? cfgEnableDomSync.checked
         : currentSettings.enableDomSubtitleSync,
+      enableSubtitleLearning: cfgEnableLearning
+        ? cfgEnableLearning.checked
+        : currentSettings.enableSubtitleLearning,
+      autoPauseOnTokenClick: cfgAutoPauseLearning
+        ? cfgAutoPauseLearning.checked
+        : currentSettings.autoPauseOnTokenClick,
       vocabExtractorEnabled: cfgVocabEnabled
         ? cfgVocabEnabled.checked
         : currentSettings.vocabExtractorEnabled,

@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'extract-native-terms-group'
   ) as HTMLElement;
   const hideNativeSubsCheckbox = document.getElementById('hide-native-subs') as HTMLInputElement;
+  const enableLearningCheckbox = document.getElementById('enable-learning') as HTMLInputElement | null;
   const enableDomSyncCheckbox = document.getElementById('enable-dom-sync') as HTMLInputElement;
 
   // Context card elements
@@ -411,6 +412,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (hideNativeSubsCheckbox) {
       hideNativeSubsCheckbox.checked = currentSettings.hideNativeSubtitles !== false;
+    }
+    if (enableLearningCheckbox) {
+      enableLearningCheckbox.checked = Boolean(currentSettings.enableSubtitleLearning);
     }
     if (enableDomSyncCheckbox) {
       enableDomSyncCheckbox.checked = Boolean(currentSettings.enableDomSubtitleSync);
@@ -1504,6 +1508,13 @@ document.addEventListener('DOMContentLoaded', () => {
     hideNativeSubsCheckbox.addEventListener('change', (e) => {
       const target = e.target as HTMLInputElement;
       saveSettings({ hideNativeSubtitles: target.checked });
+    });
+  }
+
+  if (enableLearningCheckbox) {
+    enableLearningCheckbox.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      saveSettings({ enableSubtitleLearning: target.checked });
     });
   }
 

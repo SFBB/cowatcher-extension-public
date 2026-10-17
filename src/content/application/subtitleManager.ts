@@ -24,6 +24,8 @@ import {
 import { SubtitleAlignmentService } from "../domain/services/SubtitleAlignmentService";
 import { Logger } from "@shared/utils/logger";
 
+import { SubtitleLearningManager } from "./learning/SubtitleLearningManager";
+
 export type CueItem = SubtitleCue;
 
 export class SubtitleManager {
@@ -32,6 +34,7 @@ export class SubtitleManager {
   adapter?: IStreamingAdapter;
   settings: Partial<ExtensionSettings>;
   platform: IBrowserPlatform;
+  learningManager?: SubtitleLearningManager;
 
   video: HTMLVideoElement | null = null;
   cues: CueItem[] = [];
@@ -96,6 +99,15 @@ export class SubtitleManager {
     }
     this.messageService = ContentMessageService.getInstance();
     this.platform = BrowserPlatformFactory.getPlatform();
+
+    if (this.adapter) {
+      this.learningManager = new SubtitleLearningManager(
+        this.adapter,
+        this.messageService,
+        this.settings as any
+      );
+      this.overlay.setLearningManager(this.learningManager);
+    }
 
     this.bindVideoEvents = this.bindVideoEvents.bind(this);
     this.onTick = this.onTick.bind(this);
@@ -299,6 +311,12 @@ export class SubtitleManager {
 
     if (movieId) {
       this.currentMovieId = String(movieId);
+      this.learningManager?.onShowContext(
+        this.currentMovieId,
+        this.latestMetadata?.fullTitle || this.latestMetadata?.mainTitle || this.currentContext?.mainTitle,
+        this.currentRawLanguage,
+        Language.resolve(this.settings.targetLanguage).code
+      );
     }
 
     // Tell background worker to immediately clear pending translation & review queues from any previous track/episode
@@ -459,6 +477,14 @@ export class SubtitleManager {
       this.cues = [];
       this.currentMovieId = newIdStr;
       this.latestMetadata = undefined;
+      if (newIdStr) {
+        this.learningManager?.onShowContext(
+          newIdStr,
+          this.currentContext?.mainTitle,
+          this.currentRawLanguage,
+          Language.resolve(this.settings.targetLanguage).code
+        );
+      }
     }
 
     if (!isKnownEpisodeOfCurrentShow) {
@@ -582,6 +608,12 @@ export class SubtitleManager {
     this.latestMetadata = meta;
     if (meta.videoId) {
       this.currentMovieId = meta.videoId;
+      this.learningManager?.onShowContext(
+        meta.videoId,
+        meta.fullTitle || meta.mainTitle || this.currentContext?.mainTitle,
+        this.currentRawLanguage,
+        Language.resolve(this.settings.targetLanguage).code
+      );
     }
     const newShowId = meta.showId || null;
 
@@ -2276,6 +2308,9 @@ export class SubtitleManager {
     const oldAiProvider = this.settings.aiProvider;
     this.settings = { ...this.settings, ...newSettings };
     this.overlay.updateSettings(this.settings);
+    if (this.learningManager) {
+      this.learningManager.updateSettings(this.settings as any);
+    }
 
     if (newSettings.subSyncOffset !== undefined) {
       this.settings.subSyncOffset = newSettings.subSyncOffset;

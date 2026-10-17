@@ -289,6 +289,52 @@ export class ContentMessageService {
     );
   }
 
+  async saveUserVocabWord(params: {
+    movieId: string;
+    showTitle?: string;
+    wordItem: import("@shared/domain/entities/Vocabulary").VocabWordItem;
+  }) {
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.SAVE_USER_VOCAB_WORD,
+      params,
+    );
+  }
+
+  async deleteUserVocabWord(params: { movieId: string; word: string }) {
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.DELETE_USER_VOCAB_WORD,
+      params,
+    );
+  }
+
+  async lookupWordDefinition(req: import("@shared/domain/entities/SubtitleLearning").WordLookupRequest) {
+    return await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.LOOKUP_WORD_DEFINITION,
+      req,
+    );
+  }
+
+  async getVocabData(movieId?: string) {
+    const res = await ContentBackgroundBus.send(
+      NCW_CONSTANTS.MESSAGE_TYPES.GET_VOCAB_DATA,
+      { movieId },
+    );
+    return res?.data || null;
+  }
+
+  onVocabChanged(
+    callback: (data: import("@shared/domain/entities/Vocabulary").EpisodeVocabData) => void,
+  ): () => void {
+    return ContentBackgroundBus.onMessage(
+      NCW_CONSTANTS.MESSAGE_TYPES.PUSH_VOCAB_CHANGED,
+      (payload) => {
+        if (payload && payload.data) {
+          callback(payload.data);
+        }
+      },
+    );
+  }
+
   onSettingsChanged(
     callback: (settings: ExtensionSettings) => void,
   ): () => void {

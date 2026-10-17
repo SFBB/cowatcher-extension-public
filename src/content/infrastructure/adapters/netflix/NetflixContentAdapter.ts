@@ -123,6 +123,25 @@ export class NetflixContentAdapter implements IStreamingAdapter {
     return Boolean(this.adDetector.isAdPlaying);
   }
 
+  pausePlayback(): void {
+    const video = this.getVideoElement();
+    if (video && !video.paused) {
+      video.pause();
+    }
+  }
+
+  resumePlayback(): void {
+    const video = this.getVideoElement();
+    if (video && video.paused) {
+      video.play().catch(() => {});
+    }
+  }
+
+  isPlaybackPaused(): boolean {
+    const video = this.getVideoElement();
+    return video ? video.paused : true;
+  }
+
   onEpisodeChange(callback: (newEpisodeId: string) => void): () => void {
     const handler = (event: MessageEvent) => {
       if (event.source !== window || !event.data) return;

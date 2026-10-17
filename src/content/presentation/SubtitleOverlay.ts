@@ -1,4 +1,6 @@
 import { ExtensionSettings } from '@shared/utils/constants';
+import { SubtitleLearningManager } from '../application/learning/SubtitleLearningManager';
+import { SubtitleToken } from '@shared/domain/entities/SubtitleLearning';
 
 export interface OverlayCueItem {
   id: number | string;
@@ -28,6 +30,11 @@ export class SubtitleOverlay {
   settings: Partial<ExtensionSettings> = {};
   private targetContainer: HTMLElement | null = null;
   private containerResolver: (() => HTMLElement | null) | null = null;
+  private learningManager?: SubtitleLearningManager;
+
+  setLearningManager(manager: SubtitleLearningManager): void {
+    this.learningManager = manager;
+  }
 
   bindContainerResolver(resolver: () => HTMLElement | null): void {
     this.containerResolver = resolver;
@@ -40,13 +47,31 @@ export class SubtitleOverlay {
 
   updateSettings(settings: Partial<ExtensionSettings>): void {
     const oldSwap = Boolean(this.settings.swapSubtitleOrder);
+    const oldLearning = Boolean(this.settings.enableSubtitleLearning);
     this.settings = { ...this.settings, ...settings };
     this.applyStyles();
     if (this.settings.enabled === false) {
       this.hide(true);
-    } else if (settings.swapSubtitleOrder !== undefined && settings.swapSubtitleOrder !== oldSwap) {
-      this.reorderVisibleWrappers();
+    } else {
+      if (settings.swapSubtitleOrder !== undefined && settings.swapSubtitleOrder !== oldSwap) {
+        this.reorderVisibleWrappers();
+      }
+      if (settings.enableSubtitleLearning !== undefined && settings.enableSubtitleLearning !== oldLearning) {
+        this.resetRenderedTokens();
+      }
     }
+  }
+
+  private resetRenderedTokens(): void {
+    if (!this.slots) return;
+    Object.values(this.slots).forEach((slotEl) => {
+      if (!slotEl) return;
+      const origEls = slotEl.querySelectorAll('.ncw-original-text');
+      origEls.forEach((el) => {
+        (el as HTMLElement).dataset.learningMode = '';
+        (el as HTMLElement).dataset.renderedText = '';
+      });
+    });
   }
 
   private reorderVisibleWrappers(): void {
@@ -283,6 +308,95 @@ export class SubtitleOverlay {
     });
   }
 
+  private createTokenElement(
+    token: SubtitleToken,
+    displayText: string,
+    originalText: string,
+    translatedText: string | null
+  ): Node {
+    if (!token.isWordLike) {
+      return document.createTextNode(displayText);
+    }
+
+    const span = document.createElement('span');
+    span.className = `ncw-token${token.isUserMarked ? ' is-user-marked' : ''}`;
+    span.setAttribute('data-token-id', token.id);
+    span.textContent = displayText;
+
+    span.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.learningManager?.handleTokenClick(
+        token,
+        originalText,
+        translatedText || undefined,
+        span,
+        this.container || document.body
+      );
+    });
+
+    span.addEventListener('contextmenu', (e) => {
+      this.learningManager?.handleTokenContextMenu(
+        e,
+        token,
+        originalText,
+        translatedText || undefined,
+        span,
+        this.container || document.body
+      );
+    });
+
+    return span;
+  }
+
+  private renderOriginalTextContent(
+    origEl: HTMLElement,
+    cueId: number | string,
+    originalText: string,
+    translatedText: string | null
+  ): void {
+    const isLearning = Boolean(this.learningManager && this.learningManager.isEnabled);
+    const learningStateKey = isLearning ? 'learning' : 'plain';
+
+    if (
+      origEl.dataset.renderedText === originalText &&
+      origEl.dataset.learningMode === learningStateKey
+    ) {
+      return;
+    }
+
+    origEl.dataset.renderedText = originalText;
+    origEl.dataset.learningMode = learningStateKey;
+
+    if (!isLearning) {
+      origEl.innerHTML = (originalText || '').replace(/\n/g, '<br/>');
+      return;
+    }
+
+    const numCueId = typeof cueId === 'number' ? cueId : parseInt(String(cueId), 10) || 0;
+    const learningCue = this.learningManager!.getOrCreateLearningCue(
+      numCueId,
+      originalText,
+      translatedText || undefined
+    );
+
+    origEl.innerHTML = '';
+    for (const token of learningCue.tokens) {
+      if (token.text.includes('\n')) {
+        const parts = token.text.split('\n');
+        parts.forEach((part, idx) => {
+          if (idx > 0) {
+            origEl.appendChild(document.createElement('br'));
+          }
+          if (part) {
+            origEl.appendChild(this.createTokenElement(token, part, originalText, translatedText));
+          }
+        });
+      } else {
+        origEl.appendChild(this.createTokenElement(token, token.text, originalText, translatedText));
+      }
+    }
+  }
+
   createCueWrapper(
     cueId: number | string,
     originalText: string,
@@ -293,7 +407,6 @@ export class SubtitleOverlay {
     wrapper.className = 'ncw-subtitle-wrapper';
     wrapper.setAttribute('data-cue-id', String(cueId));
 
-    const formattedOrig = (originalText || '').replace(/\n/g, '<br/>');
     const formattedTrans = (translatedText || '').replace(/\n/g, '<br/>');
 
     const transEl = document.createElement('div');
@@ -307,22 +420,22 @@ export class SubtitleOverlay {
     if (mode === 'bilingual') {
       transEl.innerHTML = formattedTrans || '<span class="ncw-translating">...</span>';
       transEl.style.display = 'block';
-      origEl.innerHTML = formattedOrig;
-      origEl.style.display = formattedOrig ? 'block' : 'none';
+      this.renderOriginalTextContent(origEl, cueId, originalText, translatedText);
+      origEl.style.display = originalText ? 'block' : 'none';
 
       if (swap) {
-        if (formattedOrig) wrapper.appendChild(origEl);
+        if (originalText) wrapper.appendChild(origEl);
         wrapper.appendChild(transEl);
       } else {
         wrapper.appendChild(transEl);
-        if (formattedOrig) wrapper.appendChild(origEl);
+        if (originalText) wrapper.appendChild(origEl);
       }
     } else if (mode === 'translated') {
-      transEl.innerHTML = formattedTrans || formattedOrig || '';
+      transEl.innerHTML = formattedTrans || (originalText || '').replace(/\n/g, '<br/>');
       transEl.style.display = 'block';
       wrapper.appendChild(transEl);
     } else if (mode === 'original') {
-      origEl.innerHTML = formattedOrig;
+      this.renderOriginalTextContent(origEl, cueId, originalText, translatedText);
       origEl.style.display = 'block';
       wrapper.appendChild(origEl);
     }
@@ -338,7 +451,7 @@ export class SubtitleOverlay {
   ): void {
     if (!wrapper) return;
 
-    const formattedOrig = (originalText || '').replace(/\n/g, '<br/>');
+    const cueId = wrapper.getAttribute('data-cue-id') || 0;
     const formattedTrans = (translatedText || '').replace(/\n/g, '<br/>');
 
     const transEl = wrapper.querySelector('.ncw-translated-text') as HTMLElement | null;
@@ -351,10 +464,8 @@ export class SubtitleOverlay {
         transEl.innerHTML = targetTrans;
       }
       if (origEl) {
-        if (origEl.innerHTML !== formattedOrig) {
-          origEl.innerHTML = formattedOrig;
-        }
-        origEl.style.display = formattedOrig ? 'block' : 'none';
+        this.renderOriginalTextContent(origEl, cueId, originalText, translatedText);
+        origEl.style.display = originalText ? 'block' : 'none';
       }
 
       if (origEl && transEl) {
@@ -366,13 +477,13 @@ export class SubtitleOverlay {
         }
       }
     } else if (mode === 'translated') {
-      const targetTrans = formattedTrans || formattedOrig || '';
+      const targetTrans = formattedTrans || (originalText || '').replace(/\n/g, '<br/>');
       if (transEl && transEl.innerHTML !== targetTrans) {
         transEl.innerHTML = targetTrans;
       }
     } else if (mode === 'original') {
-      if (origEl && origEl.innerHTML !== formattedOrig) {
-        origEl.innerHTML = formattedOrig;
+      if (origEl) {
+        this.renderOriginalTextContent(origEl, cueId, originalText, translatedText);
       }
     }
   }

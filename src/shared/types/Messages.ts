@@ -13,8 +13,9 @@ export type ReviewCueItem = SubtitleCue;
 export type PrecedingContextItem = SubtitleCue;
 
 import { VocabWordItem, EpisodeVocabData } from '../domain/entities/Vocabulary';
+import { SubtitleToken, LearningCueItem, WordLookupRequest, WordLookupResult } from '../domain/entities/SubtitleLearning';
 
-export { VocabWordItem, EpisodeVocabData, TrackCacheRecord, MergeAsrCueItem };
+export { VocabWordItem, EpisodeVocabData, TrackCacheRecord, MergeAsrCueItem, SubtitleToken, LearningCueItem, WordLookupRequest, WordLookupResult };
 
 export interface OpenRouterModelItem {
   id: string;
@@ -252,6 +253,25 @@ export type MessagePayloadMap = {
   NCW_RESET_VOCAB_DATA: {
     request: { movieId: string };
     response: { success: boolean };
+  };
+  NCW_SAVE_USER_VOCAB_WORD: {
+    request: {
+      movieId: string;
+      showTitle?: string;
+      wordItem: VocabWordItem;
+    };
+    response: { success: boolean; data?: VocabWordItem; error?: string };
+  };
+  NCW_DELETE_USER_VOCAB_WORD: {
+    request: {
+      movieId: string;
+      word: string;
+    };
+    response: { success: boolean; error?: string };
+  };
+  NCW_LOOKUP_WORD_DEFINITION: {
+    request: WordLookupRequest;
+    response: { success: boolean; data?: WordLookupResult; error?: string };
   };
 
   // Connection Checks

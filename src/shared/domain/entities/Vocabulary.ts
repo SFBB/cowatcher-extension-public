@@ -10,6 +10,8 @@ export interface VocabWordItem {
   sentenceTranslation: string;
   timestamp: number;
   frequency: number;
+  source?: 'user' | 'ai';
+  createdAt?: number;
 }
 
 /**

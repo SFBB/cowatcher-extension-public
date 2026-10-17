@@ -54,6 +54,9 @@ const NCW_I18N = {
       displayOrigOnly: 'Original Only',
       hideNativeSubtitles: 'Hide Platform Native Subtitles',
       hideNativeSubtitlesHint: 'Prevents duplicate overlapping subtitles (recommended)',
+      enableSubtitleLearning: 'Interactive Subtitle Learning (Click Word)',
+      enableSubtitleLearningHint:
+        'Click words to pause video & view definitions; right-click to quick-save to vocabulary bank',
       preferNativeSubtitles: 'Prefer Official Subtitles (0-Latency)',
       preferNativeSubtitlesHint:
         'Use platform official target track if available; fall back to AI translation if missing',
@@ -237,6 +240,9 @@ const NCW_I18N = {
       displayOrigOnly: '仅原文',
       hideNativeSubtitles: '隐藏平台原生字幕',
       hideNativeSubtitlesHint: '防止原生单语字幕与 AI 字幕重叠（推荐）',
+      enableSubtitleLearning: '字幕分词与交互学习（点击查词）',
+      enableSubtitleLearningHint:
+        '鼠标左键点击单词暂停并查词/发音，右键快速加入生词本（保留上下文例句）',
       preferNativeSubtitles: '优先使用平台官方双语字幕 (零延迟)',
       preferNativeSubtitlesHint:
         '若剧集包含目标语言官方字幕则直接对齐采用；无官方字幕时自动回退为 AI 翻译',
@@ -408,6 +414,9 @@ const NCW_I18N = {
       displayOrigOnly: '原文のみ',
       hideNativeSubtitles: '配信元の標準字幕を非表示',
       hideNativeSubtitlesHint: '標準字幕と AI 字幕の重複表示を防止（推奨）',
+      enableSubtitleLearning: '字幕の単語分割・学習（クリック辞書）',
+      enableSubtitleLearningHint:
+        '左クリックで動画を一時停止して単語を辞書検索、右クリックで単語帳に登録（例文付き）',
       preferNativeSubtitles: '公式字幕を優先 (ゼロ遅延)',
       preferNativeSubtitlesHint:
         '配信元の公式字幕が存在する場合は優先して時間同期採用し、ない場合は AI 翻訳へ自動フォールバック',
@@ -580,6 +589,9 @@ const NCW_I18N = {
       displayOrigOnly: '원문만 표시',
       hideNativeSubtitles: '플랫폼 기본 자막 숨기기',
       hideNativeSubtitlesHint: '기본 자막과 AI 자막의 중복 표시 방지 (권장)',
+      enableSubtitleLearning: '자막 단어 분절 및 학습 (단어 클릭)',
+      enableSubtitleLearningHint:
+        '단어를 클릭하여 영상 일시정지 및 사전 검색, 우클릭으로 단어장에 빠른 저장 (예문 포함)',
       preferNativeSubtitles: '플랫폼 공식 자막 우선 (0 지연)',
       preferNativeSubtitlesHint:
         '타겟 언어의 공식 자막이 있을 경우 우선 적용하며, 없을 시 AI 번역으로 자동 폴백',

@@ -138,6 +138,25 @@ export class TVerContentAdapter implements IStreamingAdapter {
     return this.adDetector.isAdPlaying;
   }
 
+  pausePlayback(): void {
+    const video = this.getVideoElement();
+    if (video && !video.paused) {
+      video.pause();
+    }
+  }
+
+  resumePlayback(): void {
+    const video = this.getVideoElement();
+    if (video && video.paused) {
+      video.play().catch(() => {});
+    }
+  }
+
+  isPlaybackPaused(): boolean {
+    const video = this.getVideoElement();
+    return video ? video.paused : true;
+  }
+
   onEpisodeChange(callback: (newEpisodeId: string) => void): () => void {
     const listener = (event: MessageEvent) => {
       if (event.source !== window || !event.data) return;

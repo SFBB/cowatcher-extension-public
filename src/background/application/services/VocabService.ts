@@ -8,6 +8,8 @@ import {
   TranslateCueItem,
   EpisodeVocabData,
   VocabWordItem,
+  WordLookupRequest,
+  WordLookupResult,
 } from "@shared/types/Messages";
 import { ITrackCacheRepository } from "@shared/domain/repositories/ITrackCacheRepository";
 import { TrackCacheRepositoryFactory } from "../../infrastructure/cache/TrackCacheRepositoryFactory";
@@ -209,6 +211,137 @@ export class VocabService {
       await this.storage.remove([`${NCW_STORAGE_KEYS.VOCAB_PREFIX}${movieId}`]);
     } catch {
       // Ignore
+    }
+  }
+
+  async saveUserMarkedWord(params: {
+    movieId: string;
+    showTitle?: string;
+    wordItem: VocabWordItem;
+  }): Promise<{ success: boolean; data?: VocabWordItem }> {
+    const { movieId, showTitle = "", wordItem } = params;
+    if (!movieId || !wordItem || !wordItem.word) {
+      return { success: false };
+    }
+
+    const item: VocabWordItem = {
+      ...wordItem,
+      source: "user",
+      createdAt: wordItem.createdAt || Date.now(),
+      timestamp: wordItem.timestamp || Date.now(),
+      frequency: wordItem.frequency || 1,
+    };
+
+    await this.mergeVocabData(
+      movieId,
+      showTitle,
+      this.config.sourceLanguage,
+      this.config.targetLanguage,
+      this.config.difficulty,
+      this.config.customPrompt,
+      this.config.model,
+      [item],
+    );
+
+    return { success: true, data: item };
+  }
+
+  async deleteUserMarkedWord(params: {
+    movieId: string;
+    word: string;
+  }): Promise<{ success: boolean }> {
+    const { movieId, word } = params;
+    if (!movieId || !word) return { success: false };
+
+    const storageKey = `${NCW_STORAGE_KEYS.VOCAB_PREFIX}${movieId}`;
+    const res = await this.storage.get<EpisodeVocabData>([storageKey]);
+    const existing = res[storageKey] as EpisodeVocabData | undefined;
+    if (!existing || !Array.isArray(existing.words)) return { success: true };
+
+    const filtered = existing.words.filter(
+      (w) => w.word.toLowerCase() !== word.toLowerCase(),
+    );
+
+    const updatedData: EpisodeVocabData = {
+      ...existing,
+      updatedAt: Date.now(),
+      totalWords: filtered.length,
+      words: filtered,
+    };
+
+    await this.storage.set({ [storageKey]: updatedData });
+    ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.PUSH_VOCAB_CHANGED, {
+      data: updatedData,
+    }).catch(() => {});
+
+    return { success: true };
+  }
+
+  async lookupWordDefinition(
+    req: WordLookupRequest,
+  ): Promise<{ success: boolean; data?: WordLookupResult; error?: string }> {
+    const { word, contextSentence, contextTranslation, sourceLang, targetLang } =
+      req;
+    if (!word) return { success: false, error: "Word is required" };
+
+    try {
+      const prompt = `You are an expert bilingual dictionary and language tutor.
+Given the word "${word}" used in the context sentence:
+"${contextSentence}"${contextTranslation ? ` (Translation: "${contextTranslation}")` : ""}
+
+Language: ${sourceLang} -> ${targetLang}
+
+Provide a concise, accurate JSON response with the following schema:
+{
+  "word": "${word}",
+  "lemma": "dictionary / base lemma form",
+  "reading": "phonetic transcription / furigana / pinyin / IPA",
+  "pos": "part of speech (noun, verb, adj, etc.)",
+  "meaning": "clear definition in ${targetLang} suited for this context",
+  "grammarNotes": "brief 1-sentence note on conjugation, tense, or nuance if applicable",
+  "exampleSentence": "a simple, natural example sentence using this word",
+  "exampleTranslation": "translation of the example sentence in ${targetLang}"
+}
+Only output the valid JSON object, no other commentary.`;
+
+      const raw = await this.llmService.callChat("translator", {
+        messages: [{ role: "user", content: prompt }],
+        jsonMode: true,
+        temperature: 0.2,
+      });
+
+      const clean = (raw || "")
+        .replace(/<think[\s\S]*?<\/think>/gi, "")
+        .replace(/<thought[\s\S]*?<\/thought>/gi, "")
+        .trim();
+      const parsed = JSON.parse(clean);
+      return {
+        success: true,
+        data: {
+          word: parsed.word || word,
+          lemma: parsed.lemma || word,
+          reading: parsed.reading || "",
+          pos: parsed.pos || "",
+          meaning: parsed.meaning || "",
+          grammarNotes: parsed.grammarNotes || "",
+          exampleSentence: parsed.exampleSentence || contextSentence,
+          exampleTranslation: parsed.exampleTranslation || contextTranslation,
+        },
+      };
+    } catch {
+      // Graceful fallback response when LLM is unavailable or in Google mode
+      return {
+        success: true,
+        data: {
+          word,
+          lemma: word,
+          reading: "",
+          pos: "",
+          meaning: "Tap to lookup or right-click to save",
+          exampleSentence: contextSentence,
+          exampleTranslation: contextTranslation,
+        },
+      };
     }
   }
 
@@ -447,14 +580,25 @@ ${dialoguesText}`;
       const key = w.word.toLowerCase();
       if (wordsMap.has(key)) {
         const old = wordsMap.get(key)!;
+        const isUserSource = w.source === "user" || old.source === "user";
         wordsMap.set(key, {
           ...old,
           meaning: w.meaning || old.meaning,
+          sentence: w.sentence || old.sentence,
+          sentenceTranslation: w.sentenceTranslation || old.sentenceTranslation,
+          pos: w.pos || old.pos,
+          phonetic: w.phonetic || old.phonetic,
+          source: isUserSource ? "user" : (w.source || old.source || "ai"),
+          createdAt: old.createdAt || w.createdAt || Date.now(),
           frequency: (old.frequency || 1) + 1,
           timestamp: Date.now(),
         });
       } else {
-        wordsMap.set(key, w);
+        wordsMap.set(key, {
+          ...w,
+          source: w.source || "ai",
+          createdAt: w.createdAt || Date.now(),
+        });
       }
     }
 

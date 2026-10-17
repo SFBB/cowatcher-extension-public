@@ -124,6 +124,21 @@ export interface IStreamingAdapter {
   isAdActive(): boolean;
 
   /**
+   * Platform-adapted playback pause control (uses platform player API if available, fallback to video element)
+   */
+  pausePlayback(): void;
+
+  /**
+   * Platform-adapted playback resume control (uses platform player API if available, fallback to video element)
+   */
+  resumePlayback(): void;
+
+  /**
+   * Check if video playback is currently paused
+   */
+  isPlaybackPaused(): boolean;
+
+  /**
    * Listen for episode change events
    */
   onEpisodeChange(callback: (newEpisodeId: string) => void): () => void;

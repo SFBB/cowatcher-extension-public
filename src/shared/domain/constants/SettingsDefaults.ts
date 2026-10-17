@@ -67,6 +67,9 @@ export interface ExtensionSettings {
   enableAutomaticAsrMerging: boolean;
   asrMergeBatchSize: number;
   asrSilenceThresholdMs: number;
+
+  enableSubtitleLearning: boolean;
+  autoPauseOnTokenClick: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -130,6 +133,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
 
   preferNativeSubtitles: true,
   extractTermsFromNativeSubtitles: false,
+
+  enableSubtitleLearning: false,
+  autoPauseOnTokenClick: true,
 };
 
 export const PROVIDER_PRESETS: Record<string, PipelineConfig> = {

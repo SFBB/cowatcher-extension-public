@@ -609,6 +609,33 @@ export class BackgroundMessageService {
             return true;
           }
 
+          case NCW_CONSTANTS.MESSAGE_TYPES.SAVE_USER_VOCAB_WORD: {
+            this.vocabService.saveUserMarkedWord(message).then((res) => {
+              sendResponse(
+                res as MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.SAVE_USER_VOCAB_WORD]["response"],
+              );
+            });
+            return true;
+          }
+
+          case NCW_CONSTANTS.MESSAGE_TYPES.DELETE_USER_VOCAB_WORD: {
+            this.vocabService.deleteUserMarkedWord(message).then((res) => {
+              sendResponse(
+                res as MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.DELETE_USER_VOCAB_WORD]["response"],
+              );
+            });
+            return true;
+          }
+
+          case NCW_CONSTANTS.MESSAGE_TYPES.LOOKUP_WORD_DEFINITION: {
+            this.vocabService.lookupWordDefinition(message).then((res) => {
+              sendResponse(
+                res as MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.LOOKUP_WORD_DEFINITION]["response"],
+              );
+            });
+            return true;
+          }
+
           // --- LLM Connection Checks ---
           case NCW_CONSTANTS.MESSAGE_TYPES.CHECK_OLLAMA: {
             this.llmService

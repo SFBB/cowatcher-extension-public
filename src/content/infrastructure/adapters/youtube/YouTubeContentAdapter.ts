@@ -136,6 +136,51 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
     return this.adDetector.isAdPlaying;
   }
 
+  pausePlayback(): void {
+    try {
+      const ytPlayer = document.getElementById('movie_player') as any;
+      if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+        ytPlayer.pauseVideo();
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
+    const video = this.getVideoElement();
+    if (video && !video.paused) {
+      video.pause();
+    }
+  }
+
+  resumePlayback(): void {
+    try {
+      const ytPlayer = document.getElementById('movie_player') as any;
+      if (ytPlayer && typeof ytPlayer.playVideo === 'function') {
+        ytPlayer.playVideo();
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
+    const video = this.getVideoElement();
+    if (video && video.paused) {
+      video.play().catch(() => {});
+    }
+  }
+
+  isPlaybackPaused(): boolean {
+    try {
+      const ytPlayer = document.getElementById('movie_player') as any;
+      if (ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
+        return ytPlayer.getPlayerState() === 2;
+      }
+    } catch {
+      // Fallback below
+    }
+    const video = this.getVideoElement();
+    return video ? video.paused : true;
+  }
+
   onEpisodeChange(callback: (newEpisodeId: string) => void): () => void {
     const listener = (event: MessageEvent) => {
       if (event.source !== window || !event.data) return;
