@@ -1,6 +1,6 @@
 /* Netflix AI Subtitle Overlay Styles */
 
-/* Safely hide Netflix & TVer native subtitles without breaking player measurement layout */
+/* Safely hide Netflix, TVer & YouTube native subtitles without breaking player measurement layout */
 body.ncw-hide-native-subs .player-timedtext,
 body.ncw-hide-native-subs [data-uia='player-timedtext'],
 body.ncw-hide-native-subs .player-timedtext-text-container,
@@ -8,7 +8,9 @@ body.ncw-hide-native-subs div[class*='player-timedtext'],
 body.ncw-hide-native-subs .watch-video div[class*='timedtext'],
 body.ncw-hide-native-subs .vjs-text-track-display,
 body.ncw-hide-native-subs .vjs-text-track-cue,
-body.ncw-hide-native-subs .vjs-text-track-window {
+body.ncw-hide-native-subs .vjs-text-track-window,
+body.ncw-hide-native-subs .ytp-caption-window-container,
+body.ncw-hide-native-subs .caption-window {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -238,6 +240,12 @@ body.ncw-hide-native-subs .vjs-text-track-window {
 
 .ncw-player-toggle-btn:active {
   transform: scale(0.96);
+}
+
+/* Position adjustment for YouTube player root to avoid native top-right cards/info icons */
+#movie_player .ncw-player-toggle-btn {
+  top: 18px;
+  right: 70px;
 }
 
 .ncw-player-toggle-btn .ncw-badge-icon {

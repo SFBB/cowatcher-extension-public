@@ -91,6 +91,9 @@ export class SubtitleManager {
     this.adDetector = adDetector;
     this.settings = settings;
     this.adapter = adapter;
+    if (this.adapter && this.overlay && typeof this.overlay.bindContainerResolver === 'function') {
+      this.overlay.bindContainerResolver(() => this.adapter?.getPlayerContainer?.() || null);
+    }
     this.messageService = ContentMessageService.getInstance();
     this.platform = BrowserPlatformFactory.getPlatform();
 
@@ -326,8 +329,8 @@ export class SubtitleManager {
       this.isMergingAsr = false;
       this.cues = [];
       this.logger.info(
-        "Subtitle",
-        `Loaded ${cues.length} raw ASR subtitle fragments. Initializing ASR auto-merge pipeline...`,
+        "ASR-Pipeline",
+        `📥 Loaded ${cues.length} raw ASR fragments (language: ${this.currentRawLanguage || language || "auto"}, movie: ${this.currentMovieId || "active"}). Initializing ASR auto-merge pipeline...`,
       );
     } else {
       this.rawAsrCues = [];
@@ -355,7 +358,7 @@ export class SubtitleManager {
         }
       }
       if (this.overlay && typeof this.overlay.mountToPlayer === "function") {
-        this.overlay.mountToPlayer();
+        this.overlay.mountToPlayer(this.adapter?.getPlayerContainer?.());
       }
 
       if (this.video) {
@@ -1418,13 +1421,24 @@ export class SubtitleManager {
         }
 
         const first = cueItems[0];
+        const isFallbackRaw =
+          this.isAsrTrack && !this.cues.some((c) => c.id === first.id);
         const transPreview = first.translatedText
           ? ` -> "${first.translatedText}"`
           : " (pending translation)";
-        this.logger.info(
-          "Subtitle",
-          `Cue #${first.id} [${activeCues[0].startTime.toFixed(1)}s - ${activeCues[0].endTime.toFixed(1)}s]: "${first.originalText.replace(/\n+/g, " ").slice(0, 40)}"${transPreview}`,
-        );
+
+        if (isFallbackRaw) {
+          this.logger.warn(
+            "ASR-Sync",
+            `⚠️ Buffer underrun at ${effectiveTime.toFixed(2)}s: displaying fallback raw ASR fragment #${first.id} [${activeCues[0].startTime.toFixed(2)}s - ${activeCues[0].endTime.toFixed(2)}s]: "${first.originalText}"`,
+          );
+          this.checkAsrMergePipeline(effectiveTime);
+        } else {
+          this.logger.info(
+            this.isAsrTrack ? "ASR-Sync" : "Subtitle",
+            `Cue #${first.id} [${activeCues[0].startTime.toFixed(2)}s - ${activeCues[0].endTime.toFixed(2)}s] (time: ${effectiveTime.toFixed(2)}s): "${first.originalText.replace(/\n+/g, " ").slice(0, 50)}"${transPreview}`,
+          );
+        }
       }
     } else {
       const nowMs =
@@ -1437,9 +1451,16 @@ export class SubtitleManager {
 
       const isPaused = this.video ? this.video.paused : false;
       const emptyElapsed = nowMs - this._emptyCueSince;
+      const hideGraceMs = isPaused ? 0 : this.isAsrTrack ? 600 : 80;
 
-      if (isPaused || emptyElapsed >= 80) {
+      if (emptyElapsed >= hideGraceMs) {
         if (this.activeCueId !== null || this._lastCueSig !== "") {
+          if (this.isAsrTrack && !isPaused) {
+            this.logger.info(
+              "ASR-Sync",
+              `Overlay hidden at ${effectiveTime.toFixed(2)}s (silence elapsed: ${Math.round(emptyElapsed)}ms >= ${hideGraceMs}ms).`,
+            );
+          }
           this.activeCueId = null;
           this._lastCueSig = "";
           this.overlay.hide();
@@ -1465,8 +1486,54 @@ export class SubtitleManager {
     this.checkPipeline(effectiveTime);
   }
 
+  findActiveRawAsrCues(time: number): CueItem[] {
+    if (!this.rawAsrCues || this.rawAsrCues.length === 0) return [];
+    let low = 0;
+    let high = this.rawAsrCues.length - 1;
+    let foundIdx = -1;
+
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      const cue = this.rawAsrCues[mid];
+      if (cue.startTime <= time && cue.endTime >= time) {
+        foundIdx = mid;
+        break;
+      } else if (cue.startTime > time) {
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+
+    if (foundIdx === -1 && high >= 0 && high < this.rawAsrCues.length) {
+      const prev = this.rawAsrCues[high];
+      if (time >= prev.startTime && time <= prev.endTime + 0.5) {
+        foundIdx = high;
+      }
+    }
+
+    if (foundIdx >= 0) {
+      const raw = this.rawAsrCues[foundIdx];
+      return [
+        createSubtitleCue({
+          id: raw.id,
+          startTime: raw.startTime,
+          endTime: raw.endTime,
+          rawText: raw.rawText,
+          position: raw.position || "bottom",
+        }),
+      ];
+    }
+    return [];
+  }
+
   findActiveCues(time: number): CueItem[] {
-    if (!this.cues || this.cues.length === 0) return [];
+    if (!this.cues || this.cues.length === 0) {
+      if (this.isAsrTrack && this.rawAsrCues.length > 0) {
+        return this.findActiveRawAsrCues(time);
+      }
+      return [];
+    }
 
     let low = 0;
     let high = this.cues.length - 1;
@@ -1501,6 +1568,29 @@ export class SubtitleManager {
       }
     }
 
+    // Safety fallback: If active merged cues is empty for ASR:
+    // 1. First check if previous cue should linger during natural speaking pauses (up to 3.0s until next cue)
+    if (active.length === 0 && this.isAsrTrack && this.cues.length > 0) {
+      if (startIdx >= 0 && startIdx < this.cues.length) {
+        const prevCue = this.cues[startIdx];
+        const nextCue =
+          startIdx + 1 < this.cues.length ? this.cues[startIdx + 1] : null;
+        if (time >= prevCue.endTime && time <= prevCue.endTime + 3.0) {
+          if (!nextCue || time < nextCue.startTime) {
+            return [prevCue];
+          }
+        }
+      }
+    }
+
+    // 2. If still empty, fall back to raw ASR fragment to prevent blank screen
+    if (active.length === 0 && this.isAsrTrack && this.rawAsrCues.length > 0) {
+      const rawFallback = this.findActiveRawAsrCues(time);
+      if (rawFallback.length > 0) {
+        return rawFallback;
+      }
+    }
+
     return active;
   }
 
@@ -1526,13 +1616,17 @@ export class SubtitleManager {
     const lastMergedTime =
       this.cues.length > 0 ? this.cues[this.cues.length - 1].endTime : 0;
     if (
-      currentTime > lastMergedTime + 10 &&
+      currentTime > lastMergedTime &&
       this.asrMergeIndex < this.rawAsrCues.length
     ) {
       const seekRawIdx = this.rawAsrCues.findIndex(
-        (c) => c.startTime >= currentTime - 2,
+        (c) => c.startTime >= currentTime - 1,
       );
       if (seekRawIdx >= 0 && seekRawIdx > this.asrMergeIndex) {
+        this.logger.info(
+          "ASR-Pipeline",
+          `Seek jump detected: fast-forwarding ASR merge index ${this.asrMergeIndex} -> ${seekRawIdx} (target time: ${currentTime.toFixed(2)}s)...`,
+        );
         this.asrMergeIndex = seekRawIdx;
       }
     }
@@ -1540,14 +1634,16 @@ export class SubtitleManager {
     if (this.asrMergeIndex >= this.rawAsrCues.length) return;
 
     // Check if we need more merged cues ahead:
-    // If cues is empty, or remaining buffer ahead is < 45 seconds
+    // Maintain a generous 60s prefetch buffer so playback never outpaces merging
+    const TARGET_BUFFER_SEC = 60;
+    const remainingBuffer = lastMergedTime - currentTime;
     const needsMore =
-      this.cues.length === 0 || lastMergedTime - currentTime < 45;
+      this.cues.length === 0 || remainingBuffer < TARGET_BUFFER_SEC;
     if (!needsMore) return;
 
     this.isMergingAsr = true;
     const epoch = this.sessionEpoch;
-    const batchSize = Math.max(5, this.settings.asrMergeBatchSize || 15);
+    const batchSize = Math.max(20, this.settings.asrMergeBatchSize || 20);
     const chunk = this.rawAsrCues.slice(
       this.asrMergeIndex,
       this.asrMergeIndex + batchSize,
@@ -1556,9 +1652,16 @@ export class SubtitleManager {
 
     try {
       this.logger.info(
-        "Subtitle",
-        `ASR Merge: merging ${chunk.length} raw fragments [${chunk[0].id}..${chunk[chunk.length - 1].id}]...`,
+        "ASR-Pipeline",
+        `🚀 Dispatching merge batch for ${chunk.length} raw fragments [${chunk[0].id}..${chunk[chunk.length - 1].id}] (${chunk[0].startTime.toFixed(2)}s - ${chunk[chunk.length - 1].endTime.toFixed(2)}s, buffer ahead: ${remainingBuffer.toFixed(2)}s):`,
       );
+      chunk.forEach((c) => {
+        this.logger.info(
+          "ASR-Pipeline",
+          `   📋 Raw Fragment #${c.id} [${c.startTime.toFixed(2)}s - ${c.endTime.toFixed(2)}s, dur=${(c.endTime - c.startTime).toFixed(2)}s]: "${c.rawText}"`,
+        );
+      });
+
       const res = await this.messageService.mergeAsrBatch({
         items: chunk.map((c) => ({
           id: c.id,
@@ -1585,10 +1688,33 @@ export class SubtitleManager {
         this.cues.push(...toAdd);
         this.cues.sort((a, b) => a.startTime - b.startTime);
 
+        // Resolve overlapping cues and snap small pause gaps <= 3.5s
+        for (let i = 0; i < this.cues.length - 1; i++) {
+          const curr = this.cues[i];
+          const nxt = this.cues[i + 1];
+          if (curr.endTime > nxt.startTime && nxt.startTime > curr.startTime) {
+            curr.endTime = nxt.startTime;
+          }
+          const gap = nxt.startTime - curr.endTime;
+          if (gap > 0 && gap <= 3.5) {
+            curr.endTime = nxt.startTime;
+          }
+        }
+
+        const newLastMergedTime = this.cues[this.cues.length - 1].endTime;
+        const newBufferAhead = newLastMergedTime - currentTime;
+
         this.logger.info(
-          "Subtitle",
-          `ASR Merge: successfully produced ${newCues.length} clean sentences (total active cues: ${this.cues.length}).`,
+          "ASR-Pipeline",
+          `✅ ASR merge complete: merged ${chunk.length} raw fragments into ${newCues.length} clean cues (total active cues: ${this.cues.length}). Coverage: 0.0s - ${newLastMergedTime.toFixed(2)}s (buffer ahead: ${newBufferAhead.toFixed(2)}s).`,
         );
+
+        newCues.forEach((nc) => {
+          this.logger.info(
+            "ASR-Pipeline",
+            `   🎯 Merged Cue #${nc.id} [${nc.startTime.toFixed(2)}s - ${nc.endTime.toFixed(2)}s, dur=${(nc.endTime - nc.startTime).toFixed(2)}s]: "${nc.rawText}"`,
+          );
+        });
 
         if (this.cues.length > 0 && !this.currentTrackHash) {
           this.loadSubtitlesForCurrentTrack(this.cues, epoch);
@@ -1597,9 +1723,21 @@ export class SubtitleManager {
         this.onTick();
         const effectiveTime = this.getEffectiveTime();
         this.checkPipeline(effectiveTime);
+
+        // Proactive buffering: If buffer ahead is still below target, trigger next batch merge immediately
+        if (
+          newBufferAhead < TARGET_BUFFER_SEC &&
+          this.asrMergeIndex < this.rawAsrCues.length
+        ) {
+          setTimeout(() => {
+            if (this.sessionEpoch === epoch) {
+              this.checkAsrMergePipeline(this.getEffectiveTime());
+            }
+          }, 50);
+        }
       }
     } catch (err) {
-      this.logger.error("Subtitle", "Error in ASR merge pipeline:", err);
+      this.logger.error("ASR-Pipeline", "Error in ASR merge pipeline:", err);
     } finally {
       this.isMergingAsr = false;
     }
@@ -2217,7 +2355,7 @@ export class SubtitleManager {
         const v = document.querySelector("video");
         if (v) this.attachVideo(v);
       }
-      this.overlay.mountToPlayer();
+      this.overlay.mountToPlayer(this.adapter?.getPlayerContainer?.());
 
       if (this.cues && this.cues.length > 0) {
         this.logger.info(

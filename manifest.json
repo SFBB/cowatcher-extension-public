@@ -45,7 +45,8 @@
     {
       "matches": [
         "*://*.netflix.com/*",
-        "*://*.tver.jp/*"
+        "*://*.tver.jp/*",
+        "*://*.youtube.com/*"
       ],
       "js": [
         "injected/injected.js"
@@ -56,7 +57,8 @@
     {
       "matches": [
         "*://*.netflix.com/*",
-        "*://*.tver.jp/*"
+        "*://*.tver.jp/*",
+        "*://*.youtube.com/*"
       ],
       "js": [
         "content/content.js"
@@ -74,7 +76,8 @@
       ],
       "matches": [
         "*://*.netflix.com/*",
-        "*://*.tver.jp/*"
+        "*://*.tver.jp/*",
+        "*://*.youtube.com/*"
       ]
     }
   ]

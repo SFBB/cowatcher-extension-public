@@ -6,6 +6,7 @@ import { Logger } from '@shared/utils/logger';
 import { InjectedAdapterRegistry } from './domain/InjectedAdapterRegistry';
 import { NetflixInjectedAdapter } from './infrastructure/adapters/netflix/NetflixInjectedAdapter';
 import { TVerInjectedAdapter } from './infrastructure/adapters/tver/TVerInjectedAdapter';
+import { YouTubeInjectedAdapter } from './infrastructure/adapters/youtube/YouTubeInjectedAdapter';
 
 declare global {
   interface Window {
@@ -26,8 +27,8 @@ const logger = new Logger('injected');
   // 1. Register available platform adapters
   InjectedAdapterRegistry.register(new NetflixInjectedAdapter());
   InjectedAdapterRegistry.register(new TVerInjectedAdapter());
+  InjectedAdapterRegistry.register(new YouTubeInjectedAdapter());
   // Future platforms:
-  // InjectedAdapterRegistry.register(new YouTubeInjectedAdapter());
   // InjectedAdapterRegistry.register(new DisneyInjectedAdapter());
 
   // 2. Resolve matching adapter for current URL

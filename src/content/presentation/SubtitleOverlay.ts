@@ -26,6 +26,12 @@ export class SubtitleOverlay {
   currentText: { original: string; translated: string | null } = { original: '', translated: '' };
   isVisible: boolean = false;
   settings: Partial<ExtensionSettings> = {};
+  private targetContainer: HTMLElement | null = null;
+  private containerResolver: (() => HTMLElement | null) | null = null;
+
+  bindContainerResolver(resolver: () => HTMLElement | null): void {
+    this.containerResolver = resolver;
+  }
 
   init(settings: Partial<ExtensionSettings> = {}): void {
     this.settings = settings;
@@ -99,22 +105,38 @@ export class SubtitleOverlay {
     this.applyStyles();
   }
 
-  mountToPlayer(): void {
+  mountToPlayer(customContainer?: HTMLElement | null): void {
+    if (
+      customContainer &&
+      typeof document !== 'undefined' &&
+      document.body &&
+      document.body.contains(customContainer) &&
+      customContainer !== document.body
+    ) {
+      this.targetContainer = customContainer;
+    }
+
     if (!this.container || !document.body || !document.body.contains(this.container)) {
       this.ensureInDOM();
     }
 
     if (typeof document === 'undefined') return;
 
-    const candidates = [
-      document.querySelector('.watch-video--player-view'),
-      document.querySelector('[data-uia="watch-video"]'),
-      document.querySelector('.NFPlayer'),
-      document.querySelector('video')?.parentElement,
-      document.body,
-    ];
+    let target: HTMLElement | null = null;
+    const resolved = this.containerResolver?.() || null;
+    if (resolved && document.body.contains(resolved) && resolved !== document.body) {
+      target = resolved;
+      this.targetContainer = resolved;
+    } else if (
+      this.targetContainer &&
+      document.body.contains(this.targetContainer) &&
+      this.targetContainer !== document.body
+    ) {
+      target = this.targetContainer;
+    } else {
+      target = document.body;
+    }
 
-    const target = candidates.find((el) => el !== null && el !== undefined);
     if (target && this.container && this.container.parentElement !== target) {
       target.appendChild(this.container);
     }
@@ -165,7 +187,7 @@ export class SubtitleOverlay {
     }
 
     this.ensureInDOM();
-    this.mountToPlayer();
+    this.mountToPlayer(this.targetContainer);
 
     const slotMap: Record<string, OverlayCueItem[]> = {
       bottom: [],

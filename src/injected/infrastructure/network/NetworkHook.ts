@@ -179,6 +179,11 @@ export class NetworkHook {
               if (SubtitleStreamDetector.isSubtitleContent(text)) {
                 notify(url, text);
               }
+            } else if (responseType === 'json' && this.response) {
+              const text = typeof this.response === 'string' ? this.response : JSON.stringify(this.response);
+              if (SubtitleStreamDetector.isSubtitleContent(text)) {
+                notify(url, text);
+              }
             } else if (responseType === 'arraybuffer' && this.response instanceof ArrayBuffer) {
               if (this.response.byteLength < 3 * 1024 * 1024) {
                 if (SubtitleStreamDetector.looksLikeSubtitleBuffer(this.response)) {

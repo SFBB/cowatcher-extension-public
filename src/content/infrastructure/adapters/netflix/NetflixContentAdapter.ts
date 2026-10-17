@@ -39,6 +39,10 @@ export class NetflixContentAdapter implements IStreamingAdapter {
     return null;
   }
 
+  isPlaybackPage(url: string = window.location.href): boolean {
+    return /\/watch\/(\d+)/.test(url) || Boolean(this.extractVideoId(url));
+  }
+
   getVideoInfo(): VideoMetadata {
     const currentVideoId = this.extractVideoId() || '';
     if (this.cachedMetadata) {

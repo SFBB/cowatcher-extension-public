@@ -20,6 +20,9 @@ export class SubtitleStreamDetector {
     return (
       snippet.includes('<tt') ||
       snippet.includes('<timedtext') ||
+      snippet.includes('<transcript') ||
+      snippet.includes('"wireMagic"') ||
+      snippet.includes('"events"') ||
       snippet.includes('<p') ||
       snippet.includes('<?xml') ||
       snippet.includes('WEBVTT')
@@ -27,7 +30,7 @@ export class SubtitleStreamDetector {
   }
 
   /**
-   * Fast text-level inspection to determine if a string looks like subtitle content (TTML, XML, WebVTT).
+   * Fast text-level inspection to determine if a string looks like subtitle content (TTML, XML, WebVTT, YouTube JSON3).
    */
   static isSubtitleContent(text: string | null | undefined): boolean {
     if (!text || typeof text !== 'string') return false;
@@ -39,11 +42,16 @@ export class SubtitleStreamDetector {
       return true;
     }
 
-    // Check for TTML / DFXP XML
-    if (snippet.includes('<tt') || snippet.includes('<timedtext')) {
+    // Check for TTML / DFXP XML / YouTube timedtext XML
+    if (snippet.includes('<tt') || snippet.includes('<timedtext') || snippet.includes('<transcript')) {
       return true;
     }
     if (snippet.includes('<p begin=') || snippet.includes('begin="')) {
+      return true;
+    }
+
+    // Check for YouTube JSON3 format
+    if (snippet.includes('"wireMagic"') || (snippet.includes('"events"') && snippet.includes('"tStartMs"'))) {
       return true;
     }
 

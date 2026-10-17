@@ -5,11 +5,11 @@ import {
   TranslateBatchResponse,
   ReviewBatchRequest,
   ReviewBatchResponse,
-  MergeAsrCueItem,
   MergeAsrBatchRequest,
   MergeAsrBatchResponse,
   HealthCheckResult,
 } from '../../domain/translation/ITranslatorService';
+import { AsrSegmentationHelper } from '../../domain/translation/AsrSegmentationHelper';
 
 import { LanguageInfo } from '@shared/domain/value-objects/Language';
 import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
@@ -302,9 +302,19 @@ export class GoogleTranslatorService implements ITranslatorService {
       // Safety Guard: Validate that EVERY requested cue was translated with non-empty text
       const missingIds = items.filter((it) => !resultMap[it.id] || !resultMap[it.id].trim());
       if (missingIds.length > 0) {
-        const errorMsg = `Safety Guard: Google Translate count mismatch (expected ${items.length} cues, but received ${Object.keys(resultMap).length} valid cues). Missing cue IDs: [${missingIds.map((m) => m.id).join(', ')}]. Discarding entire batch to trigger retry and prevent subtitle misalignment.`;
-        this.logger.warn('Translator', errorMsg);
-        return { success: false, error: errorMsg };
+        const warnMsg = `Safety Guard: Google Translate count mismatch (expected ${items.length} cues, but received ${Object.keys(resultMap).length} valid cues). Missing cue IDs: [${missingIds.map((m) => m.id).join(', ')}].`;
+        if (Object.keys(resultMap).length > 0) {
+          this.logger.warn(
+            'Translator',
+            `${warnMsg} Partial batch recovered: ${Object.keys(resultMap).length}/${items.length} valid cues preserved. Missing cues fallback to raw text to prevent UI stall.`
+          );
+          for (const m of missingIds) {
+            resultMap[m.id] = m.rawText;
+          }
+          return { success: true, results: resultMap };
+        }
+        this.logger.warn('Translator', warnMsg);
+        return { success: false, error: warnMsg };
       }
 
       return { success: true, results: resultMap };
@@ -334,50 +344,17 @@ export class GoogleTranslatorService implements ITranslatorService {
     const { items } = req;
     if (!items || items.length === 0) return { success: true, mergedCues: [] };
 
-    const silenceSec = this.silenceThresholdMs / 1000;
-    const mergedCues: MergeAsrCueItem[] = [];
-
-    let currentGroup: MergeAsrCueItem[] = [];
-
-    const flushGroup = () => {
-      if (currentGroup.length === 0) return;
-      const first = currentGroup[0];
-      const last = currentGroup[currentGroup.length - 1];
-      const combinedText = currentGroup
-        .map((it) => it.rawText.trim())
-        .filter(Boolean)
-        .join(' ');
-
-      if (combinedText.length > 0) {
-        mergedCues.push({
-          id: first.id,
-          startTime: first.startTime,
-          endTime: last.endTime,
-          rawText: combinedText,
-        });
-      }
-      currentGroup = [];
-    };
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      currentGroup.push(item);
-
-      const next = items[i + 1];
-      const hasSilenceBreak = next ? next.startTime - item.endTime >= silenceSec : true;
-      const text = item.rawText.trim();
-      const hasPunctuationEnd = /[.!?。！？\n]$/.test(text);
-      const totalWords = currentGroup.reduce(
-        (acc, it) => acc + it.rawText.trim().split(/\s+/).length,
-        0
+    try {
+      const mergedCues = AsrSegmentationHelper.algorithmicMerge(
+        items,
+        this.silenceThresholdMs,
+        this.logger
       );
-
-      if (hasSilenceBreak || hasPunctuationEnd || totalWords >= 25 || !next) {
-        flushGroup();
-      }
+      return { success: true, mergedCues };
+    } catch (err: any) {
+      this.logger.error('Translator', 'Error in GoogleTranslatorService mergeAsrBatch:', err);
+      return { success: false, error: err.message };
     }
-
-    return { success: true, mergedCues };
   }
 
   async checkHealth(): Promise<HealthCheckResult> {

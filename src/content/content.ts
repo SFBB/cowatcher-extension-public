@@ -12,6 +12,7 @@ import { NetflixAdDetector as AdDetector } from './infrastructure/adapters/netfl
 import { StreamingAdapterRegistry } from './domain/adapters/StreamingAdapterRegistry';
 import { NetflixContentAdapter } from './infrastructure/adapters/netflix/NetflixContentAdapter';
 import { TVerContentAdapter } from './infrastructure/adapters/tver/TVerContentAdapter';
+import { YouTubeContentAdapter } from './infrastructure/adapters/youtube/YouTubeContentAdapter';
 import { ContentMessageService } from './application/services/ContentMessageService';
 import { SubtitleParser } from './application/utils/parser';
 import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
@@ -31,6 +32,7 @@ const logger: Logger = new Logger('content');
   // Register platform content adapters
   StreamingAdapterRegistry.register(new NetflixContentAdapter());
   StreamingAdapterRegistry.register(new TVerContentAdapter());
+  StreamingAdapterRegistry.register(new YouTubeContentAdapter());
 
   const adapter = StreamingAdapterRegistry.getMatchingAdapter() || new NetflixContentAdapter();
   const messageService = ContentMessageService.getInstance();
@@ -39,6 +41,7 @@ const logger: Logger = new Logger('content');
 
   let settings: ExtensionSettings = { ...NCW_CONSTANTS.DEFAULT_SETTINGS };
   const overlay = new SubtitleOverlay();
+  overlay.bindContainerResolver(() => adapter.getPlayerContainer());
 
   const adDetectorOptions = {
     onAdStart: () => {
@@ -145,7 +148,7 @@ const logger: Logger = new Logger('content');
 
     // Re-scan and re-mount to fresh player DOM
     scanAndAttachVideo();
-    overlay.mountToPlayer();
+    overlay.mountToPlayer(adapter.getPlayerContainer());
     applyNativeSubtitleVisibility();
 
     // 1. Check if we have a staged preloaded subtitle by movie ID
@@ -311,7 +314,7 @@ const logger: Logger = new Logger('content');
 
     if (nextState) {
       scanAndAttachVideo();
-      overlay.mountToPlayer();
+      overlay.mountToPlayer(adapter.getPlayerContainer());
       if (
         (!subtitleManager.cues || subtitleManager.cues.length === 0) &&
         lastParsedCues &&
@@ -369,7 +372,7 @@ const logger: Logger = new Logger('content');
     }
 
     if (isBtnHovered) return;
-    if (!window.location.href.includes('/watch/')) return;
+    if (!adapter.isPlaybackPage()) return;
 
     btnFadeTimer = setTimeout(() => {
       btnFadeTimer = null;
@@ -382,7 +385,7 @@ const logger: Logger = new Logger('content');
   }
 
   function onPlayerUserActivity(): void {
-    if (!window.location.href.includes('/watch/')) return;
+    if (!adapter.isPlaybackPage()) return;
     const now = Date.now();
     if (now - lastUserActivityTime < 100) return;
     lastUserActivityTime = now;
@@ -403,7 +406,7 @@ const logger: Logger = new Logger('content');
   );
 
   function injectPlayerControlButton(): void {
-    if (!window.location.href.includes('/watch/')) {
+    if (!adapter.isPlaybackPage()) {
       const existing = document.getElementById('ncw-player-toggle-btn');
       if (existing) existing.remove();
       if (btnFadeTimer) {
@@ -820,7 +823,7 @@ const logger: Logger = new Logger('content');
     const video = adapter.getVideoElement();
     if (video) {
       subtitleManager.attachVideo(video);
-      overlay.mountToPlayer();
+      overlay.mountToPlayer(adapter.getPlayerContainer());
       injectPlayerControlButton();
 
       if (

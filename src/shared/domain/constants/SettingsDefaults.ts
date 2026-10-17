@@ -111,8 +111,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   subSyncOffset: 0,
 
   enableAutomaticAsrMerging: true,
-  asrMergeBatchSize: 15,
-  asrSilenceThresholdMs: 600,
+  asrMergeBatchSize: 20,
+  asrSilenceThresholdMs: 450,
 
   aiProvider: 'google',
   openrouterApiKey: '',

@@ -9,6 +9,7 @@ import {
   MergeAsrBatchResponse,
   HealthCheckResult,
 } from "../../domain/translation/ITranslatorService";
+import { AsrSegmentationHelper } from "../../domain/translation/AsrSegmentationHelper";
 import { LlmService } from "../../application/services/LlmService";
 import { CharacterItem } from "@shared/domain/entities/Translation";
 import { Language } from "@shared/domain/value-objects/Language";
@@ -364,6 +365,17 @@ The next line MUST immediately resume with the next unmerged ID (e.g. [105]: ...
             );
             continue;
           } else {
+            // If some cues succeeded, preserve the valid translations rather than discarding everything!
+            if (Object.keys(resultMap).length > 0) {
+              this.logger.warn(
+                "Translator",
+                `${warnMsg} Partial batch recovered: ${Object.keys(resultMap).length}/${items.length} valid cues preserved. Missing cues fallback to raw text to prevent UI stall.`,
+              );
+              for (const m of missingIds) {
+                resultMap[m.id] = m.rawText;
+              }
+              return { success: true, results: resultMap };
+            }
             this.logger.error(
               "Translator",
               `${warnMsg} Discarding entire batch to trigger retry and prevent subtitle misalignment.`,
@@ -680,50 +692,17 @@ Guidelines for new_characters and new_terms:
    * Algorithmic heuristic fallback for ASR segment merging
    */
   private algorithmicMergeAsr(items: MergeAsrCueItem[]): MergeAsrBatchResponse {
-    const silenceSec = this.silenceThresholdMs / 1000;
-    const mergedCues: MergeAsrCueItem[] = [];
-
-    let currentGroup: MergeAsrCueItem[] = [];
-
-    const flushGroup = () => {
-      if (currentGroup.length === 0) return;
-      const first = currentGroup[0];
-      const last = currentGroup[currentGroup.length - 1];
-      const combinedText = currentGroup
-        .map((it) => it.rawText.trim())
-        .filter(Boolean)
-        .join(" ");
-
-      if (combinedText.length > 0) {
-        mergedCues.push({
-          id: first.id,
-          startTime: first.startTime,
-          endTime: last.endTime,
-          rawText: combinedText,
-        });
-      }
-      currentGroup = [];
-    };
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      currentGroup.push(item);
-
-      const next = items[i + 1];
-      const hasSilenceBreak = next ? next.startTime - item.endTime >= silenceSec : true;
-      const text = item.rawText.trim();
-      const hasPunctuationEnd = /[.!?。！？\n]$/.test(text);
-      const totalWords = currentGroup.reduce(
-        (acc, it) => acc + it.rawText.trim().split(/\s+/).length,
-        0
+    try {
+      const mergedCues = AsrSegmentationHelper.algorithmicMerge(
+        items,
+        this.silenceThresholdMs,
+        this.logger
       );
-
-      if (hasSilenceBreak || hasPunctuationEnd || totalWords >= 25 || !next) {
-        flushGroup();
-      }
+      return { success: true, mergedCues };
+    } catch (err: any) {
+      this.logger.error("Translator", "algorithmicMergeAsr failed:", err);
+      return { success: false, error: err.message };
     }
-
-    return { success: true, mergedCues };
   }
 
   /**
@@ -741,15 +720,28 @@ Guidelines for new_characters and new_terms:
       .map((it) => `[${it.id}] ${it.rawText.replace(/\n+/g, " ").trim()}`)
       .join("\n");
 
-    const systemPrompt = `You are an expert subtitle sentence boundary segmenter.
-Group consecutive fragmented ASR subtitle segments into complete, grammatically sound sentences.
-Every input line ID from ${minId} to ${maxId} MUST be included in exactly one continuous range.
-Do not reorder, skip, or omit any line IDs.
+    const systemPrompt = `You are an expert subtitle segmentation supervisor.
+Your task is to group consecutive fragmented ASR subtitle segments into natural, readable subtitle display units.
 
-Output strictly a single JSON object in this format:
-{"ranges": [[start_id, end_id], ...]}`;
+CRITICAL SUBTITLE RULES:
+1. SUBTITLE UNIT LENGTH:
+   - Each subtitle unit MUST be concise and comfortable to read (target: 6 to 12 words, or 15 to 25 CJK characters).
+   - Maximum duration per unit: at most 4.0 to 5.0 seconds.
+   - NEVER merge multiple independent clauses or long compound thoughts into a single giant subtitle (> 5.5s or > 14 words).
+   - If a sentence is long, split it naturally at conjunctions (e.g., "and", "but", "so", "because", "then") or pauses.
+2. COMPLETENESS & CONTINUITY:
+   - Every input line ID from ${minId} to ${maxId} MUST be included in exactly one continuous range [start_id, end_id].
+   - Do not reorder, skip, or omit any line IDs.
+3. OUTPUT FORMAT:
+   - Output strictly a single JSON object in this format:
+     {"ranges": [[start_id, end_id], ...]}`;
 
     try {
+      this.logger.info(
+        "ASR-Merge",
+        `[LLM Supervisor] Requesting sentence segmentation for ${items.length} raw fragments [${minId}..${maxId}] (${items[0].startTime.toFixed(2)}s - ${items[items.length - 1].endTime.toFixed(2)}s)...`
+      );
+
       const rawContent = await this.llmService.callChat("supervisor", {
         messages: [
           { role: "system", content: systemPrompt },
@@ -762,46 +754,19 @@ Output strictly a single JSON object in this format:
 
       const parsed = this.parseSupervisorJson(rawContent);
       if (parsed && Array.isArray(parsed.ranges) && parsed.ranges.length > 0) {
-        const itemMap = new Map<number, MergeAsrCueItem>();
-        items.forEach((it) => itemMap.set(it.id, it));
+        this.logger.info(
+          "ASR-Merge",
+          `[LLM Supervisor] LLM returned ${parsed.ranges.length} ranges: ${JSON.stringify(parsed.ranges)}`
+        );
 
-        const mergedCues: MergeAsrCueItem[] = [];
-        const coveredIds = new Set<number>();
+        const mergedCues = AsrSegmentationHelper.postProcessLlmRanges(
+          parsed.ranges,
+          items,
+          this.silenceThresholdMs,
+          this.logger
+        );
 
-        for (const r of parsed.ranges) {
-          if (!Array.isArray(r) || r.length < 2) continue;
-          const startId = parseInt(r[0], 10);
-          const endId = parseInt(r[1], 10);
-          if (isNaN(startId) || isNaN(endId) || startId > endId) continue;
-
-          const group: MergeAsrCueItem[] = [];
-          for (let id = startId; id <= endId; id++) {
-            const it = itemMap.get(id);
-            if (it) {
-              group.push(it);
-              coveredIds.add(id);
-            }
-          }
-
-          if (group.length > 0) {
-            const first = group[0];
-            const last = group[group.length - 1];
-            const combinedText = group
-              .map((it) => it.rawText.trim())
-              .filter(Boolean)
-              .join(" ");
-
-            mergedCues.push({
-              id: first.id,
-              startTime: first.startTime,
-              endTime: last.endTime,
-              rawText: combinedText,
-            });
-          }
-        }
-
-        // Verify that at least 80% of items were covered to consider LLM merge valid
-        if (mergedCues.length > 0 && coveredIds.size >= items.length * 0.8) {
+        if (mergedCues.length > 0) {
           return { success: true, mergedCues };
         }
       }
@@ -814,6 +779,10 @@ Output strictly a single JSON object in this format:
     }
 
     // Fallback to programmatic merge
+    this.logger.info(
+      "ASR-Merge",
+      `[Fallback] Using algorithmic ASR merge for ${items.length} fragments...`
+    );
     return this.algorithmicMergeAsr(items);
   }
 

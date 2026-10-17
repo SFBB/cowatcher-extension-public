@@ -94,6 +94,11 @@ export interface IStreamingAdapter {
   extractVideoId(url?: string): string | null;
 
   /**
+   * Check if current page or URL is an active video playback / watch page for this platform
+   */
+  isPlaybackPage(url?: string): boolean;
+
+  /**
    * Extract video metadata (title, episode, videoId) from page
    */
   getVideoInfo(): VideoMetadata;

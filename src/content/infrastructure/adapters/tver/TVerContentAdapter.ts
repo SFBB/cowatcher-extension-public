@@ -41,6 +41,10 @@ export class TVerContentAdapter implements IStreamingAdapter {
     return null;
   }
 
+  isPlaybackPage(url: string = window.location.href): boolean {
+    return /\/episodes\/([a-zA-Z0-9_-]+)/.test(url) || Boolean(this.extractVideoId(url));
+  }
+
   getVideoInfo(): VideoMetadata {
     if (this.cachedMetadata) {
       return this.cachedMetadata;
