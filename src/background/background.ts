@@ -32,8 +32,10 @@ GlossaryService.getInstance(storage)
 
 // 2. Register Central Message Dispatcher
 const backgroundService = BackgroundMessageService.getInstance(storage);
-await backgroundService.init();
 backgroundService.registerHandlers();
+backgroundService.init().catch((err) => {
+  logger.warn("Background", "Failed during backgroundService init:", err);
+});
 
 // 3. Configure declarativeNetRequest Rules via Platform Adapter
 platform.onInstalled(() => {

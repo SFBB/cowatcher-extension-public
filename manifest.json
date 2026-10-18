@@ -17,8 +17,18 @@
       "128": "icons/icon128.png"
     }
   },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "cowatcher@sfbb.me",
+      "strict_min_version": "128.0"
+    }
+  },
   "background": {
-    "service_worker": "background/background.js"
+    "scripts": [
+      "background/background.js"
+    ],
+    "service_worker": "background/background.js",
+    "type": "module"
   },
   "options_ui": {
     "page": "options/options.html",

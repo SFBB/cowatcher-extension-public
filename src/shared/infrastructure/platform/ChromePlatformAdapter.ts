@@ -63,9 +63,30 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
     }
   }
 
+  getURL(path: string): string {
+    const cleanPath = path.replace(/^\/+/, '');
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
+      return chrome.runtime.getURL(cleanPath);
+    }
+    if (typeof browser !== 'undefined' && (browser as any).runtime?.getURL) {
+      return (browser as any).runtime.getURL(cleanPath);
+    }
+    return cleanPath;
+  }
+
   async openPopupWindow(options: PopupWindowOptions): Promise<number | undefined> {
     const width = options.width || 760;
     const height = options.height || 800;
+
+    let fullUrl = options.url;
+    if (
+      !fullUrl.startsWith('http://') &&
+      !fullUrl.startsWith('https://') &&
+      !fullUrl.startsWith('chrome-extension://') &&
+      !fullUrl.startsWith('moz-extension://')
+    ) {
+      fullUrl = this.getURL(fullUrl);
+    }
 
     if (typeof chrome !== 'undefined' && chrome.windows?.create) {
       // Calculate centered position if screen info available
@@ -80,79 +101,87 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
         // Fallback to default
       }
 
-      const win = await chrome.windows.create({
-        url: options.url,
-        type: 'popup',
-        width,
-        height,
-        left,
-        top,
-        focused: true,
-      });
-      return win?.id;
-    } else {
-      window.open(
-        options.url,
-        options.title || 'PopupWindow',
-        `width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no`
-      );
-      return undefined;
+      try {
+        const win = await chrome.windows.create({
+          url: fullUrl,
+          type: 'popup',
+          width,
+          height,
+          left,
+          top,
+          focused: true,
+        });
+        return win?.id;
+      } catch (e) {
+        this.logger.warn('Platform', 'chrome.windows.create failed, falling back to window.open:', e);
+      }
     }
+
+    window.open(
+      fullUrl,
+      options.title || 'PopupWindow',
+      `width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no`
+    );
+    return undefined;
   }
 
   async setupOllamaRules(customHost?: string): Promise<void> {
-    if (typeof chrome === 'undefined' || !chrome.declarativeNetRequest) return;
+    const dnr =
+      (typeof chrome !== 'undefined' && chrome.declarativeNetRequest) ||
+      (typeof browser !== 'undefined' && (browser as any).declarativeNetRequest);
+    if (!dnr) return;
+
     try {
+      const modifyHeadersType =
+        (dnr.RuleActionType?.MODIFY_HEADERS || 'modifyHeaders') as chrome.declarativeNetRequest.RuleActionType;
+      const removeOp =
+        (dnr.HeaderOperation?.REMOVE || 'remove') as chrome.declarativeNetRequest.HeaderOperation;
+      const xmlHttpRes =
+        (dnr.ResourceType?.XMLHTTPREQUEST || 'xmlhttprequest') as chrome.declarativeNetRequest.ResourceType;
+      const otherRes =
+        (dnr.ResourceType?.OTHER || 'other') as chrome.declarativeNetRequest.ResourceType;
+
       const rules: chrome.declarativeNetRequest.Rule[] = [
         {
           id: 101,
           priority: 10,
           action: {
-            type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+            type: modifyHeadersType,
             requestHeaders: [
-              { header: 'Origin', operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE },
+              { header: 'Origin', operation: removeOp },
             ],
           },
           condition: {
             urlFilter: ':11434/',
-            resourceTypes: [
-              chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
-              chrome.declarativeNetRequest.ResourceType.OTHER,
-            ],
+            resourceTypes: [xmlHttpRes, otherRes],
           },
         },
         {
           id: 102,
           priority: 10,
           action: {
-            type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+            type: modifyHeadersType,
             requestHeaders: [
-              { header: 'Origin', operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE },
+              { header: 'Origin', operation: removeOp },
             ],
           },
           condition: {
             urlFilter: '||localhost/',
-            resourceTypes: [
-              chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
-              chrome.declarativeNetRequest.ResourceType.OTHER,
-            ],
+            resourceTypes: [xmlHttpRes, otherRes],
           },
         },
         {
           id: 103,
           priority: 10,
           action: {
-            type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+            type: modifyHeadersType,
             requestHeaders: [
-              { header: 'Origin', operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE },
+              { header: 'Origin', operation: removeOp },
             ],
           },
           condition: {
             urlFilter: '||127.0.0.1/',
-            resourceTypes: [
-              chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
-              chrome.declarativeNetRequest.ResourceType.OTHER,
-            ],
+            resourceTypes: [xmlHttpRes, otherRes],
           },
         },
       ];
@@ -164,20 +193,17 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
             id: 104,
             priority: 10,
             action: {
-              type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+              type: modifyHeadersType,
               requestHeaders: [
                 {
                   header: 'Origin',
-                  operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+                  operation: removeOp,
                 },
               ],
             },
             condition: {
               urlFilter: `||${u.host}/`,
-              resourceTypes: [
-                chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
-                chrome.declarativeNetRequest.ResourceType.OTHER,
-              ],
+              resourceTypes: [xmlHttpRes, otherRes],
             },
           });
         } catch {
@@ -185,7 +211,7 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
         }
       }
 
-      await chrome.declarativeNetRequest.updateDynamicRules({
+      await dnr.updateDynamicRules({
         removeRuleIds: [101, 102, 103, 104],
         addRules: rules,
       });
@@ -211,6 +237,18 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
   }
 
   async sendMessage<T = any>(message: any): Promise<T> {
+    if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
+      try {
+        const response = await browser.runtime.sendMessage(message);
+        return (response ?? { success: false, error: 'No response' }) as T;
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        } as T;
+      }
+    }
+
     return new Promise((resolve) => {
       try {
         if (!this.isContextValid()) {

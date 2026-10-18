@@ -21,6 +21,11 @@ const logger = new Logger('injected');
 
   if (window.__NCW_INJECTED_INITIALIZED__) return;
   window.__NCW_INJECTED_INITIALIZED__ = true;
+  try {
+    if (typeof document !== 'undefined' && document.documentElement) {
+      document.documentElement.setAttribute('data-ncw-injected', 'true');
+    }
+  } catch {}
 
   logger.info('Injected', 'Injected script entry initialized in page context.');
 

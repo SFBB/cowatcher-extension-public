@@ -7,6 +7,7 @@
 import { ContentBackgroundBus } from '@shared/infrastructure/bus/ContentBackgroundBus';
 import { CharacterGlossaryMap, TermGlossaryMap } from '@shared/domain/entities/Glossary';
 import { ContextDTO } from '@shared/domain/entities/Context';
+import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
 import { Logger } from '@shared/utils/logger';
 import { Language, LanguageInfo } from '@shared/domain/value-objects/Language';
 import NCW_CONSTANTS from '@shared/utils/constants';
@@ -26,17 +27,18 @@ interface TermRowState {
   isManual?: boolean;
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+async function initEditor(): Promise<void> {
   // URL Search Parameters
   const urlParams = new URLSearchParams(window.location.search);
-  const activeShowId = urlParams.get('showId') || '';
+  let activeShowId = urlParams.get('showId') || '';
   const activeVideoId = urlParams.get('videoId') || '';
-  const activeTitle = urlParams.get('title') || '';
+  let activeTitle = urlParams.get('title') || '';
   let activeTargetLang: LanguageInfo = Language.resolve(urlParams.get('targetLang') || 'en');
 
   // DOM Elements
   const currentShowInfo = document.getElementById('current-show-info') as HTMLElement;
   const contextLockBadge = document.getElementById('context-lock-badge') as HTMLElement;
+  const editorShowSelector = document.getElementById('editor-show-selector') as HTMLSelectElement | null;
   const contextShiftBanner = document.getElementById('context-shift-banner') as HTMLElement;
   const bannerTitle = document.getElementById('banner-title') as HTMLElement;
   const bannerDesc = document.getElementById('banner-desc') as HTMLElement;
@@ -75,20 +77,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   let hasAiCapability = false;
   let loadedContextDTO: ContextDTO | null = null;
 
-  // Setup Title Info & Locking UI
-  const displayTitle = activeTitle || activeShowId || 'Active Streaming Playback';
-  if (contextLockBadge) {
-    contextLockBadge.textContent = activeTitle ? `🔒 Locked: ${activeTitle}` : '🔒 Playback Locked';
+  function updateHeaderInfo(): void {
+    const displayTitle = activeTitle || activeShowId || 'Active Streaming Playback';
+    if (contextLockBadge) {
+      contextLockBadge.textContent = activeTitle
+        ? `🔒 Locked: ${activeTitle}`
+        : activeShowId
+        ? `🔒 Show: ${activeShowId}`
+        : 'ℹ️ Manual Glossary';
+    }
+    if (currentShowInfo) {
+      currentShowInfo.textContent = `${displayTitle} ${activeVideoId ? `(ID: ${activeVideoId})` : ''} • Target Language: ${activeTargetLang.name}`;
+    }
   }
-  currentShowInfo.textContent = `${displayTitle} ${activeVideoId ? `(ID: ${activeVideoId})` : ''} • Target Language: ${activeTargetLang.name}`;
+
+  updateHeaderInfo();
 
   // Character counters
-  sourceRefText.addEventListener('input', () => {
-    sourceCharCount.textContent = `${sourceRefText.value.length} chars`;
+  sourceRefText?.addEventListener('input', () => {
+    if (sourceCharCount) sourceCharCount.textContent = `${sourceRefText.value.length} chars`;
     updateAiButtonsState();
   });
-  targetRefText.addEventListener('input', () => {
-    targetCharCount.textContent = `${targetRefText.value.length} chars`;
+  targetRefText?.addEventListener('input', () => {
+    if (targetCharCount) targetCharCount.textContent = `${targetRefText.value.length} chars`;
     updateAiButtonsState();
   });
 
@@ -99,30 +110,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         NCW_CONSTANTS.MESSAGE_TYPES.GET_AI_CAPABILITY,
         undefined
       );
-      if (res.success && res.hasAi) {
+      if (res && res.success && res.hasAi) {
         hasAiCapability = true;
         const modelRole = res.isSupervisor ? 'Supervisor Model' : 'Translation Model';
         const prov = res.provider ? res.provider.toUpperCase() : 'LLM';
-        aiStatusPill.className = 'ai-status-pill badge-active';
-        aiStatusPill.textContent = `✓ ${prov} Ready`;
-        aiProviderHint.textContent = `Using ${modelRole}: ${res.model || 'Default'}`;
+        if (aiStatusPill) {
+          aiStatusPill.className = 'ai-status-pill badge-active';
+          aiStatusPill.textContent = `✓ ${prov} Ready`;
+        }
+        if (aiProviderHint) {
+          aiProviderHint.textContent = `Using ${modelRole}: ${res.model || 'Default'}`;
+        }
       } else {
         hasAiCapability = false;
-        aiStatusPill.className = 'ai-status-pill badge-warning';
-        aiStatusPill.textContent = '⚠️ No AI Provider';
-        aiProviderHint.textContent =
-          'AI extraction requires Ollama or OpenRouter configured in settings.';
+        if (aiStatusPill) {
+          aiStatusPill.className = 'ai-status-pill badge-warning';
+          aiStatusPill.textContent = '⚠️ No AI Provider';
+        }
+        if (aiProviderHint) {
+          aiProviderHint.textContent =
+            'AI extraction requires Ollama or OpenRouter configured in settings.';
+        }
       }
     } catch {
       hasAiCapability = false;
-      aiStatusPill.className = 'ai-status-pill badge-warning';
-      aiStatusPill.textContent = 'Offline';
-      aiProviderHint.textContent = 'Could not communicate with background service.';
+      if (aiStatusPill) {
+        aiStatusPill.className = 'ai-status-pill badge-warning';
+        aiStatusPill.textContent = 'Offline';
+      }
+      if (aiProviderHint) {
+        aiProviderHint.textContent = 'Could not communicate with background service.';
+      }
     }
     updateAiButtonsState();
   }
 
   function updateAiButtonsState(): void {
+    if (!sourceRefText || !targetRefText || !btnExtractBilingual || !btnExtractTranslate) return;
     const srcLen = (sourceRefText.value || '').trim().length;
     const tgtLen = (targetRefText.value || '').trim().length;
 
@@ -152,18 +176,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 2. Load Existing Glossary Context
   async function loadContextData(): Promise<void> {
     try {
+      if (!activeShowId && !activeVideoId) {
+        await tryLoadStoredShows();
+      }
+
+      if (!activeShowId && !activeVideoId) {
+        renderTables();
+        return;
+      }
+
       const res = await ContentBackgroundBus.send(NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT, {
         showId: activeShowId || activeVideoId,
         targetLanguage: activeTargetLang,
       });
 
-      if (res.success && res.context) {
+      if (res && res.success && res.context) {
         const ctx: ContextDTO = res.context;
         loadedContextDTO = ctx;
         if (ctx.targetLanguage) {
           activeTargetLang = Language.resolve(ctx.targetLanguage);
-          currentShowInfo.textContent = `${displayTitle} ${activeVideoId ? `(ID: ${activeVideoId})` : ''} • Target Language: ${activeTargetLang.name}`;
         }
+        if (ctx.mainTitle || ctx.title) {
+          activeTitle = ctx.mainTitle || ctx.title || activeTitle;
+        }
+        updateHeaderInfo();
 
         // Populate Character Rows
         characterRows = [];
@@ -198,11 +234,76 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           }
         }
-
-        renderTables();
       }
     } catch (e) {
       logger.warn('editor', 'Failed to load glossary context:', e);
+    } finally {
+      renderTables();
+    }
+  }
+
+  async function tryLoadStoredShows(): Promise<void> {
+    try {
+      const storage = BrowserStorageFactory.getStorage();
+      const all = await storage.get<Record<string, unknown>>(null);
+      const showEntries: Array<{
+        showId: string;
+        title: string;
+        lang: string;
+        updatedAt: number;
+        ctx: ContextDTO;
+      }> = [];
+
+      for (const [key, val] of Object.entries(all || {})) {
+        if (key.startsWith('ncw_show_') && val && typeof val === 'object') {
+          const dto = val as unknown as ContextDTO;
+          if (dto.showId) {
+            const langCode =
+              typeof dto.targetLanguage === 'object'
+                ? (dto.targetLanguage as any).code
+                : String(dto.targetLanguage || 'en');
+            showEntries.push({
+              showId: dto.showId,
+              title: dto.mainTitle || dto.title || dto.showId,
+              lang: langCode,
+              updatedAt: dto.updatedAt || 0,
+              ctx: dto,
+            });
+          }
+        }
+      }
+
+      if (showEntries.length > 0) {
+        showEntries.sort((a, b) => b.updatedAt - a.updatedAt);
+        if (editorShowSelector) {
+          editorShowSelector.style.display = 'inline-block';
+          editorShowSelector.innerHTML = showEntries
+            .map(
+              (s) =>
+                `<option value="${escapeHtml(s.showId)}" data-title="${escapeHtml(s.title)}" data-lang="${escapeHtml(s.lang)}">${escapeHtml(s.title)} (${escapeHtml(s.lang)})</option>`
+            )
+            .join('');
+
+          editorShowSelector.addEventListener('change', () => {
+            const selectedOpt = editorShowSelector.selectedOptions[0];
+            if (selectedOpt) {
+              activeShowId = selectedOpt.value;
+              activeTitle = selectedOpt.dataset.title || '';
+              activeTargetLang = Language.resolve(selectedOpt.dataset.lang || 'en');
+              loadContextData();
+            }
+          });
+        }
+
+        activeShowId = showEntries[0].showId;
+        activeTitle = showEntries[0].title;
+        activeTargetLang = Language.resolve(showEntries[0].lang);
+        updateHeaderInfo();
+      } else {
+        updateHeaderInfo();
+      }
+    } catch (err) {
+      logger.warn('editor', 'Failed scanning stored shows:', err);
     }
   }
 
@@ -211,43 +312,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Characters
     characterCount.textContent = String(characterRows.length);
     tbodyCharacters.innerHTML = '';
-    characterRows.forEach((row, index) => {
+    if (characterRows.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>
-          <input type="text" class="table-input input-char-orig" data-index="${index}" value="${escapeHtml(row.orig)}" placeholder="e.g. Shoko">
-        </td>
-        <td>
-          <input type="text" class="table-input input-char-canonical" data-index="${index}" value="${escapeHtml(row.canonical)}" placeholder="e.g. 西宫硝子">
-        </td>
-        <td>
-          <input type="text" class="table-input input-char-aliases" data-index="${index}" value="${escapeHtml(row.aliases.join(', '))}" placeholder="e.g. 硝子, 西宫同学">
-        </td>
-        <td style="text-align: center;">
-          <button class="btn-icon-del btn-del-char" data-index="${index}" title="Delete character">✕</button>
-        </td>
-      `;
+      tr.className = 'empty-table-row';
+      tr.innerHTML = `<td colspan="4" class="empty-table-msg">No characters defined yet.<br>Click <strong>+ Add Character</strong> above to create one, or paste text in <strong>AI Reference & Extraction</strong> above.</td>`;
       tbodyCharacters.appendChild(tr);
-    });
+    } else {
+      characterRows.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <input type="text" class="table-input input-char-orig" data-index="${index}" value="${escapeHtml(row.orig)}" placeholder="e.g. Shoko">
+          </td>
+          <td>
+            <input type="text" class="table-input input-char-canonical" data-index="${index}" value="${escapeHtml(row.canonical)}" placeholder="e.g. 西宫硝子">
+          </td>
+          <td>
+            <input type="text" class="table-input input-char-aliases" data-index="${index}" value="${escapeHtml(row.aliases.join(', '))}" placeholder="e.g. 硝子, 西宫同学">
+          </td>
+          <td style="text-align: center;">
+            <button class="btn-icon-del btn-del-char" data-index="${index}" title="Delete character">✕</button>
+          </td>
+        `;
+        tbodyCharacters.appendChild(tr);
+      });
+    }
 
     // Terms
     termCount.textContent = String(termRows.length);
     tbodyTerms.innerHTML = '';
-    termRows.forEach((row, index) => {
+    if (termRows.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>
-          <input type="text" class="table-input input-term-orig" data-index="${index}" value="${escapeHtml(row.orig)}" placeholder="e.g. Survey Corps">
-        </td>
-        <td>
-          <input type="text" class="table-input input-term-trans" data-index="${index}" value="${escapeHtml(row.trans)}" placeholder="e.g. 调查兵团">
-        </td>
-        <td style="text-align: center;">
-          <button class="btn-icon-del btn-del-term" data-index="${index}" title="Delete term">✕</button>
-        </td>
-      `;
+      tr.className = 'empty-table-row';
+      tr.innerHTML = `<td colspan="3" class="empty-table-msg">No specialized terms defined yet.<br>Click <strong>+ Add Term</strong> above to create one, or paste text in <strong>AI Reference & Extraction</strong> above.</td>`;
       tbodyTerms.appendChild(tr);
-    });
+    } else {
+      termRows.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <input type="text" class="table-input input-term-orig" data-index="${index}" value="${escapeHtml(row.orig)}" placeholder="e.g. Survey Corps">
+          </td>
+          <td>
+            <input type="text" class="table-input input-term-trans" data-index="${index}" value="${escapeHtml(row.trans)}" placeholder="e.g. 调查兵团">
+          </td>
+          <td style="text-align: center;">
+            <button class="btn-icon-del btn-del-term" data-index="${index}" title="Delete term">✕</button>
+          </td>
+        `;
+        tbodyTerms.appendChild(tr);
+      });
+    }
   }
 
   function syncInputsToState(): void {
@@ -639,4 +754,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initial Boot
   await checkAiCapabilities();
   await loadContextData();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initEditor().catch((e) => logger.error('editor', 'Init error:', e));
+  });
+} else {
+  initEditor().catch((e) => logger.error('editor', 'Init error:', e));
+}

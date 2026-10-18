@@ -28,6 +28,7 @@ export type PlatformMessageListener = (
  * Decouples platform actions (tabs, window navigation, declarative header rules, runtime messaging).
  */
 export interface IBrowserPlatform {
+  getURL(path: string): string;
   getActiveTab(): Promise<ActiveTabInfo | null>;
   openOptionsPage(): void;
   createTab(url: string): void;

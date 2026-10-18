@@ -1523,9 +1523,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (langCode) params.set('targetLang', langCode);
       if (currentSettings.uiLanguage) params.set('uiLang', currentSettings.uiLanguage);
 
-      const editorUrl = `editor/editor.html?${params.toString()}`;
+      const pathWithQuery = `editor/editor.html?${params.toString()}`;
+      const platform = BrowserPlatformFactory.getPlatform();
+      const editorUrl = platform.getURL(pathWithQuery);
+
       try {
-        const platform = BrowserPlatformFactory.getPlatform();
         platform.openPopupWindow({
           url: editorUrl,
           width: 780,

@@ -29,6 +29,33 @@ const logger: Logger = new Logger('content');
 
   logger.info('Content', 'Content script initialized.');
 
+  // Fallback injection for browsers/environments where static manifest world: "MAIN" is not available
+  function ensureInjectedScript(): void {
+    if (typeof document === 'undefined') return;
+    if (
+      document.documentElement &&
+      document.documentElement.getAttribute('data-ncw-injected') === 'true'
+    ) {
+      return;
+    }
+    try {
+      const scriptUrl = BrowserPlatformFactory.getPlatform().getURL('injected/injected.js');
+      if (!scriptUrl) return;
+
+      if (document.querySelector('script[data-ncw-injected-script="true"]')) return;
+
+      const s = document.createElement('script');
+      s.src = scriptUrl;
+      s.async = false;
+      s.setAttribute('data-ncw-injected-script', 'true');
+      (document.head || document.documentElement).appendChild(s);
+    } catch (e) {
+      logger.warn('Content', 'Fallback script injection error:', e);
+    }
+  }
+
+  ensureInjectedScript();
+
   // Register platform content adapters
   StreamingAdapterRegistry.register(new NetflixContentAdapter());
   StreamingAdapterRegistry.register(new TVerContentAdapter());

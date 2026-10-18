@@ -813,7 +813,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle opening standalone glossary editor window
   if (btnOpenEditor) {
     btnOpenEditor.addEventListener('click', () => {
-      let editorUrl = 'editor/editor.html';
       const params = new URLSearchParams();
       const showId = currentContextDTO?.showId || currentActiveEpisodeId;
       if (showId) {
@@ -836,9 +835,8 @@ document.addEventListener('DOMContentLoaded', () => {
         params.set('uiLang', currentSettings.uiLanguage);
       }
       const query = params.toString();
-      if (query) {
-        editorUrl += `?${query}`;
-      }
+      const pathWithQuery = query ? `editor/editor.html?${query}` : 'editor/editor.html';
+      const editorUrl = platform.getURL(pathWithQuery);
 
       platform.openPopupWindow({
         url: editorUrl,
