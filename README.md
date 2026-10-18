@@ -18,7 +18,7 @@ We support:
 - [x] One-click vocabulary saving for effortless language acquisition
 - [x] Instant hover/click word definitions without leaving the player
 - [x] Track your watching, to know how much time you spent on it
-- [ ] Support for both Chrome and Firefox
+- [x] Support for both Chrome and Firefox
 
 Your CoWatcher!
 
