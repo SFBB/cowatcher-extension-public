@@ -1,0 +1,94 @@
+{
+  "manifest_version": 3,
+  "name": "CoWatcher",
+  "version": "1.0.3",
+  "description": "AI Dual Subtitles, Real-Time Translation, Language Immersion & More, your watching companion",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "CoWatcher",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "cowatcher@sfbb.me",
+      "strict_min_version": "128.0"
+    }
+  },
+  "background": {
+    "scripts": [
+      "background/background.js"
+    ],
+    "type": "module"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ollama_cors_rules",
+        "enabled": true,
+        "path": "utils/rules.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.tver.jp/*",
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "injected/injected.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.tver.jp/*",
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "css": [
+        "content/style.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "injected/injected.js"
+      ],
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.tver.jp/*",
+        "*://*.youtube.com/*"
+      ]
+    }
+  ]
+}

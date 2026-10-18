@@ -1,15 +1,20 @@
 {
   "type": "module",
-  "name": "netflix_cowatcher",
-  "version": "1.0.0",
-  "description": "English Documentation | [中文文档](README_zh.md) | [📖 Popup UI Guide](docs/popup_guide.md)",
+  "name": "cowatcher",
+  "displayName": "CoWatcher",
+  "version": "1.0.3",
+  "description": "AI Dual Subtitles, Real-Time Translation, Language Immersion & More, your watching companion",
   "main": "index.js",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
-    "build": "webpack",
-    "watch": "webpack --watch",
+    "build": "webpack --env browser=chrome",
+    "build:chrome": "webpack --env browser=chrome",
+    "build:firefox": "webpack --env browser=firefox",
+    "build:all": "webpack --env browser=chrome && webpack --env browser=firefox",
+    "watch": "webpack --watch --env browser=chrome",
+    "watch:firefox": "webpack --watch --env browser=firefox",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\""

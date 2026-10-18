@@ -3,3 +3,4 @@ _metadata/
 *.log
 node_modules/
 dist/
+dist-firefox/
