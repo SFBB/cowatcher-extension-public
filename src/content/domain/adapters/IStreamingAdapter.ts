@@ -182,6 +182,11 @@ export interface IStreamingAdapter {
   ): () => void;
 
   /**
+   * Parse platform-specific raw subtitle text into standardized SubtitleCueData[]
+   */
+  parseSubtitle(rawText: string): SubtitleCueData[];
+
+  /**
    * Listen for subtitle track being turned OFF / disabled on the streaming platform
    */
   onSubtitleOff?(callback: () => void): () => void;

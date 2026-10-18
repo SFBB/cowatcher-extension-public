@@ -6,6 +6,7 @@ import {
   AdDetectorOptions,
 } from '../../../domain/adapters/IStreamingAdapter';
 import { SubtitleParser } from '../../../application/utils/parser';
+import { YouTubeSubtitleParser } from './YouTubeSubtitleParser';
 import { YouTubeAdDetector } from './YouTubeAdDetector';
 import { STREAMING_PLATFORMS } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
@@ -275,8 +276,11 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
       }
     };
     window.addEventListener('message', listener);
-    this.messageListeners.push(listener);
     return () => window.removeEventListener('message', listener);
+  }
+
+  parseSubtitle(rawText: string): SubtitleCueData[] {
+    return YouTubeSubtitleParser.parse(rawText);
   }
 
   onSubtitleData(
@@ -286,14 +290,7 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
       if (event.source !== window || !event.data) return;
       if (event.data.type === NCW_MESSAGE_TYPES.SUBTITLE_RAW_DATA && event.data.rawText) {
         try {
-          const parsed = SubtitleParser.parse(event.data.rawText);
-          const cues: SubtitleCueData[] = parsed.map((c) => ({
-            id: c.id,
-            start: c.start,
-            end: c.end,
-            text: c.text,
-            position: c.position,
-          }));
+          const cues = this.parseSubtitle(event.data.rawText);
 
           const language =
             event.data.bcp47 ||
@@ -370,14 +367,7 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
             cleanup();
             if (event.data.found && event.data.rawText) {
               try {
-                const parsed = SubtitleParser.parse(event.data.rawText);
-                const cues: SubtitleCueData[] = parsed.map((c) => ({
-                  id: c.id,
-                  start: c.start,
-                  end: c.end,
-                  text: c.text,
-                  position: c.position,
-                }));
+                const cues = this.parseSubtitle(event.data.rawText);
                 resolve(cues);
               } catch {
                 resolve(null);

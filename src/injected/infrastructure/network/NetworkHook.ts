@@ -126,7 +126,10 @@ export class NetworkHook {
           clone
             .text()
             .then((text) => {
-              if (SubtitleStreamDetector.isSubtitleContent(text)) {
+              if (
+                (u.includes('timedtext') && text && text.trim().length > 0) ||
+                SubtitleStreamDetector.isSubtitleContent(text)
+              ) {
                 notify(url, text);
               }
             })
@@ -176,12 +179,18 @@ export class NetworkHook {
 
             if (responseType === '' || responseType === 'text') {
               const text = this.responseText;
-              if (SubtitleStreamDetector.isSubtitleContent(text)) {
+              if (
+                (u.includes('timedtext') && text && text.trim().length > 0) ||
+                SubtitleStreamDetector.isSubtitleContent(text)
+              ) {
                 notify(url, text);
               }
             } else if (responseType === 'json' && this.response) {
               const text = typeof this.response === 'string' ? this.response : JSON.stringify(this.response);
-              if (SubtitleStreamDetector.isSubtitleContent(text)) {
+              if (
+                (u.includes('timedtext') && text && text.trim().length > 0) ||
+                SubtitleStreamDetector.isSubtitleContent(text)
+              ) {
                 notify(url, text);
               }
             } else if (responseType === 'arraybuffer' && this.response instanceof ArrayBuffer) {

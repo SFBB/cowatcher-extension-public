@@ -6,6 +6,7 @@ import {
   AdDetectorOptions,
 } from '../../../domain/adapters/IStreamingAdapter';
 import { SubtitleParser } from '../../../application/utils/parser';
+import { NetflixSubtitleParser } from './NetflixSubtitleParser';
 import { NetflixAdDetector } from './NetflixAdDetector';
 import { STREAMING_PLATFORMS } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
@@ -240,6 +241,10 @@ export class NetflixContentAdapter implements IStreamingAdapter {
     return () => window.removeEventListener('message', handler);
   }
 
+  parseSubtitle(rawText: string): SubtitleCueData[] {
+    return NetflixSubtitleParser.parse(rawText);
+  }
+
   onSubtitleData(
     callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string; isAsr?: boolean }) => void
   ): () => void {
@@ -247,16 +252,9 @@ export class NetflixContentAdapter implements IStreamingAdapter {
       if (event.source !== window || !event.data) return;
       if (event.data.type === NCW_MESSAGE_TYPES.SUBTITLE_RAW_DATA && event.data.rawText) {
         try {
-          const parsedCues = SubtitleParser.parse(event.data.rawText);
+          const cues = this.parseSubtitle(event.data.rawText);
           const lang =
-            event.data.bcp47 || SubtitleParser.detectLanguage(event.data.rawText, parsedCues);
-          const cues: SubtitleCueData[] = parsedCues.map((c: any) => ({
-            id: c.id,
-            start: c.start,
-            end: c.end,
-            text: c.text,
-            position: c.position,
-          }));
+            event.data.bcp47 || SubtitleParser.detectLanguage(event.data.rawText, cues);
           callback({
             cues,
             language: lang,
@@ -332,14 +330,7 @@ export class NetflixContentAdapter implements IStreamingAdapter {
             cleanup();
             if (event.data.found && event.data.rawText) {
               try {
-                const parsed = SubtitleParser.parse(event.data.rawText);
-                const cues: SubtitleCueData[] = parsed.map((c: any) => ({
-                  id: c.id,
-                  start: c.start,
-                  end: c.end,
-                  text: c.text,
-                  position: c.position,
-                }));
+                const cues = this.parseSubtitle(event.data.rawText);
                 resolve(cues);
               } catch {
                 resolve(null);

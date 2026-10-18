@@ -43,7 +43,12 @@ export class SubtitleStreamDetector {
     }
 
     // Check for TTML / DFXP XML / YouTube timedtext XML
-    if (snippet.includes('<tt') || snippet.includes('<timedtext') || snippet.includes('<transcript')) {
+    if (
+      snippet.includes('<tt') ||
+      snippet.includes('<timedtext') ||
+      snippet.includes('<transcript') ||
+      /<p\s+t="\d+"/i.test(snippet)
+    ) {
       return true;
     }
     if (snippet.includes('<p begin=') || snippet.includes('begin="')) {
@@ -51,7 +56,10 @@ export class SubtitleStreamDetector {
     }
 
     // Check for YouTube JSON3 format
-    if (snippet.includes('"wireMagic"') || (snippet.includes('"events"') && snippet.includes('"tStartMs"'))) {
+    if (
+      snippet.includes('"wireMagic"') ||
+      (snippet.includes('"events"') && (snippet.includes('"tStartMs"') || snippet.includes('"segs"')))
+    ) {
       return true;
     }
 

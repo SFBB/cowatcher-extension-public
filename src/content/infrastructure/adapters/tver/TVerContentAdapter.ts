@@ -6,6 +6,7 @@ import {
   AdDetectorOptions,
 } from '../../../domain/adapters/IStreamingAdapter';
 import { SubtitleParser } from '../../../application/utils/parser';
+import { TVerSubtitleParser } from './TVerSubtitleParser';
 import { TVerAdDetector } from './TVerAdDetector';
 import { STREAMING_PLATFORMS } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
@@ -265,6 +266,10 @@ export class TVerContentAdapter implements IStreamingAdapter {
     return () => window.removeEventListener('message', listener);
   }
 
+  parseSubtitle(rawText: string): SubtitleCueData[] {
+    return TVerSubtitleParser.parse(rawText);
+  }
+
   onSubtitleData(
     callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string; isAsr?: boolean }) => void
   ): () => void {
@@ -275,17 +280,10 @@ export class TVerContentAdapter implements IStreamingAdapter {
         if (!rawText || typeof rawText !== 'string') return;
 
         try {
-          const parsedCues = SubtitleParser.parse(rawText);
-          if (parsedCues && parsedCues.length > 0) {
-            const cues: SubtitleCueData[] = parsedCues.map((c: any) => ({
-              id: c.id,
-              start: c.start,
-              end: c.end,
-              text: c.text,
-            }));
-
+          const cues = this.parseSubtitle(rawText);
+          if (cues && cues.length > 0) {
             const language =
-              event.data.bcp47 || SubtitleParser.detectLanguage(rawText, parsedCues) || 'ja';
+              event.data.bcp47 || SubtitleParser.detectLanguage(rawText, cues) || 'ja';
 
             this.logger.info(
               'TVer-AI-Sub',

@@ -186,7 +186,7 @@ const logger: Logger = new Logger('content');
         const stagedRawText = typeof item === 'string' ? item : item?.rawText;
         const stagedBcp = typeof item === 'object' ? item?.bcp47 : null;
         if (stagedRawText) {
-          const rawCues = SubtitleParser.parse(stagedRawText);
+          const rawCues = adapter.parseSubtitle(stagedRawText);
           if (rawCues && rawCues.length > 0) {
             const cues = rawCues.map((c) =>
               createSubtitleCue({
@@ -801,7 +801,7 @@ const logger: Logger = new Logger('content');
       );
     } else {
       try {
-        const rawCues = SubtitleParser.parse(rawText);
+        const rawCues = adapter.parseSubtitle(rawText);
         const cues = rawCues
           ? rawCues.map((c) =>
               createSubtitleCue({
