@@ -5,7 +5,7 @@ export default defineConfig({
   title: "CoWatcher",
   description:
     "AI Dual Subtitles, Real-Time Translation, Language Immersion & More",
-  base: process.env.VITEPRESS_BASE || "/NetflixCoWatcher/",
+  base: process.env.VITEPRESS_BASE || "/cowatcher-extension-public/",
   head: [
     ["link", { rel: "icon", type: "image/png", href: "/icons/icon48.png" }],
     [
