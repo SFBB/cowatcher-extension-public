@@ -9,7 +9,7 @@
   <body>
     <div class="header">
       <div class="logo-area">
-        <span class="logo-badge">N</span>
+        <img src="/icons/icon48.png" alt="Logo" class="logo-icon" />
         <h2 data-i18n="extName">Subtitle Translator</h2>
       </div>
       <div class="header-actions">
@@ -40,7 +40,11 @@
 
     <!-- Navigation Tabs -->
     <div class="tabs-nav">
-      <button class="tab-btn active" id="tab-btn-subtitles" data-tab="tab-subtitles">
+      <button
+        class="tab-btn active"
+        id="tab-btn-subtitles"
+        data-tab="tab-subtitles"
+      >
         <span class="tab-icon">🎬</span>
         <span data-i18n="tabSubtitles">Subtitles</span>
       </button>
@@ -73,7 +77,9 @@
 
       <div class="section">
         <div class="form-group">
-          <label for="ai-provider" data-i18n="aiProvider">🤖 AI Service Provider</label>
+          <label for="ai-provider" data-i18n="aiProvider"
+            >🤖 AI Service Provider</label
+          >
           <select id="ai-provider">
             <option value="google" data-i18n="providerGoogle" selected>
               Google Translate (Free / Out of the Box)
@@ -90,7 +96,9 @@
         <!-- 1. Ollama Provider Settings -->
         <div id="ollama-settings-group">
           <div class="form-group">
-            <label for="ollama-host" data-i18n="ollamaApiUrl">🔗 Ollama API URL</label>
+            <label for="ollama-host" data-i18n="ollamaApiUrl"
+              >🔗 Ollama API URL</label
+            >
             <div class="api-url-row">
               <input
                 type="text"
@@ -98,7 +106,9 @@
                 placeholder="http://localhost:11434"
                 spellcheck="false"
               />
-              <button id="btn-save-host" class="btn-sm" data-i18n="btnConnect">Connect</button>
+              <button id="btn-save-host" class="btn-sm" data-i18n="btnConnect">
+                Connect
+              </button>
             </div>
           </div>
 
@@ -139,7 +149,11 @@
                   placeholder="sk-or-v1-..."
                   data-i18n-placeholder="openrouterKeyPlaceholder"
                   spellcheck="false"
-                  style="width: 100%; box-sizing: border-box; padding-right: 30px"
+                  style="
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding-right: 30px;
+                  "
                 />
                 <button
                   type="button"
@@ -161,7 +175,11 @@
                   👁️
                 </button>
               </div>
-              <button id="btn-test-openrouter" class="btn-sm" data-i18n="btnConnect">
+              <button
+                id="btn-test-openrouter"
+                class="btn-sm"
+                data-i18n="btnConnect"
+              >
                 Connect
               </button>
             </div>
@@ -177,7 +195,9 @@
           </div>
 
           <div class="form-group">
-            <label for="openrouter-translation-model" data-i18n="openrouterTranslationModel"
+            <label
+              for="openrouter-translation-model"
+              data-i18n="openrouterTranslationModel"
               >🚀 OpenRouter Translation Model</label
             >
             <select id="openrouter-translation-model">
@@ -195,7 +215,9 @@
           </div>
 
           <div class="form-group" id="openrouter-supervisor-model-group">
-            <label for="openrouter-supervisor-model" data-i18n="openrouterSupervisorModel"
+            <label
+              for="openrouter-supervisor-model"
+              data-i18n="openrouterSupervisorModel"
               >🧐 OpenRouter Supervisor Model</label
             >
             <select id="openrouter-supervisor-model">
@@ -213,7 +235,10 @@
           </div>
         </div>
 
-        <div class="form-group checkbox-group" style="margin-top: 4px; margin-bottom: 8px">
+        <div
+          class="form-group checkbox-group"
+          style="margin-top: 4px; margin-bottom: 8px"
+        >
           <label class="checkbox-label" for="enable-supervisor">
             <input type="checkbox" id="enable-supervisor" checked />
             <span data-i18n="enableSupervisor"
@@ -221,7 +246,8 @@
             >
           </label>
           <div class="field-hint" data-i18n="enableSupervisorHint">
-            Audits terminology consistency & maintains character memory (Turn off to save GPU VRAM)
+            Audits terminology consistency & maintains character memory (Turn
+            off to save GPU VRAM)
           </div>
         </div>
 
@@ -259,34 +285,45 @@
         </div>
 
         <div class="form-group">
-          <label for="display-mode" data-i18n="displayMode">Subtitle Display Mode</label>
+          <label for="display-mode" data-i18n="displayMode"
+            >Subtitle Display Mode</label
+          >
           <select id="display-mode">
             <option value="bilingual" data-i18n="displayBilingual">
               Bilingual (Translation + Original)
             </option>
-            <option value="translated" data-i18n="displayTransOnly">Translation Only</option>
-            <option value="original" data-i18n="displayOrigOnly">Original Only</option>
+            <option value="translated" data-i18n="displayTransOnly">
+              Translation Only
+            </option>
+            <option value="original" data-i18n="displayOrigOnly">
+              Original Only
+            </option>
           </select>
         </div>
 
         <div class="form-group checkbox-group">
           <label class="checkbox-label" for="prefer-native-subs">
             <input type="checkbox" id="prefer-native-subs" checked />
-            <span data-i18n="preferNativeSubtitles">Prefer Official Subtitles (0-Latency)</span>
+            <span data-i18n="preferNativeSubtitles"
+              >Prefer Official Subtitles (0-Latency)</span
+            >
           </label>
           <div class="field-hint" data-i18n="preferNativeSubtitlesHint">
-            Use platform official target track if available; fall back to AI translation if missing
+            Use platform official target track if available; fall back to AI
+            translation if missing
           </div>
         </div>
 
         <div class="form-group checkbox-group" id="extract-native-terms-group">
           <label class="checkbox-label" for="extract-native-terms">
             <input type="checkbox" id="extract-native-terms" />
-            <span data-i18n="extractNativeTerms">Extract Glossary from Official Subtitles</span>
+            <span data-i18n="extractNativeTerms"
+              >Extract Glossary from Official Subtitles</span
+            >
           </label>
           <div class="field-hint" data-i18n="extractNativeTermsHint">
-            When using official subtitles, let supervisor model extract character glossary (Default:
-            Off)
+            When using official subtitles, let supervisor model extract
+            character glossary (Default: Off)
           </div>
         </div>
 
@@ -303,10 +340,13 @@
         <div class="form-group checkbox-group">
           <label class="checkbox-label" for="enable-learning">
             <input type="checkbox" id="enable-learning" />
-            <span data-i18n="enableSubtitleLearning">Interactive Subtitle Learning (Click Word)</span>
+            <span data-i18n="enableSubtitleLearning"
+              >Interactive Subtitle Learning (Click Word)</span
+            >
           </label>
           <div class="field-hint" data-i18n="enableSubtitleLearningHint">
-            Click words to pause video & view definitions; right-click to quick-save to vocabulary
+            Click words to pause video & view definitions; right-click to
+            quick-save to vocabulary
           </div>
         </div>
       </div>
@@ -317,22 +357,31 @@
       </div>
       <div class="context-card" id="context-card">
         <div class="context-header">
-          <div class="show-title-text" id="show-title" data-i18n="waitingPlayback">
+          <div
+            class="show-title-text"
+            id="show-title"
+            data-i18n="waitingPlayback"
+          >
             Waiting for playback...
           </div>
-          <span class="memory-badge badge-neutral" id="memory-badge" data-i18n="pendingBadge"
+          <span
+            class="memory-badge badge-neutral"
+            id="memory-badge"
+            data-i18n="pendingBadge"
             >Pending</span
           >
         </div>
-        <div class="show-synopsis" id="show-synopsis" style="display: none"></div>
+        <div
+          class="show-synopsis"
+          id="show-synopsis"
+          style="display: none"
+        ></div>
 
         <div class="glossary-section">
           <div class="glossary-header">
             <span
-              ><span data-i18n="glossaryHeader">Characters & Glossary</span> (<span
-                id="glossary-count"
-                >0</span
-              >)</span
+              ><span data-i18n="glossaryHeader">Characters & Glossary</span>
+              (<span id="glossary-count">0</span>)</span
             >
             <button
               class="btn-text"
@@ -345,7 +394,8 @@
           </div>
           <div class="glossary-tags" id="glossary-tags">
             <span class="empty-hint" data-i18n="contextEmptyHint"
-              >Will be built and updated by supervisor model during playback...</span
+              >Will be built and updated by supervisor model during
+              playback...</span
             >
           </div>
 
@@ -388,23 +438,43 @@
 
         <div class="form-group">
           <div class="slider-header">
-            <label for="min-translate-cues" data-i18n="minCues">Min Batch Cues (min_cue)</label>
+            <label for="min-translate-cues" data-i18n="minCues"
+              >Min Batch Cues (min_cue)</label
+            >
             <span class="slider-val" id="min-cues-val">1 cue</span>
           </div>
-          <input type="range" id="min-translate-cues" min="1" max="20" step="1" value="1" />
+          <input
+            type="range"
+            id="min-translate-cues"
+            min="1"
+            max="20"
+            step="1"
+            value="1"
+          />
           <div class="field-hint" data-i18n="minCuesHint">
-            Minimum dialogue cues accumulated before sending a call to the model (Default: 1)
+            Minimum dialogue cues accumulated before sending a call to the model
+            (Default: 1)
           </div>
         </div>
 
         <div class="form-group">
           <div class="slider-header">
-            <label for="max-translate-cues" data-i18n="maxCues">Max Batch Cues (max_cue)</label>
+            <label for="max-translate-cues" data-i18n="maxCues"
+              >Max Batch Cues (max_cue)</label
+            >
             <span class="slider-val" id="max-cues-val">30 cues</span>
           </div>
-          <input type="range" id="max-translate-cues" min="10" max="150" step="5" value="30" />
+          <input
+            type="range"
+            id="max-translate-cues"
+            min="10"
+            max="150"
+            step="5"
+            value="30"
+          />
           <div class="field-hint" data-i18n="maxCuesHint">
-            Maximum dialogues sent in a single request (Ollama preset: 30, OpenRouter: 100)
+            Maximum dialogues sent in a single request (Ollama preset: 30,
+            OpenRouter: 100)
           </div>
         </div>
 
@@ -413,16 +483,30 @@
             <label for="refill-threshold" data-i18n="refillThreshold"
               >Auto-Refill Threshold (Buffer Alert)</label
             >
-            <span class="slider-val" id="refill-val">Remaining &lt; 10 cues</span>
+            <span class="slider-val" id="refill-val"
+              >Remaining &lt; 10 cues</span
+            >
           </div>
-          <input type="range" id="refill-threshold" min="2" max="40" step="1" value="10" />
+          <input
+            type="range"
+            id="refill-threshold"
+            min="2"
+            max="40"
+            step="1"
+            value="10"
+          />
           <div class="field-hint" data-i18n="refillSubHint">
-            Automatically requests next batch when remaining unplayed cues fall below this
+            Automatically requests next batch when remaining unplayed cues fall
+            below this
           </div>
         </div>
 
         <!-- 2. Supervisor Consistency Audit -->
-        <div class="subsection-title" data-i18n="pipelineGroupSupervisor" style="margin-top: 14px">
+        <div
+          class="subsection-title"
+          data-i18n="pipelineGroupSupervisor"
+          style="margin-top: 14px"
+        >
           🧐 Supervisor Consistency Audit
         </div>
 
@@ -433,37 +517,63 @@
             >
             <span class="slider-val" id="review-batch-val">8 cues</span>
           </div>
-          <input type="range" id="review-batch-size" min="2" max="40" step="2" value="8" />
+          <input
+            type="range"
+            id="review-batch-size"
+            min="2"
+            max="40"
+            step="2"
+            value="8"
+          />
           <div class="field-hint" data-i18n="reviewBatchSizeHint">
-            Number of translated dialogues audited in a single prompt (Ollama: 8, OpenRouter: 20)
+            Number of translated dialogues audited in a single prompt (Ollama:
+            8, OpenRouter: 20)
           </div>
         </div>
 
         <!-- 3. ASR Subtitle Auto-Merging -->
-        <div class="subsection-title" data-i18n="pipelineGroupAsr" style="margin-top: 14px">
+        <div
+          class="subsection-title"
+          data-i18n="pipelineGroupAsr"
+          style="margin-top: 14px"
+        >
           🎙️ ASR Subtitle Auto-Merging
         </div>
 
         <div class="checkbox-group">
           <input type="checkbox" id="enable-automatic-asr-merging" checked />
-          <label for="enable-automatic-asr-merging" data-i18n="enableAutomaticAsrMerging"
+          <label
+            for="enable-automatic-asr-merging"
+            data-i18n="enableAutomaticAsrMerging"
             >Auto-Merge ASR Word Fragments</label
           >
         </div>
         <div
           class="field-hint"
           data-i18n="enableAutomaticAsrMergingHint"
-          style="margin-top: -6px; margin-bottom: 10px;"
+          style="margin-top: -6px; margin-bottom: 10px"
         >
-          Combines fragmented word-by-word ASR cues (e.g. YouTube auto-captions) into grammatically complete sentences before translation
+          Combines fragmented word-by-word ASR cues (e.g. YouTube auto-captions)
+          into grammatically complete sentences before translation
         </div>
 
         <div class="form-group" id="asr-merge-controls">
           <div class="slider-header">
-            <label for="asr-merge-batch-size" data-i18n="asrMergeBatchSize">ASR Merge Window Size</label>
-            <span class="slider-val" id="asr-merge-batch-val">15 fragments</span>
+            <label for="asr-merge-batch-size" data-i18n="asrMergeBatchSize"
+              >ASR Merge Window Size</label
+            >
+            <span class="slider-val" id="asr-merge-batch-val"
+              >15 fragments</span
+            >
           </div>
-          <input type="range" id="asr-merge-batch-size" min="5" max="30" step="1" value="15" />
+          <input
+            type="range"
+            id="asr-merge-batch-size"
+            min="5"
+            max="30"
+            step="1"
+            value="15"
+          />
           <div class="field-hint" data-i18n="asrMergeBatchSizeHint">
             Number of raw fragments processed per merge stage (Default: 15)
           </div>
@@ -471,85 +581,140 @@
 
         <div class="form-group" id="asr-silence-controls">
           <div class="slider-header">
-            <label for="asr-silence-threshold" data-i18n="asrSilenceThreshold">Silence Gap Threshold</label>
-            <span class="slider-val" id="asr-silence-threshold-val">600 ms</span>
+            <label for="asr-silence-threshold" data-i18n="asrSilenceThreshold"
+              >Silence Gap Threshold</label
+            >
+            <span class="slider-val" id="asr-silence-threshold-val"
+              >600 ms</span
+            >
           </div>
-          <input type="range" id="asr-silence-threshold" min="200" max="1500" step="50" value="600" />
+          <input
+            type="range"
+            id="asr-silence-threshold"
+            min="200"
+            max="1500"
+            step="50"
+            value="600"
+          />
           <div class="field-hint" data-i18n="asrSilenceThresholdHint">
-            Threshold in milliseconds to detect natural sentence pause (Default: 600ms)
+            Threshold in milliseconds to detect natural sentence pause (Default:
+            600ms)
           </div>
         </div>
 
         <!-- 4. Subtitle Appearance & Timing -->
-        <div class="subsection-title" data-i18n="pipelineGroupStyle" style="margin-top: 14px">
+        <div
+          class="subsection-title"
+          data-i18n="pipelineGroupStyle"
+          style="margin-top: 14px"
+        >
           🎨 Subtitle Appearance & Timing
         </div>
 
         <div class="form-group">
           <div class="slider-header">
-            <label for="font-size" data-i18n="fontSize">Subtitle Font Size</label>
+            <label for="font-size" data-i18n="fontSize"
+              >Subtitle Font Size</label
+            >
             <span class="slider-val" id="font-size-val">26px</span>
           </div>
-          <input type="range" id="font-size" min="18" max="44" step="2" value="26" />
+          <input
+            type="range"
+            id="font-size"
+            min="18"
+            max="44"
+            step="2"
+            value="26"
+          />
         </div>
 
         <div class="form-group">
           <div class="slider-header">
-            <label for="bg-opacity" data-i18n="bgOpacity">Subtitle Background Opacity</label>
+            <label for="bg-opacity" data-i18n="bgOpacity"
+              >Subtitle Background Opacity</label
+            >
             <span class="slider-val" id="bg-opacity-val">0%</span>
           </div>
-          <input type="range" id="bg-opacity" min="0" max="100" step="5" value="0" />
+          <input
+            type="range"
+            id="bg-opacity"
+            min="0"
+            max="100"
+            step="5"
+            value="0"
+          />
           <div class="field-hint" data-i18n="bgOpacityHint">
-            Adjust background plate darkness behind subtitles (Default: 0% transparent)
+            Adjust background plate darkness behind subtitles (Default: 0%
+            transparent)
           </div>
         </div>
 
         <div class="form-group">
           <div class="slider-header">
-            <label for="sub-offset" data-i18n="bottomMargin">Bottom Margin</label>
+            <label for="sub-offset" data-i18n="bottomMargin"
+              >Bottom Margin</label
+            >
             <span class="slider-val" id="sub-offset-val">80px</span>
           </div>
-          <input type="range" id="sub-offset" min="40" max="180" step="5" value="80" />
+          <input
+            type="range"
+            id="sub-offset"
+            min="40"
+            max="180"
+            step="5"
+            value="80"
+          />
         </div>
 
         <div class="form-group checkbox-group">
           <label class="checkbox-label" for="show-original-smaller">
             <input type="checkbox" id="show-original-smaller" checked />
-            <span data-i18n="showOriginalSmaller">Smaller Original Subtitle (75%)</span>
+            <span data-i18n="showOriginalSmaller"
+              >Smaller Original Subtitle (75%)</span
+            >
           </label>
           <div class="field-hint" data-i18n="showOriginalSmallerHint">
-            In bilingual mode, displays original dialogue at 75% font size to emphasize translation
+            In bilingual mode, displays original dialogue at 75% font size to
+            emphasize translation
           </div>
         </div>
 
         <div class="form-group checkbox-group">
           <label class="checkbox-label" for="swap-subtitle-order">
             <input type="checkbox" id="swap-subtitle-order" />
-            <span data-i18n="swapSubtitleOrder">Swap Subtitle Order (Original on Top)</span>
+            <span data-i18n="swapSubtitleOrder"
+              >Swap Subtitle Order (Original on Top)</span
+            >
           </label>
           <div class="field-hint" data-i18n="swapSubtitleOrderHint">
-            Displays original dialogue on the top line and translated dialogue on the bottom
+            Displays original dialogue on the top line and translated dialogue
+            on the bottom
           </div>
         </div>
 
         <div class="form-group checkbox-group">
           <label class="checkbox-label" for="enable-glass-effect">
             <input type="checkbox" id="enable-glass-effect" />
-            <span data-i18n="enableGlassEffect">Glass Style Box (Blur & Border Highlight)</span>
+            <span data-i18n="enableGlassEffect"
+              >Glass Style Box (Blur & Border Highlight)</span
+            >
           </label>
           <div class="field-hint" data-i18n="enableGlassEffectHint">
-            Adds backdrop blur, border highlight and shadow behind subtitles (Default: OFF)
+            Adds backdrop blur, border highlight and shadow behind subtitles
+            (Default: OFF)
           </div>
         </div>
 
         <div class="form-group checkbox-group">
           <label class="checkbox-label" for="enable-animation">
             <input type="checkbox" id="enable-animation" />
-            <span data-i18n="enableAnimation">Enable Subtitle Fade Animation</span>
+            <span data-i18n="enableAnimation"
+              >Enable Subtitle Fade Animation</span
+            >
           </label>
           <div class="field-hint" data-i18n="enableAnimationHint">
-            Fades subtitles in and out (Turn off for instant crisp subtitle switching without
-            flicker; Default: OFF)
+            Fades subtitles in and out (Turn off for instant crisp subtitle
+            switching without flicker; Default: OFF)
           </div>
         </div>
 
@@ -559,27 +724,36 @@
             <span class="slider-val" id="sync-offset-val">0.0s</span>
           </div>
           <div class="sync-offset-btn-row">
-            <button id="btn-sync-earlier" class="btn-sm" data-i18n="btnSyncEarlier">
+            <button
+              id="btn-sync-earlier"
+              class="btn-sm"
+              data-i18n="btnSyncEarlier"
+            >
               Earlier (+0.5s)
             </button>
-            <button id="btn-sync-reset" class="btn-sm" data-i18n="btnSyncReset">Reset</button>
+            <button id="btn-sync-reset" class="btn-sm" data-i18n="btnSyncReset">
+              Reset
+            </button>
             <button id="btn-sync-later" class="btn-sm" data-i18n="btnSyncLater">
               Later (-0.5s)
             </button>
           </div>
           <div class="field-hint" data-i18n="syncOffsetHint">
-            Fine-tune timeline when ad breaks occur (Hotkeys: [ / ] or Alt+[ / Alt+])
+            Fine-tune timeline when ad breaks occur (Hotkeys: [ / ] or Alt+[ /
+            Alt+])
           </div>
         </div>
 
         <div class="form-group checkbox-group">
           <label class="checkbox-label" for="enable-dom-sync">
             <input type="checkbox" id="enable-dom-sync" />
-            <span data-i18n="enableDomSync">DOM Subtitle Text Auto-Calibration</span>
+            <span data-i18n="enableDomSync"
+              >DOM Subtitle Text Auto-Calibration</span
+            >
           </label>
           <div class="field-hint" data-i18n="enableDomSyncHint">
-            Compares visible native streaming subtitles to auto-correct drift (Default: OFF; our
-            implementation already syncs timeline)
+            Compares visible native streaming subtitles to auto-correct drift
+            (Default: OFF; our implementation already syncs timeline)
           </div>
         </div>
       </div>
@@ -594,7 +768,9 @@
             data-i18n-placeholder="testPlaceholder"
             value="Hello! The weather is fantastic today."
           />
-          <button id="btn-test" class="btn-primary" data-i18n="btnTest">Test</button>
+          <button id="btn-test" class="btn-primary" data-i18n="btnTest">
+            Test
+          </button>
         </div>
         <div id="test-result" class="test-result-box" data-i18n="testHint">
           Click test button to verify local model response...
@@ -612,7 +788,8 @@
             📚 Episode Vocabulary Collector
           </div>
           <div class="field-hint" data-i18n="vocabEnabledHint">
-            Silently extracts difficult words, idioms, and context sentences in background
+            Silently extracts difficult words, idioms, and context sentences in
+            background
           </div>
         </div>
         <label class="switch">
@@ -624,13 +801,24 @@
       <!-- Episode & Status Card -->
       <div class="vocab-status-card" id="vocab-status-card">
         <div class="vocab-status-row">
-          <span class="vocab-episode-title" id="vocab-episode-title">Waiting for video...</span>
+          <span class="vocab-episode-title" id="vocab-episode-title"
+            >Waiting for video...</span
+          >
           <div style="display: flex; gap: 5px; align-items: center">
-            <span class="vocab-lang-badge" id="vocab-lang-badge" style="display: none">AUTO</span>
+            <span
+              class="vocab-lang-badge"
+              id="vocab-lang-badge"
+              style="display: none"
+              >AUTO</span
+            >
             <span class="vocab-badge" id="vocab-count-badge">0 words</span>
           </div>
         </div>
-        <div class="vocab-status-detail" id="vocab-status-detail" data-i18n="vocabStatusIdle">
+        <div
+          class="vocab-status-detail"
+          id="vocab-status-detail"
+          data-i18n="vocabStatusIdle"
+        >
           Ready / Idle
         </div>
       </div>
@@ -638,7 +826,9 @@
       <div class="section">
         <!-- 1. Dedicated Vocab Model Selection -->
         <div class="form-group">
-          <label for="vocab-provider" data-i18n="vocabProvider">🤖 AI Service Provider</label>
+          <label for="vocab-provider" data-i18n="vocabProvider"
+            >🤖 AI Service Provider</label
+          >
           <select id="vocab-provider">
             <option value="openrouter" data-i18n="providerOpenRouter">
               OpenRouter (Cloud / Multi-model)
@@ -699,13 +889,19 @@
 
         <!-- 3. 3-tier Difficulty Selector -->
         <div class="form-group">
-          <label for="vocab-difficulty" data-i18n="vocabDifficulty">🎯 Difficulty Level</label>
+          <label for="vocab-difficulty" data-i18n="vocabDifficulty"
+            >🎯 Difficulty Level</label
+          >
           <select id="vocab-difficulty">
-            <option value="easy" data-i18n="diffEasy">🟢 Easy (Phrasal verbs & Slang)</option>
+            <option value="easy" data-i18n="diffEasy">
+              🟢 Easy (Phrasal verbs & Slang)
+            </option>
             <option value="medium" selected data-i18n="diffMedium">
               🟡 Medium (B2/C1, Academic & Idioms)
             </option>
-            <option value="hard" data-i18n="diffHard">🔴 Hard (C2+, Jargon & GRE)</option>
+            <option value="hard" data-i18n="diffHard">
+              🔴 Hard (C2+, Jargon & GRE)
+            </option>
           </select>
         </div>
 
@@ -721,7 +917,8 @@
             data-i18n-placeholder="vocabCustomPromptPlaceholder"
           ></textarea>
           <div class="field-hint" data-i18n="vocabCustomPromptHint">
-            Injected directly into LLM system prompt to guide vocabulary extraction
+            Injected directly into LLM system prompt to guide vocabulary
+            extraction
           </div>
         </div>
 
@@ -736,7 +933,11 @@
           >
             📥 Download Vocab (.CSV)
           </button>
-          <button id="btn-reset-vocab" class="btn-secondary" data-i18n="btnResetVocab">
+          <button
+            id="btn-reset-vocab"
+            class="btn-secondary"
+            data-i18n="btnResetVocab"
+          >
             🗑️ Reset
           </button>
         </div>
@@ -745,15 +946,22 @@
       <!-- 4. Word List Live Preview Card -->
       <div
         class="section-title"
-        style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px"
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-top: 14px;
+        "
       >
         <span>📖 Episode Vocab List</span>
-        <span id="vocab-preview-count" style="font-size: 11px; color: #888">(0 items)</span>
+        <span id="vocab-preview-count" style="font-size: 11px; color: #888"
+          >(0 items)</span
+        >
       </div>
       <div class="vocab-preview-box" id="vocab-preview-box">
         <div class="empty-hint" id="vocab-empty-hint" data-i18n="vocabEmpty">
-          No vocabulary collected yet. Turn ON the feature and play an episode to collect
-          automatically.
+          No vocabulary collected yet. Turn ON the feature and play an episode
+          to collect automatically.
         </div>
       </div>
     </div>
@@ -773,7 +981,9 @@
     </div>
 
     <div class="footer">
-      <span data-i18n="footerText">Local AI Inference · Ultra Low Latency · Privacy First</span>
+      <span data-i18n="footerText"
+        >Local AI Inference · Ultra Low Latency · Privacy First</span
+      >
     </div>
 
     <script src="../utils/constants.js"></script>
