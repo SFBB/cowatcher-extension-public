@@ -79,9 +79,9 @@ flowchart TB
     end
 
     subgraph PresentationContext["Extension UI Pages"]
-        Popup["Popup UI\n(Provider / Target Lang / Quick Toggle)"]
-        Options["Options UI\n(API Keys / Prompts / Model Select)"]
-        Editor["Editor UI\n(Track Editing / Glossary Management)"]
+        Popup["Popup UI\n(Provider / Target Lang / Quick Toggle / Other Configurations)"]
+        Options["Options UI\n(Subtitles/Contexts/Vocabulary/Watching Record management)"]
+        Editor["Editor UI\n(Glossary editing)"]
     end
 
     PagePlayer -. Network Responses .-> InjectedHooks
