@@ -97,13 +97,28 @@ export class TVerContentAdapter implements IStreamingAdapter {
   }
 
   getPlayerContainer(): HTMLElement | null {
-    return (
-      document.querySelector('[class*="Episode_player"]') ||
-      document.querySelector('[class*="MiniPlayerLayout_player"]') ||
-      document.getElementById('video-player')?.parentElement ||
-      document.querySelector('video')?.parentElement ||
-      document.body
-    );
+    const video = this.getVideoElement();
+    const candidate =
+      (document.querySelector('[class*="EpisodePlayer_container"]') as HTMLElement | null) ||
+      (video?.closest('.video-js') as HTMLElement | null) ||
+      (document.querySelector('.video-js') as HTMLElement | null) ||
+      (document.querySelector('[class*="EpisodePlayer_videoContainer"]') as HTMLElement | null) ||
+      (document.querySelector('[class*="EpisodePlayer_video"]') as HTMLElement | null) ||
+      (video?.parentElement as HTMLElement | null) ||
+      (document.querySelector('[js-fullscreen-target]') as HTMLElement | null) ||
+      null;
+
+    if (candidate && candidate !== document.body) {
+      if (typeof window !== 'undefined') {
+        const computed = window.getComputedStyle(candidate);
+        if (!computed.position || computed.position === 'static') {
+          candidate.style.position = 'relative';
+        }
+      }
+      return candidate;
+    }
+
+    return null;
   }
 
   getContentTime(): number {

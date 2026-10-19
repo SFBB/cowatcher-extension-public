@@ -159,7 +159,7 @@ export class SubtitleOverlay {
     ) {
       target = this.targetContainer;
     } else {
-      target = document.body;
+      return;
     }
 
     if (target && this.container && this.container.parentElement !== target) {

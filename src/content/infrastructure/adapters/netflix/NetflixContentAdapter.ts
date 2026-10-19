@@ -82,13 +82,17 @@ export class NetflixContentAdapter implements IStreamingAdapter {
   }
 
   getPlayerContainer(): HTMLElement | null {
-    return (
-      document.querySelector('.watch-video--player-view') ||
-      document.querySelector('[data-uia="watch-video"]') ||
-      document.querySelector('.NFPlayer') ||
-      document.querySelector('video')?.parentElement ||
-      document.body
-    );
+    const candidate =
+      (document.querySelector('.watch-video--player-view') as HTMLElement | null) ||
+      (document.querySelector('[data-uia="watch-video"]') as HTMLElement | null) ||
+      (document.querySelector('.NFPlayer') as HTMLElement | null) ||
+      (document.querySelector('video')?.parentElement as HTMLElement | null) ||
+      null;
+
+    if (candidate && candidate !== document.body) {
+      return candidate;
+    }
+    return null;
   }
 
   getContentTime(): number {

@@ -443,8 +443,8 @@ const logger: Logger = new Logger('content');
       return;
     }
 
-    const playerTarget = adapter.getPlayerContainer() || document.body;
-    if (!playerTarget) return;
+    const playerTarget = adapter.getPlayerContainer();
+    if (!playerTarget || playerTarget === document.body) return;
 
     let btn = document.getElementById('ncw-player-toggle-btn');
     if (!btn) {

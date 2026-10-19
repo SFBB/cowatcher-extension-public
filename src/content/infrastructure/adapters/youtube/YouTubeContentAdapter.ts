@@ -119,13 +119,18 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
   }
 
   getPlayerContainer(): HTMLElement | null {
-    return (
+    const candidate =
       document.getElementById('movie_player') ||
       (document.querySelector('.html5-video-player') as HTMLElement | null) ||
       (document.querySelector('ytd-reel-video-renderer[is-active]') as HTMLElement | null) ||
       (document.querySelector('#player') as HTMLElement | null) ||
-      document.body
-    );
+      (document.querySelector('video')?.parentElement as HTMLElement | null) ||
+      null;
+
+    if (candidate && candidate !== document.body) {
+      return candidate;
+    }
+    return null;
   }
 
   getContentTime(): number {
