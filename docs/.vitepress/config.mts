@@ -1,14 +1,15 @@
-import { defineConfig } from 'vitepress';
+import { defineConfig } from "vitepress";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  title: 'CoWatcher',
-  description: 'AI Dual Subtitles, Real-Time Translation, Language Immersion & More',
-  base: process.env.VITEPRESS_BASE || '/NetflixCoWatcher/',
+  title: "CoWatcher",
+  description:
+    "AI Dual Subtitles, Real-Time Translation, Language Immersion & More",
+  base: process.env.VITEPRESS_BASE || "/NetflixCoWatcher/",
   head: [
-    ['link', { rel: 'icon', type: 'image/png', href: '/icons/icon48.png' }],
+    ["link", { rel: "icon", type: "image/png", href: "/icons/icon48.png" }],
     [
-      'script',
+      "script",
       {},
       `
       (function() {
@@ -26,126 +27,131 @@ export default defineConfig({
   ],
   locales: {
     root: {
-      label: 'English',
-      lang: 'en',
+      label: "English",
+      lang: "en",
       themeConfig: {
         nav: [
-          { text: 'Home', link: '/' },
-          { text: 'Quickstart', link: '/en/quickstart' },
+          { text: "Home", link: "/" },
+          { text: "Quickstart", link: "/en/quickstart" },
           {
-            text: 'AI Providers',
+            text: "AI Providers",
             items: [
-              { text: 'Ollama (Local / GPU)', link: '/en/providers/ollama' },
-              { text: 'OpenRouter (Cloud)', link: '/en/providers/openrouter' },
+              { text: "Ollama (Local / GPU)", link: "/en/providers/ollama" },
+              { text: "OpenRouter (Cloud)", link: "/en/providers/openrouter" },
             ],
           },
           {
-            text: 'Platforms',
+            text: "Platforms",
             items: [
-              { text: 'Netflix', link: '/en/platforms/netflix' },
-              { text: 'TVer (Japan)', link: '/en/platforms/tver' },
-              { text: 'YouTube', link: '/en/platforms/youtube' },
+              { text: "Netflix", link: "/en/platforms/netflix" },
+              { text: "TVer (Japan)", link: "/en/platforms/tver" },
+              { text: "YouTube", link: "/en/platforms/youtube" },
             ],
           },
-          { text: 'Architecture', link: '/architecture' },
+          { text: "Architecture", link: "/architecture" },
         ],
         sidebar: [
           {
-            text: 'Getting Started',
+            text: "Getting Started",
             items: [
-              { text: 'Quickstart', link: '/en/quickstart' },
-              { text: 'Popup Interface Guide', link: '/en/guide/popup' },
+              { text: "Quickstart", link: "/en/quickstart" },
+              { text: "Popup Interface Guide", link: "/en/guide/popup" },
             ],
           },
           {
-            text: 'AI Providers Setup',
+            text: "AI Providers Setup",
             items: [
-              { text: 'Ollama (Local Inference)', link: '/en/providers/ollama' },
-              { text: 'OpenRouter (Cloud Models)', link: '/en/providers/openrouter' },
+              {
+                text: "Ollama (Local Inference)",
+                link: "/en/providers/ollama",
+              },
+              {
+                text: "OpenRouter (Cloud Models)",
+                link: "/en/providers/openrouter",
+              },
             ],
           },
           {
-            text: 'Supported Platforms',
+            text: "Supported Platforms",
             items: [
-              { text: 'Netflix', link: '/en/platforms/netflix' },
-              { text: 'TVer', link: '/en/platforms/tver' },
-              { text: 'YouTube', link: '/en/platforms/youtube' },
+              { text: "Netflix", link: "/en/platforms/netflix" },
+              { text: "TVer", link: "/en/platforms/tver" },
+              { text: "YouTube", link: "/en/platforms/youtube" },
             ],
           },
           {
-            text: 'Advanced Configuration',
+            text: "Advanced Configuration",
             items: [
-              { text: 'Dual-Model Pipeline', link: '/en/advanced/dual_model' },
+              { text: "Dual-Model Pipeline", link: "/en/advanced/dual_model" },
             ],
           },
           {
-            text: 'Developer & Architecture',
-            items: [
-              { text: 'System Architecture', link: '/architecture' },
-            ],
+            text: "Developer & Architecture",
+            items: [{ text: "System Architecture", link: "/architecture" }],
           },
         ],
       },
     },
     zh: {
-      label: '简体中文',
-      lang: 'zh-CN',
-      link: '/zh/',
+      label: "简体中文",
+      lang: "zh-CN",
+      link: "/zh/",
       themeConfig: {
         nav: [
-          { text: '首页', link: '/zh/' },
-          { text: '快速开始', link: '/zh/quickstart' },
+          { text: "首页", link: "/zh/" },
+          { text: "快速开始", link: "/zh/quickstart" },
           {
-            text: 'AI 服务商配置',
+            text: "AI 服务商配置",
             items: [
-              { text: 'Ollama 本地显卡部署', link: '/zh/providers/ollama' },
-              { text: 'OpenRouter 云端模型', link: '/zh/providers/openrouter' },
+              { text: "Ollama 本地显卡部署", link: "/zh/providers/ollama" },
+              { text: "OpenRouter 云端模型", link: "/zh/providers/openrouter" },
             ],
           },
           {
-            text: '平台使用指南',
+            text: "平台使用指南",
             items: [
-              { text: 'Netflix (网飞)', link: '/zh/platforms/netflix' },
-              { text: 'TVer (日剧/日本电视)', link: '/zh/platforms/tver' },
-              { text: 'YouTube', link: '/zh/platforms/youtube' },
+              { text: "Netflix (网飞)", link: "/zh/platforms/netflix" },
+              { text: "TVer (日剧/日本电视)", link: "/zh/platforms/tver" },
+              { text: "YouTube", link: "/zh/platforms/youtube" },
             ],
           },
-          { text: '系统架构', link: '/architecture' },
+          { text: "系统架构", link: "/architecture" },
         ],
         sidebar: [
           {
-            text: '入门指南',
+            text: "入门指南",
             items: [
-              { text: '快速开始', link: '/zh/quickstart' },
-              { text: '弹窗面板与快捷键指南', link: '/zh/guide/popup' },
+              { text: "快速开始", link: "/zh/quickstart" },
+              { text: "弹窗面板与快捷键指南", link: "/zh/guide/popup" },
             ],
           },
           {
-            text: 'AI 服务商配置',
+            text: "AI 服务商配置",
             items: [
-              { text: 'Ollama 本地模型配置', link: '/zh/providers/ollama' },
-              { text: 'OpenRouter 云端 API 配置', link: '/zh/providers/openrouter' },
+              { text: "Ollama 本地模型配置", link: "/zh/providers/ollama" },
+              {
+                text: "OpenRouter 云端 API 配置",
+                link: "/zh/providers/openrouter",
+              },
             ],
           },
           {
-            text: '流媒体平台指南',
+            text: "流媒体平台指南",
             items: [
-              { text: 'Netflix 使用技巧', link: '/zh/platforms/netflix' },
-              { text: 'TVer 播放器全屏适配', link: '/zh/platforms/tver' },
-              { text: 'YouTube 双语字幕', link: '/zh/platforms/youtube' },
+              { text: "Netflix 使用技巧", link: "/zh/platforms/netflix" },
+              { text: "TVer 播放器全屏适配", link: "/zh/platforms/tver" },
+              { text: "YouTube 双语字幕", link: "/zh/platforms/youtube" },
             ],
           },
           {
-            text: '进阶调优',
+            text: "进阶调优",
             items: [
-              { text: '双模型流水线调优', link: '/zh/advanced/dual_model' },
+              { text: "双模型流水线调优", link: "/zh/advanced/dual_model" },
             ],
           },
           {
-            text: '架构与开发',
-            items: [
-              { text: '核心架构白皮书', link: '/architecture' },
-            ],
+            text: "架构与开发",
+            items: [{ text: "核心架构白皮书", link: "/architecture" }],
           },
         ],
       },
@@ -153,14 +159,14 @@ export default defineConfig({
   },
   themeConfig: {
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/SFBB/NetflixCoWatcher' },
+      { icon: "github", link: "https://github.com/SFBB/NetflixCoWatcher" },
     ],
     search: {
-      provider: 'local',
+      provider: "local",
     },
     footer: {
-      message: 'Released under the ISC License.',
-      copyright: 'Copyright © 2024-present CoWatcher Contributors',
+      message: "Released under the ISC License.",
+      copyright: "Copyright © 2024-present CoWatcher Contributors",
     },
   },
 });
