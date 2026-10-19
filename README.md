@@ -155,6 +155,7 @@ ollama pull gemma4:e2b
 ## ☕ Contribution & Support & Donation
 
 This project welcomes any pull requests, forks, or issues(bugs or feature requests)!
+Read [contributing](/CONTRIBUTING.md) and [architecture](/Architecture.md) for more information!
 
 If this project enhances your streaming and language learning experience, consider buying the author a coffee! Every bit of support fuels continued development and maintenance.
 

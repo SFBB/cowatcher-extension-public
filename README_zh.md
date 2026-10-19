@@ -155,6 +155,7 @@ ollama pull gemma4:e2b
 ## ☕ 贡献、支持与赞助 (Contribution & Support & Donation)
 
 本项目欢迎任何pull request, fork, 或者issue(bugs or feature requests)。
+Read [贡献规范](/CONTRIBUTING.md) and [架构设计](/Architecture.md) for more information!
 
 如果这个项目对您有所帮助，让您的 Netflix 观影与双语体验更加流畅愉悦，欢迎请作者喝杯咖啡！您的每一份认可都是我持续优化与维护项目的最大动力。
 
