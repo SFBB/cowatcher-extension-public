@@ -1,6 +1,6 @@
-# ![](./icons/icon48.png) CoWatcher (AI Dual Subtitles, Real-Time Translation, Language Immersion & More)
+# ![](./icons/icon48.png) CoWatcher (Smart Watch History, AI Dual Subtitles, Real-Time Translation, Language Immersion & More)
 
-English Documentation | [简体中文文档](README_zh.md) | [📖 Detailed Popup UI Guide](docs/popup_guide.md)
+English Documentation | [简体中文文档](README_zh.md) | [📖 Detailed Popup UI Guide](docs/popup_guide.md) | [🌟 Contributors & Sponsors](CONTRIBUTORS.md)
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Buy%20me%20a%20coffee-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/sfbb49898)
 
@@ -156,6 +156,9 @@ ollama pull gemma4:e2b
 
 This project welcomes any pull requests, forks, or issues(bugs or feature requests)!
 Read [contributing](/CONTRIBUTING.md) and [architecture](/Architecture.md) for more information!
+
+> [!IMPORTANT]
+> All code contributors, documentation writers, bug reporters, and sponsors will be **permanently acknowledged** in our [Contributors & Sponsors Roll](/CONTRIBUTORS.md) and across official documentation!
 
 If this project enhances your streaming and language learning experience, consider buying the author a coffee! Every bit of support fuels continued development and maintenance.
 

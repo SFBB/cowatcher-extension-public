@@ -6,6 +6,7 @@ export default defineConfig({
   description:
     "AI Dual Subtitles, Real-Time Translation, Language Immersion & More",
   base: process.env.VITEPRESS_BASE || "/cowatcher-extension-public/",
+  appearance: "dark",
   head: [
     ["link", { rel: "icon", type: "image/png", href: "/icons/icon48.png" }],
     [
@@ -166,8 +167,8 @@ export default defineConfig({
       provider: "local",
     },
     footer: {
-      message: "Released under the ISC License.",
-      copyright: "Copyright © 2024-present CoWatcher Contributors",
+      message: "Released under the MIT License.",
+      copyright: "Copyright © 2026 CoWatcher Contributors",
     },
   },
 });

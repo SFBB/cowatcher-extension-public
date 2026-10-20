@@ -1,6 +1,6 @@
-# ![](./icons/icon48.png) CoWatcher (双语字幕 · AI实时字幕翻译 · 沉浸式影视外语学习 · 你的观影小助手)
+# ![](./icons/icon48.png) CoWatcher (智能观影记录 · 双语字幕 · AI实时字幕翻译 · 沉浸式影视外语学习助手)
 
-[English Documentation](README.md) | 简体中文文档 | [📖 控制面板详细使用指南](docs/popup_guide_zh.md)
+[English Documentation](README.md) | 简体中文文档 | [📖 控制面板详细使用指南](docs/popup_guide_zh.md) | [🌟 贡献者与赞助者榜单](CONTRIBUTORS.md)
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-请作者喝杯咖啡-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/sfbb49898)
 
@@ -154,8 +154,11 @@ ollama pull gemma4:e2b
 
 ## ☕ 贡献、支持与赞助 (Contribution & Support & Donation)
 
-本项目欢迎任何pull request, fork, 或者issue(bugs or feature requests)。
-Read [贡献规范](/CONTRIBUTING.md) and [架构设计](/Architecture.md) for more information!
+本项目热烈欢迎任何 pull request, fork, 或者 issue(bugs or feature requests)！
+详见 [贡献规范](/CONTRIBUTING.md) 与 [架构设计](/Architecture.md)。
+
+> [!IMPORTANT]
+> 所有代码贡献者、文档编写者、关键 Bug 报告者以及赞助者，都将被**永久列入**我们的 [贡献者与赞助者榜单](/CONTRIBUTORS.md) 以及官方文档主页！
 
 如果这个项目对您有所帮助，让您的 Netflix 观影与双语体验更加流畅愉悦，欢迎请作者喝杯咖啡！您的每一份认可都是我持续优化与维护项目的最大动力。
 
