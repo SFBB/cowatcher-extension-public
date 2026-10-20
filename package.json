@@ -3,7 +3,7 @@
   "name": "cowatcher",
   "displayName": "CoWatcher",
   "version": "1.0.3",
-  "description": "AI Dual Subtitles, Real-Time Translation, Language Immersion & More, your watching companion",
+  "description": "Smart Watch History, AI Dual Subtitles, Real-Time Translation, Language Immersion & More, your streaming companion",
   "main": "index.js",
   "directories": {
     "doc": "docs"
@@ -28,7 +28,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/SFBB/NetflixCoWatcher/issues"
   },
