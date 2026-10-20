@@ -1867,7 +1867,11 @@ export class SubtitleManager {
 
     // 4. Canonical Supervisor Review check
     if (!this.isReviewing && this.settings.enableSupervisor !== false) {
-      if (translatedAhead >= 4 || this.video?.paused) {
+      if (
+        translatedAhead >= 4 ||
+        this.video?.paused ||
+        currentIdx + translatedAhead >= this.cues.length - 1
+      ) {
         this.processSupervisorReviewQueue(config);
       }
     }
@@ -2024,7 +2028,7 @@ export class SubtitleManager {
       }
 
       if (startGapIdx === -1) {
-        for (let i = this.canonicalReviewIndex; i < currentIdx; i++) {
+        for (let i = this.canonicalReviewIndex; i <= currentIdx; i++) {
           if (!this.isCueTranslated(this.cues[i].id)) {
             startGapIdx = i;
             break;
@@ -2044,13 +2048,47 @@ export class SubtitleManager {
 
       const effectiveTime = this.getEffectiveTime();
       const isUrgent = missing[0].startTime - effectiveTime <= 5;
-      const isEpisodeEnd = endIdx >= this.cues.length;
 
-      if (missing.length >= minCues || isUrgent || isEpisodeEnd) {
+      // Calculate total untranslated cues from startGapIdx to the end of the raw subtitle track
+      let totalRemainingUntranslated = 0;
+      for (let i = startGapIdx; i < this.cues.length; i++) {
+        if (!this.isCueTranslated(this.cues[i].id)) {
+          totalRemainingUntranslated++;
+          if (totalRemainingUntranslated >= minCues) break;
+        }
+      }
+
+      const lastMissingCue = missing[missing.length - 1];
+      const lastMissingIdx = this.cues.findIndex(
+        (c) => c && c.id === lastMissingCue.id,
+      );
+      const searchBeyondIdx = lastMissingIdx >= 0 ? lastMissingIdx + 1 : endIdx;
+
+      let hasMoreUntranslatedBeyond = false;
+      for (let i = searchBeyondIdx; i < this.cues.length; i++) {
+        if (!this.isCueTranslated(this.cues[i].id)) {
+          hasMoreUntranslatedBeyond = true;
+          break;
+        }
+      }
+
+      // Check whether this batch is at the end of the entire raw subtitles track:
+      // 1. If endIdx reaches or exceeds the total raw cues length
+      // 2. Or if there are no more untranslated cues anywhere beyond this batch in the entire raw subtitle list
+      // 3. Or if the last missing cue is at or near the very end of the raw subtitle list
+      // 4. Or if the total remaining untranslated cues across the entire rest of the track is fewer than minCues
+      const isEndOfRawCues =
+        (!this.isAsrTrack || this.asrMergeIndex >= this.rawAsrCues.length) &&
+        (!hasMoreUntranslatedBeyond ||
+          endIdx >= this.cues.length ||
+          (lastMissingIdx >= 0 && lastMissingIdx >= this.cues.length - 1) ||
+          totalRemainingUntranslated < minCues);
+
+      if (missing.length >= minCues || isUrgent || isEndOfRawCues) {
         const payload = missing.slice(0, maxCues);
         this.logger.info(
           "Subtitle",
-          `Dynamic Prefetch: translating ${payload.length} cues [index ${startGapIdx}..${startGapIdx + payload.length - 1}]...`,
+          `Dynamic Prefetch: translating ${payload.length} cues [index ${startGapIdx}..${startGapIdx + payload.length - 1}]${isEndOfRawCues ? " (end of raw subtitles, min_cues bypassed)" : ""}...`,
         );
         payload.forEach((c) => this.cueStateMap.set(c.id, "translating"));
 
