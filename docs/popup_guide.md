@@ -124,6 +124,7 @@ The extension automatically switches between optimized pipeline presets for **Ol
 - **Range**: 1 to 20 cues (Default: 1 cue).
 - **Mechanism**: The minimum number of cues required in buffer before dispatching an inference call. Setting this to 1 guarantees immediate handling of sparse dialogue.
 - **Seek Burst**: When jumping or seeking to an uncached timeline, the extension automatically dispatches `Math.max(min_cue, 6)` cues. This guarantees first-cue display within 400ms while quickly seeding a safe buffer.
+- **Tail Exemption**: At the end of the video or raw subtitle track, the `min_cue` threshold is automatically bypassed so that remaining cues are translated immediately, preventing trailing dialogue from being truncated or missed.
 
 #### ② Max Batch Cues (`max_cue` / `#max-translate-cues`)
 - **Range**: 10 to 150 cues.
