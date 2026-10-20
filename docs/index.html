@@ -640,7 +640,7 @@
             >安装指南</a
           >
           <a
-            href="popup_guide_zh.md"
+            href="zh/"
             id="doc-link"
             target="_blank"
             data-i18n="nav-docs"
@@ -951,7 +951,7 @@
             target="_blank"
             >GitHub Repo</a
           >
-          <a href="popup_guide_zh.md" target="_blank" id="footer-doc-link"
+          <a href="zh/" target="_blank" id="footer-doc-link"
             >控制面板详细指南</a
           >
           <a href="https://ko-fi.com/sfbb49898" target="_blank">Ko-fi 赞助</a>
@@ -963,6 +963,7 @@
       // i18n Dictionary
       const i18n = {
         zh: {
+          "page-title": "CoWatcher - 双语字幕 · AI实时翻译 · 沉浸式外语学习小助手",
           "nav-features": "核心特性",
           "nav-guide": "安装指南",
           "nav-docs": "使用文档",
@@ -1011,6 +1012,7 @@
           "coffee-btn": "前往 Ko-fi 请作者喝杯咖啡",
         },
         en: {
+          "page-title": "CoWatcher - AI Dual Subtitles, Real-Time Translation & Language Immersion",
           "nav-features": "Features",
           "nav-guide": "Installation",
           "nav-docs": "Documentation",
@@ -1097,6 +1099,11 @@
           langText.innerText = lang === 'zh' ? 'English' : '中文';
         }
         document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+        // Update page title
+        if (i18n[lang] && i18n[lang]['page-title']) {
+          document.title = i18n[lang]['page-title'];
+        }
 
         // Update doc links
         const docLink = document.getElementById('doc-link');

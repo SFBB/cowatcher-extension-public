@@ -26,12 +26,13 @@ export default defineConfig({
     ],
   ],
   locales: {
-    root: {
+    en: {
       label: "English",
       lang: "en",
+      link: "/en/",
       themeConfig: {
         nav: [
-          { text: "Home", link: "/" },
+          { text: "Home", link: "/en/" },
           { text: "Quickstart", link: "/en/quickstart" },
           {
             text: "AI Providers",
@@ -48,7 +49,7 @@ export default defineConfig({
               { text: "YouTube", link: "/en/platforms/youtube" },
             ],
           },
-          { text: "Architecture", link: "/architecture" },
+          { text: "Architecture", link: "/en/architecture" },
         ],
         sidebar: [
           {
@@ -87,7 +88,7 @@ export default defineConfig({
           },
           {
             text: "Developer & Architecture",
-            items: [{ text: "System Architecture", link: "/architecture" }],
+            items: [{ text: "System Architecture", link: "/en/architecture" }],
           },
         ],
       },
@@ -115,7 +116,7 @@ export default defineConfig({
               { text: "YouTube", link: "/zh/platforms/youtube" },
             ],
           },
-          { text: "系统架构", link: "/architecture" },
+          { text: "系统架构", link: "/zh/architecture" },
         ],
         sidebar: [
           {
@@ -151,7 +152,7 @@ export default defineConfig({
           },
           {
             text: "架构与开发",
-            items: [{ text: "核心架构白皮书", link: "/architecture" }],
+            items: [{ text: "核心架构白皮书", link: "/zh/architecture" }],
           },
         ],
       },

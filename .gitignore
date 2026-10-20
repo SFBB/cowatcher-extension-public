@@ -4,3 +4,5 @@ _metadata/
 node_modules/
 dist/
 dist-firefox/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
