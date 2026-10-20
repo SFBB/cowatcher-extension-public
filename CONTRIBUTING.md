@@ -13,7 +13,7 @@ We are committed to providing a welcoming, inclusive, and harassment-free enviro
 - **Focus on technical merits**: Critique ideas and code constructively, not individuals.
 - **Open collaboration**: Welcome questions and help onboard new contributors.
 
-If you encounter unacceptable behavior, please report it to [the project maintainers](mailto:cowatcher@proton.m).
+If you encounter unacceptable behavior, please report it to [the project maintainers](mailto:cowatcher@proton.me).
 
 ---
 
