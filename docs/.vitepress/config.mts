@@ -1,14 +1,43 @@
 import { defineConfig } from "vitepress";
 
+const base = process.env.VITEPRESS_BASE || "/cowatcher-extension-public/";
+
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "CoWatcher",
   description:
-    "AI Dual Subtitles, Real-Time Translation, Language Immersion & More",
-  base: process.env.VITEPRESS_BASE || "/cowatcher-extension-public/",
+    "Smart Watch History, AI Dual Subtitles, Real-Time Translation, Language Immersion & More",
+  base,
   appearance: "dark",
+  sitemap: {
+    hostname: "https://sfbb.github.io/cowatcher-extension-public/",
+  },
   head: [
-    ["link", { rel: "icon", type: "image/png", href: "/icons/icon48.png" }],
+    [
+      "link",
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "32x32",
+        href: `${base}icons/icon48.png`,
+      },
+    ],
+    [
+      "link",
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "16x16",
+        href: `${base}icons/icon16.png`,
+      },
+    ],
+    [
+      "link",
+      {
+        rel: "apple-touch-icon",
+        href: `${base}icons/icon128.png`,
+      },
+    ],
     [
       "script",
       {},
@@ -31,7 +60,13 @@ export default defineConfig({
       label: "English",
       lang: "en",
       link: "/en/docs/",
+      title:
+        "CoWatcher - Smart Watch History · AI Dual Subtitles · Language Immersion & Streaming Companion",
+      titleTemplate: ":title | CoWatcher",
+      description:
+        "Smart Watch History · AI Dual Subtitles · Language Immersion & Streaming Companion",
       themeConfig: {
+        siteTitle: "CoWatcher",
         nav: [
           { text: "Docs Home", link: "/en/docs/" },
           { text: "Official Site", link: "/en/" },
@@ -110,7 +145,13 @@ export default defineConfig({
       label: "简体中文",
       lang: "zh-CN",
       link: "/zh/docs/",
+      title:
+        "CoWatcher - 智能观影记录 · 双语字幕 · AI实时翻译 · 沉浸式外语学习助手",
+      titleTemplate: ":title | CoWatcher",
+      description:
+        "智能观影记录 · 双语字幕 · AI实时翻译 · 沉浸式外语学习助手",
       themeConfig: {
+        siteTitle: "CoWatcher",
         nav: [
           { text: "文档首页", link: "/zh/docs/" },
           { text: "产品官网", link: "/zh/" },
@@ -187,6 +228,7 @@ export default defineConfig({
     },
   },
   themeConfig: {
+    logo: "/icons/icon48.png",
     socialLinks: [
       { icon: "github", link: "https://github.com/SFBB/NetflixCoWatcher" },
     ],
