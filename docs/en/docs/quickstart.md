@@ -35,8 +35,8 @@ Welcome to **CoWatcher**! This guide will walk you through installing the browse
 Click the **CoWatcher** icon in your browser toolbar to open the popup:
 
 1. **Choose an AI Provider**:
-   - **Ollama**: Recommended for users with dedicated GPUs who want 100% privacy and zero API costs. See [Ollama Setup Guide](/en/providers/ollama).
-   - **OpenRouter**: Recommended for cloud inference using cutting-edge models (DeepSeek V3, Gemini 2.5 Flash, Claude 3.5 Haiku). See [OpenRouter Setup Guide](/en/providers/openrouter).
+   - **Ollama**: Recommended for users with dedicated GPUs who want 100% privacy and zero API costs. See [Ollama Setup Guide](/en/docs/providers/ollama).
+   - **OpenRouter**: Recommended for cloud inference using cutting-edge models (DeepSeek V3, Gemini 2.5 Flash, Claude 3.5 Haiku). See [OpenRouter Setup Guide](/en/docs/providers/openrouter).
 2. **Select Target Language**:
    - Choose your preferred target language in the **Target Language** selector.
 3. **Verify Status**:
@@ -59,6 +59,6 @@ Navigate to any supported streaming platform:
 ---
 
 ## Next Steps
-- Read the full [Popup Interface Guide](/en/guide/popup)
-- Platform Guides: [Netflix](/en/platforms/netflix) · [TVer](/en/platforms/tver) · [YouTube](/en/platforms/youtube)
-- Learn how the [Dual-Model Pipeline](/en/advanced/dual_model) ensures consistent translations.
+- Read the full [Popup Interface Guide](/en/docs/guide/popup)
+- Platform Guides: [Netflix](/en/docs/platforms/netflix) · [TVer](/en/docs/platforms/tver) · [YouTube](/en/docs/platforms/youtube)
+- Learn how the [Dual-Model Pipeline](/en/docs/advanced/dual_model) ensures consistent translations.

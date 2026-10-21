@@ -30,34 +30,41 @@ export default defineConfig({
     en: {
       label: "English",
       lang: "en",
-      link: "/en/",
+      link: "/en/docs/",
       themeConfig: {
         nav: [
-          { text: "Home", link: "/en/" },
-          { text: "Quickstart", link: "/en/quickstart" },
+          { text: "Docs Home", link: "/en/docs/" },
+          { text: "Official Site", link: "/en/" },
+          { text: "Quickstart", link: "/en/docs/quickstart" },
           {
             text: "AI Providers",
             items: [
-              { text: "Ollama (Local / GPU)", link: "/en/providers/ollama" },
-              { text: "OpenRouter (Cloud)", link: "/en/providers/openrouter" },
+              {
+                text: "Ollama (Local / GPU)",
+                link: "/en/docs/providers/ollama",
+              },
+              {
+                text: "OpenRouter (Cloud)",
+                link: "/en/docs/providers/openrouter",
+              },
             ],
           },
           {
             text: "Platforms",
             items: [
-              { text: "Netflix", link: "/en/platforms/netflix" },
-              { text: "TVer (Japan)", link: "/en/platforms/tver" },
-              { text: "YouTube", link: "/en/platforms/youtube" },
+              { text: "Netflix", link: "/en/docs/platforms/netflix" },
+              { text: "TVer (Japan)", link: "/en/docs/platforms/tver" },
+              { text: "YouTube", link: "/en/docs/platforms/youtube" },
             ],
           },
-          { text: "Architecture", link: "/en/architecture" },
+          { text: "Architecture", link: "/en/docs/architecture" },
         ],
         sidebar: [
           {
             text: "Getting Started",
             items: [
-              { text: "Quickstart", link: "/en/quickstart" },
-              { text: "Popup Interface Guide", link: "/en/guide/popup" },
+              { text: "Quickstart", link: "/en/docs/quickstart" },
+              { text: "Popup Interface Guide", link: "/en/docs/guide/popup" },
             ],
           },
           {
@@ -65,31 +72,36 @@ export default defineConfig({
             items: [
               {
                 text: "Ollama (Local Inference)",
-                link: "/en/providers/ollama",
+                link: "/en/docs/providers/ollama",
               },
               {
                 text: "OpenRouter (Cloud Models)",
-                link: "/en/providers/openrouter",
+                link: "/en/docs/providers/openrouter",
               },
             ],
           },
           {
             text: "Supported Platforms",
             items: [
-              { text: "Netflix", link: "/en/platforms/netflix" },
-              { text: "TVer", link: "/en/platforms/tver" },
-              { text: "YouTube", link: "/en/platforms/youtube" },
+              { text: "Netflix", link: "/en/docs/platforms/netflix" },
+              { text: "TVer", link: "/en/docs/platforms/tver" },
+              { text: "YouTube", link: "/en/docs/platforms/youtube" },
             ],
           },
           {
             text: "Advanced Configuration",
             items: [
-              { text: "Dual-Model Pipeline", link: "/en/advanced/dual_model" },
+              {
+                text: "Dual-Model Pipeline",
+                link: "/en/docs/advanced/dual_model",
+              },
             ],
           },
           {
             text: "Developer & Architecture",
-            items: [{ text: "System Architecture", link: "/en/architecture" }],
+            items: [
+              { text: "System Architecture", link: "/en/docs/architecture" },
+            ],
           },
         ],
       },
@@ -97,63 +109,78 @@ export default defineConfig({
     zh: {
       label: "简体中文",
       lang: "zh-CN",
-      link: "/zh/",
+      link: "/zh/docs/",
       themeConfig: {
         nav: [
-          { text: "首页", link: "/zh/" },
-          { text: "快速开始", link: "/zh/quickstart" },
+          { text: "文档首页", link: "/zh/docs/" },
+          { text: "产品官网", link: "/zh/" },
+          { text: "快速开始", link: "/zh/docs/quickstart" },
           {
             text: "AI 服务商配置",
             items: [
-              { text: "Ollama 本地显卡部署", link: "/zh/providers/ollama" },
-              { text: "OpenRouter 云端模型", link: "/zh/providers/openrouter" },
+              {
+                text: "Ollama 本地显卡部署",
+                link: "/zh/docs/providers/ollama",
+              },
+              {
+                text: "OpenRouter 云端模型",
+                link: "/zh/docs/providers/openrouter",
+              },
             ],
           },
           {
             text: "平台使用指南",
             items: [
-              { text: "Netflix (网飞)", link: "/zh/platforms/netflix" },
-              { text: "TVer (日剧/日本电视)", link: "/zh/platforms/tver" },
-              { text: "YouTube", link: "/zh/platforms/youtube" },
+              { text: "Netflix (网飞)", link: "/zh/docs/platforms/netflix" },
+              { text: "TVer (日剧/日本电视)", link: "/zh/docs/platforms/tver" },
+              { text: "YouTube", link: "/zh/docs/platforms/youtube" },
             ],
           },
-          { text: "系统架构", link: "/zh/architecture" },
+          { text: "系统架构", link: "/zh/docs/architecture" },
         ],
         sidebar: [
           {
             text: "入门指南",
             items: [
-              { text: "快速开始", link: "/zh/quickstart" },
-              { text: "弹窗面板与快捷键指南", link: "/zh/guide/popup" },
+              { text: "快速开始", link: "/zh/docs/quickstart" },
+              { text: "弹窗面板与快捷键指南", link: "/zh/docs/guide/popup" },
             ],
           },
           {
             text: "AI 服务商配置",
             items: [
-              { text: "Ollama 本地模型配置", link: "/zh/providers/ollama" },
+              {
+                text: "Ollama 本地模型配置",
+                link: "/zh/docs/providers/ollama",
+              },
               {
                 text: "OpenRouter 云端 API 配置",
-                link: "/zh/providers/openrouter",
+                link: "/zh/docs/providers/openrouter",
               },
             ],
           },
           {
             text: "流媒体平台指南",
             items: [
-              { text: "Netflix 使用技巧", link: "/zh/platforms/netflix" },
-              { text: "TVer 播放器全屏适配", link: "/zh/platforms/tver" },
-              { text: "YouTube 双语字幕", link: "/zh/platforms/youtube" },
+              { text: "Netflix 使用技巧", link: "/zh/docs/platforms/netflix" },
+              { text: "TVer 播放器全屏适配", link: "/zh/docs/platforms/tver" },
+              { text: "YouTube 双语字幕", link: "/zh/docs/platforms/youtube" },
             ],
           },
           {
             text: "进阶调优",
             items: [
-              { text: "双模型流水线调优", link: "/zh/advanced/dual_model" },
+              {
+                text: "双模型流水线调优",
+                link: "/zh/docs/advanced/dual_model",
+              },
             ],
           },
           {
             text: "架构与开发",
-            items: [{ text: "核心架构白皮书", link: "/zh/architecture" }],
+            items: [
+              { text: "核心架构白皮书", link: "/zh/docs/architecture" },
+            ],
           },
         ],
       },
