@@ -39,6 +39,13 @@ export default defineConfig({
       },
     ],
     [
+      "meta",
+      {
+        name: "msvalidate.01",
+        content: "74D1D82251CCD15C73F83C9A3298381E",
+      },
+    ],
+    [
       "script",
       {},
       `
