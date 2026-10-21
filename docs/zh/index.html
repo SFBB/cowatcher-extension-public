@@ -1,27 +1,1187 @@
-<!DOCTYPE html>
-<html lang="zh-CN" dir="ltr">
+<!doctype html>
+<html lang="zh-CN">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>CoWatcher</title>
-    <meta name="description" content="AI Dual Subtitles, Real-Time Translation, Language Immersion & More">
-    <meta name="generator" content="VitePress v1.6.4">
-    <link rel="preload stylesheet" href="/cowatcher-extension-public/assets/style.BCSFd__p.css" as="style">
-    <link rel="preload stylesheet" href="/cowatcher-extension-public/vp-icons.css" as="style">
-    
-    <script type="module" src="/cowatcher-extension-public/assets/app.CnTa4B-P.js"></script>
-    <link rel="preload" href="/cowatcher-extension-public/assets/inter-roman-latin.Di8DUHzh.woff2" as="font" type="font/woff2" crossorigin="">
-    <link rel="modulepreload" href="/cowatcher-extension-public/assets/chunks/theme.DJ-JNXci.js">
-    <link rel="modulepreload" href="/cowatcher-extension-public/assets/chunks/framework.B7YvHKtj.js">
-    <link rel="modulepreload" href="/cowatcher-extension-public/assets/zh_index.md.DelzQu7u.lean.js">
-    <link rel="icon" type="image/png" href="/icons/icon48.png">
-    <script>(function(){try{var e=window.location.pathname;e.indexOf("/zh/")!==-1?localStorage.setItem("ncw_page_lang","zh"):e.indexOf("/en/")!==-1&&localStorage.setItem("ncw_page_lang","en")}catch{}})();</script>
-    <script id="check-dark-mode">(()=>{const e=localStorage.getItem("vitepress-theme-appearance")||"dark",a=window.matchMedia("(prefers-color-scheme: dark)").matches;(!e||e==="auto"?a:e==="dark")&&document.documentElement.classList.add("dark")})();</script>
-    <script id="check-mac-os">document.documentElement.classList.toggle("mac",/Mac|iPhone|iPod|iPad/i.test(navigator.platform));</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CoWatcher - 智能观影记录 · 双语字幕 · AI实时翻译 · 沉浸式外语学习助手</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon48.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="../icons/icon16.png" />
+    <link rel="apple-touch-icon" href="../icons/icon128.png" />
+
+    <style>
+      :root {
+        --bg: #090a0f;
+        --card-bg: rgba(22, 24, 35, 0.7);
+        --card-border: rgba(255, 255, 255, 0.08);
+        --primary: #e50914;
+        --primary-glow: rgba(229, 9, 20, 0.35);
+        --accent: #6366f1;
+        --accent-glow: rgba(99, 102, 241, 0.3);
+        --text: #f3f4f6;
+        --text-muted: #9ca3af;
+        --highlight: #38bdf8;
+        --success: #10b981;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.6;
+        overflow-x: hidden;
+        background-image:
+          radial-gradient(
+            circle at 15% 20%,
+            rgba(229, 9, 20, 0.12) 0%,
+            transparent 40%
+          ),
+          radial-gradient(
+            circle at 85% 60%,
+            rgba(99, 102, 241, 0.12) 0%,
+            transparent 40%
+          );
+        background-attachment: fixed;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      /* Header / Nav */
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        backdrop-filter: blur(16px);
+        background: rgba(9, 10, 15, 0.75);
+        border-bottom: 1px solid var(--card-border);
+      }
+
+      .nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .logo-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 700;
+        font-size: 1.25rem;
+        letter-spacing: -0.02em;
+      }
+
+      .logo-group img {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        box-shadow: 0 0 15px var(--primary-glow);
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+      }
+
+      .nav-links a {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        transition: color 0.2s;
+      }
+
+      .nav-links a:hover {
+        color: #fff;
+      }
+
+      .lang-toggle {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--card-border);
+        color: #fff;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: all 0.2s;
+      }
+
+      .lang-toggle:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      /* Hero Section */
+      .hero {
+        max-width: 1100px;
+        margin: 4rem auto 3rem;
+        padding: 0 1.5rem;
+        text-align: center;
+      }
+
+      .badge-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 1rem;
+        border-radius: 50px;
+        background: rgba(229, 9, 20, 0.15);
+        border: 1px solid rgba(229, 9, 20, 0.3);
+        color: #ff6b6b;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 1.5rem;
+      }
+
+      .hero h1 {
+        font-size: clamp(2.5rem, 5vw, 4rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        margin-bottom: 1.25rem;
+        background: linear-gradient(
+          135deg,
+          #ffffff 30%,
+          #e2e8f0 70%,
+          #94a3b8 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .hero h1 span.gradient-text {
+        background: linear-gradient(135deg, #ff4d4d, #f43f5e, #a855f7);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .hero p.subtitle {
+        font-size: 1.2rem;
+        color: var(--text-muted);
+        max-width: 720px;
+        margin: 0 auto 2.5rem;
+      }
+
+      .cta-group {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 3.5rem;
+      }
+
+      .btn {
+        padding: 0.8rem 1.6rem;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #e50914, #dc2626);
+        color: #fff;
+        box-shadow: 0 4px 20px var(--primary-glow);
+        border: none;
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(229, 9, 20, 0.5);
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--card-border);
+        color: #fff;
+        backdrop-filter: blur(10px);
+      }
+
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+      }
+
+      .btn-kofi {
+        background: #ff5e5b;
+        color: white;
+        box-shadow: 0 4px 15px rgba(255, 94, 91, 0.3);
+      }
+
+      .btn-kofi:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 94, 91, 0.5);
+      }
+
+      /* Subtitle Simulator */
+      .player-showcase {
+        max-width: 860px;
+        margin: 0 auto 5rem;
+        border-radius: 16px;
+        border: 1px solid var(--card-border);
+        background: #000;
+        box-shadow:
+          0 25px 60px -15px rgba(0, 0, 0, 0.8),
+          0 0 40px rgba(229, 9, 20, 0.15);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .player-bar {
+        height: 38px;
+        background: #141414;
+        display: flex;
+        align-items: center;
+        padding: 0 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        justify-content: space-between;
+      }
+
+      .window-dots {
+        display: flex;
+        gap: 6px;
+      }
+
+      .window-dots span {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #333;
+      }
+      .window-dots span:nth-child(1) {
+        background: #ff5f56;
+      }
+      .window-dots span:nth-child(2) {
+        background: #ffbd2e;
+      }
+      .window-dots span:nth-child(3) {
+        background: #27c93f;
+      }
+
+      .video-viewport {
+        height: 380px;
+        position: relative;
+        background: linear-gradient(180deg, #181924 0%, #0e0f17 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: center;
+        padding-bottom: 3.5rem;
+        user-select: none;
+      }
+
+      .bg-cinema-ambient {
+        position: absolute;
+        inset: 0;
+        opacity: 0.4;
+        background:
+          radial-gradient(
+            circle at 50% 30%,
+            rgba(99, 102, 241, 0.25) 0%,
+            transparent 60%
+          ),
+          radial-gradient(
+            circle at 70% 70%,
+            rgba(229, 9, 20, 0.2) 0%,
+            transparent 50%
+          );
+        pointer-events: none;
+      }
+
+      /* Subtitle Container */
+      .subtitles-box {
+        z-index: 10;
+        text-align: center;
+        padding: 0.8rem 1.6rem;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.72);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        max-width: 85%;
+        animation: fadeInSub 0.6s ease-out;
+      }
+
+      .sub-orig {
+        font-size: 1.15rem;
+        font-weight: 500;
+        color: #e5e7eb;
+        margin-bottom: 0.35rem;
+        letter-spacing: 0.02em;
+      }
+
+      .sub-orig .highlight-word {
+        color: #38bdf8;
+        border-bottom: 1.5px dashed #38bdf8;
+        cursor: pointer;
+        position: relative;
+      }
+
+      .sub-trans {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #facc15;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+        letter-spacing: 0.04em;
+      }
+
+      .sub-pill-tag {
+        display: inline-block;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: #a78bfa;
+        background: rgba(167, 139, 250, 0.12);
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(167, 139, 250, 0.25);
+      }
+
+      .player-controls-mock {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 44px;
+        background: rgba(10, 10, 12, 0.85);
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 1.25rem;
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+
+      .badge-sub-on {
+        background: #e50914;
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      /* Section Headers */
+      .section-title {
+        text-align: center;
+        max-width: 700px;
+        margin: 0 auto 3rem;
+        padding: 0 1.5rem;
+      }
+
+      .section-title h2 {
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+        letter-spacing: -0.02em;
+      }
+
+      .section-title p {
+        color: var(--text-muted);
+        font-size: 1.05rem;
+      }
+
+      /* Features Grid */
+      .features-grid {
+        max-width: 1200px;
+        margin: 0 auto 6rem;
+        padding: 0 1.5rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 1.75rem;
+      }
+
+      .feature-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(12px);
+      }
+
+      .feature-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(255, 255, 255, 0.2);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+      }
+
+      .feature-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1.25rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .feature-card h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+      }
+
+      .feature-card p {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+
+      .platform-tags {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+
+      .platform-pill {
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #cbd5e1;
+      }
+
+      /* Install Step Section */
+      .steps-section {
+        max-width: 1000px;
+        margin: 0 auto 6rem;
+        padding: 0 1.5rem;
+      }
+
+      .step-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+      }
+
+      .step-item {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 14px;
+        padding: 1.5rem;
+        transition: border-color 0.2s;
+      }
+
+      .step-item:hover {
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      .step-num {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+        box-shadow: 0 0 12px var(--primary-glow);
+      }
+
+      .step-content h4 {
+        font-size: 1.1rem;
+        margin-bottom: 0.4rem;
+      }
+
+      .step-content p {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+      }
+
+      .step-content code {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #f43f5e;
+        font-family: monospace;
+      }
+
+      /* Support Callout */
+      .coffee-callout {
+        max-width: 800px;
+        margin: 0 auto 6rem;
+        padding: 2.5rem 2rem;
+        border-radius: 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 94, 91, 0.15) 0%,
+          rgba(99, 102, 241, 0.15) 100%
+        );
+        border: 1px solid rgba(255, 94, 91, 0.3);
+        text-align: center;
+        position: relative;
+      }
+
+      .coffee-callout h3 {
+        font-size: 1.6rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .coffee-callout p {
+        color: #d1d5db;
+        max-width: 600px;
+        margin: 0 auto 1.5rem;
+      }
+
+      /* Footer */
+      footer {
+        border-top: 1px solid var(--card-border);
+        background: #06070a;
+        padding: 3rem 1.5rem 2rem;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .footer-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+      }
+
+      .footer-links {
+        display: flex;
+        gap: 1.5rem;
+      }
+
+      .footer-links a:hover {
+        color: #fff;
+      }
+
+      @keyframes fadeInSub {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .hero {
+          margin-top: 2.5rem;
+        }
+        .video-viewport {
+          height: 280px;
+          padding-bottom: 2.5rem;
+        }
+        .sub-orig {
+          font-size: 0.95rem;
+        }
+        .sub-trans {
+          font-size: 1.1rem;
+        }
+        .features-grid {
+          grid-template-columns: 1fr;
+        }
+        .step-item {
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+        .nav-links a.hide-mobile {
+          display: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"><div class="Layout" data-v-5d98c3a5><!--[--><!--]--><!--[--><span tabindex="-1" data-v-0b0ada53></span><a href="#VPContent" class="VPSkipLink visually-hidden" data-v-0b0ada53>Skip to content</a><!--]--><!----><header class="VPNav" data-v-5d98c3a5 data-v-ae24b3ad><div class="VPNavBar" data-v-ae24b3ad data-v-6aa21345><div class="wrapper" data-v-6aa21345><div class="container" data-v-6aa21345><div class="title" data-v-6aa21345><div class="VPNavBarTitle" data-v-6aa21345 data-v-1168a8e4><a class="title" href="/cowatcher-extension-public/zh/" data-v-1168a8e4><!--[--><!--]--><!----><span data-v-1168a8e4>CoWatcher</span><!--[--><!--]--></a></div></div><div class="content" data-v-6aa21345><div class="content-body" data-v-6aa21345><!--[--><!--]--><div class="VPNavBarSearch search" data-v-6aa21345><!--[--><!----><div id="local-search"><button type="button" class="DocSearch DocSearch-Button" aria-label="Search"><span class="DocSearch-Button-Container"><span class="vp-icon DocSearch-Search-Icon"></span><span class="DocSearch-Button-Placeholder">Search</span></span><span class="DocSearch-Button-Keys"><kbd class="DocSearch-Button-Key"></kbd><kbd class="DocSearch-Button-Key">K</kbd></span></button></div><!--]--></div><nav aria-labelledby="main-nav-aria-label" class="VPNavBarMenu menu" data-v-6aa21345 data-v-dc692963><span id="main-nav-aria-label" class="visually-hidden" data-v-dc692963> Main Navigation </span><!--[--><!--[--><a class="VPLink link VPNavBarMenuLink active" href="/cowatcher-extension-public/zh/" tabindex="0" data-v-dc692963 data-v-e56f3d57><!--[--><span data-v-e56f3d57>首页</span><!--]--></a><!--]--><!--[--><a class="VPLink link VPNavBarMenuLink" href="/cowatcher-extension-public/zh/quickstart.html" tabindex="0" data-v-dc692963 data-v-e56f3d57><!--[--><span data-v-e56f3d57>快速开始</span><!--]--></a><!--]--><!--[--><div class="VPFlyout VPNavBarMenuGroup" data-v-dc692963 data-v-cf11d7a2><button type="button" class="button" aria-haspopup="true" aria-expanded="false" data-v-cf11d7a2><span class="text" data-v-cf11d7a2><!----><span data-v-cf11d7a2>AI 服务商配置</span><span class="vpi-chevron-down text-icon" data-v-cf11d7a2></span></span></button><div class="menu" data-v-cf11d7a2><div class="VPMenu" data-v-cf11d7a2 data-v-b98bc113><div class="items" data-v-b98bc113><!--[--><!--[--><div class="VPMenuLink" data-v-b98bc113 data-v-35975db6><a class="VPLink link" href="/cowatcher-extension-public/zh/providers/ollama.html" data-v-35975db6><!--[--><span data-v-35975db6>Ollama 本地显卡部署</span><!--]--></a></div><!--]--><!--[--><div class="VPMenuLink" data-v-b98bc113 data-v-35975db6><a class="VPLink link" href="/cowatcher-extension-public/zh/providers/openrouter.html" data-v-35975db6><!--[--><span data-v-35975db6>OpenRouter 云端模型</span><!--]--></a></div><!--]--><!--]--></div><!--[--><!--]--></div></div></div><!--]--><!--[--><div class="VPFlyout VPNavBarMenuGroup" data-v-dc692963 data-v-cf11d7a2><button type="button" class="button" aria-haspopup="true" aria-expanded="false" data-v-cf11d7a2><span class="text" data-v-cf11d7a2><!----><span data-v-cf11d7a2>平台使用指南</span><span class="vpi-chevron-down text-icon" data-v-cf11d7a2></span></span></button><div class="menu" data-v-cf11d7a2><div class="VPMenu" data-v-cf11d7a2 data-v-b98bc113><div class="items" data-v-b98bc113><!--[--><!--[--><div class="VPMenuLink" data-v-b98bc113 data-v-35975db6><a class="VPLink link" href="/cowatcher-extension-public/zh/platforms/netflix.html" data-v-35975db6><!--[--><span data-v-35975db6>Netflix (网飞)</span><!--]--></a></div><!--]--><!--[--><div class="VPMenuLink" data-v-b98bc113 data-v-35975db6><a class="VPLink link" href="/cowatcher-extension-public/zh/platforms/tver.html" data-v-35975db6><!--[--><span data-v-35975db6>TVer (日剧/日本电视)</span><!--]--></a></div><!--]--><!--[--><div class="VPMenuLink" data-v-b98bc113 data-v-35975db6><a class="VPLink link" href="/cowatcher-extension-public/zh/platforms/youtube.html" data-v-35975db6><!--[--><span data-v-35975db6>YouTube</span><!--]--></a></div><!--]--><!--]--></div><!--[--><!--]--></div></div></div><!--]--><!--[--><a class="VPLink link VPNavBarMenuLink" href="/cowatcher-extension-public/zh/architecture.html" tabindex="0" data-v-dc692963 data-v-e56f3d57><!--[--><span data-v-e56f3d57>系统架构</span><!--]--></a><!--]--><!--]--></nav><div class="VPFlyout VPNavBarTranslations translations" data-v-6aa21345 data-v-88af2de4 data-v-cf11d7a2><button type="button" class="button" aria-haspopup="true" aria-expanded="false" aria-label="Change language" data-v-cf11d7a2><span class="text" data-v-cf11d7a2><span class="vpi-languages option-icon" data-v-cf11d7a2></span><!----><span class="vpi-chevron-down text-icon" data-v-cf11d7a2></span></span></button><div class="menu" data-v-cf11d7a2><div class="VPMenu" data-v-cf11d7a2 data-v-b98bc113><!----><!--[--><!--[--><div class="items" data-v-88af2de4><p class="title" data-v-88af2de4>简体中文</p><!--[--><div class="VPMenuLink" data-v-88af2de4 data-v-35975db6><a class="VPLink link" href="/cowatcher-extension-public/en/" data-v-35975db6><!--[--><span data-v-35975db6>English</span><!--]--></a></div><!--]--></div><!--]--><!--]--></div></div></div><div class="VPNavBarAppearance appearance" data-v-6aa21345 data-v-6c893767><button class="VPSwitch VPSwitchAppearance" type="button" role="switch" title aria-checked="true" data-v-6c893767 data-v-5337faa4 data-v-1d5665e3><span class="check" data-v-1d5665e3><span class="icon" data-v-1d5665e3><!--[--><span class="vpi-sun sun" data-v-5337faa4></span><span class="vpi-moon moon" data-v-5337faa4></span><!--]--></span></span></button></div><div class="VPSocialLinks VPNavBarSocialLinks social-links" data-v-6aa21345 data-v-0394ad82 data-v-7bc22406><!--[--><a class="VPSocialLink no-icon" href="https://github.com/SFBB/NetflixCoWatcher" aria-label="github" target="_blank" rel="noopener" data-v-7bc22406 data-v-bd121fe5><span class="vpi-social-github"></span></a><!--]--></div><div class="VPFlyout VPNavBarExtra extra" data-v-6aa21345 data-v-bb2aa2f0 data-v-cf11d7a2><button type="button" class="button" aria-haspopup="true" aria-expanded="false" aria-label="extra navigation" data-v-cf11d7a2><span class="vpi-more-horizontal icon" data-v-cf11d7a2></span></button><div class="menu" data-v-cf11d7a2><div class="VPMenu" data-v-cf11d7a2 data-v-b98bc113><!----><!--[--><!--[--><div class="group translations" data-v-bb2aa2f0><p class="trans-title" data-v-bb2aa2f0>简体中文</p><!--[--><div class="VPMenuLink" data-v-bb2aa2f0 data-v-35975db6><a class="VPLink link" href="/cowatcher-extension-public/en/" data-v-35975db6><!--[--><span data-v-35975db6>English</span><!--]--></a></div><!--]--></div><div class="group" data-v-bb2aa2f0><div class="item appearance" data-v-bb2aa2f0><p class="label" data-v-bb2aa2f0>Appearance</p><div class="appearance-action" data-v-bb2aa2f0><button class="VPSwitch VPSwitchAppearance" type="button" role="switch" title aria-checked="true" data-v-bb2aa2f0 data-v-5337faa4 data-v-1d5665e3><span class="check" data-v-1d5665e3><span class="icon" data-v-1d5665e3><!--[--><span class="vpi-sun sun" data-v-5337faa4></span><span class="vpi-moon moon" data-v-5337faa4></span><!--]--></span></span></button></div></div></div><div class="group" data-v-bb2aa2f0><div class="item social-links" data-v-bb2aa2f0><div class="VPSocialLinks social-links-list" data-v-bb2aa2f0 data-v-7bc22406><!--[--><a class="VPSocialLink no-icon" href="https://github.com/SFBB/NetflixCoWatcher" aria-label="github" target="_blank" rel="noopener" data-v-7bc22406 data-v-bd121fe5><span class="vpi-social-github"></span></a><!--]--></div></div></div><!--]--><!--]--></div></div></div><!--[--><!--]--><button type="button" class="VPNavBarHamburger hamburger" aria-label="mobile navigation" aria-expanded="false" aria-controls="VPNavScreen" data-v-6aa21345 data-v-e5dd9c1c><span class="container" data-v-e5dd9c1c><span class="top" data-v-e5dd9c1c></span><span class="middle" data-v-e5dd9c1c></span><span class="bottom" data-v-e5dd9c1c></span></span></button></div></div></div></div><div class="divider" data-v-6aa21345><div class="divider-line" data-v-6aa21345></div></div></div><!----></header><!----><!----><div class="VPContent is-home" id="VPContent" data-v-5d98c3a5 data-v-1428d186><div class="VPHome" data-v-1428d186 data-v-8b561e3d><!--[--><!--]--><div class="VPHero has-image VPHomeHero" data-v-8b561e3d data-v-4f9c455b><div class="container" data-v-4f9c455b><div class="main" data-v-4f9c455b><!--[--><!--]--><!--[--><h1 class="heading" data-v-4f9c455b><span class="name clip" data-v-4f9c455b>CoWatcher 使用文档</span><span class="text" data-v-4f9c455b>观影、翻译与外语学习指南</span></h1><p class="tagline" data-v-4f9c455b>无需技术背景，轻松搞定双语字幕、智能观影记录与生词背诵。在这里找到你需要的设置教程与疑难排错指南。</p><!--]--><!--[--><!--]--><div class="actions" data-v-4f9c455b><!--[--><div class="action" data-v-4f9c455b><a class="VPButton medium brand" href="/cowatcher-extension-public/zh/quickstart.html" data-v-4f9c455b data-v-fa7799d5>3分钟快速上手</a></div><div class="action" data-v-4f9c455b><a class="VPButton medium alt" href="/cowatcher-extension-public/zh/guide/popup.html" data-v-4f9c455b data-v-fa7799d5>常用快捷键与操作</a></div><div class="action" data-v-4f9c455b><a class="VPButton medium alt" href="/cowatcher-extension-public/" data-v-4f9c455b data-v-fa7799d5>官网展示页 ↗</a></div><!--]--></div><!--[--><!--]--></div><div class="image" data-v-4f9c455b><div class="image-container" data-v-4f9c455b><div class="image-bg" data-v-4f9c455b></div><!--[--><!--[--><img class="VPImage image-src" src="/cowatcher-extension-public/icons/icon128.png" alt="CoWatcher Logo" data-v-8426fc1a><!--]--><!--]--></div></div></div></div><!--[--><!--]--><!--[--><!--]--><div class="VPFeatures VPHomeFeatures" data-v-8b561e3d data-v-a6181336><div class="container" data-v-a6181336><div class="items" data-v-a6181336><!--[--><div class="grid-6 item" data-v-a6181336><a class="VPLink link no-icon VPFeature" href="/cowatcher-extension-public/zh/quickstart.html" data-v-a6181336 data-v-a3976bdc><!--[--><article class="box" data-v-a3976bdc><div class="icon" data-v-a3976bdc>🚀</div><h2 class="title" data-v-a3976bdc>快速上手与快捷键</h2><p class="details" data-v-a3976bdc>安装扩展、使用 Alt + T 随时开关字幕、一键互换双语字幕上下层、快捷查生词。</p><!----></article><!--]--></a></div><div class="grid-6 item" data-v-a6181336><a class="VPLink link no-icon VPFeature" href="/cowatcher-extension-public/zh/platforms/netflix.html" data-v-a6181336 data-v-a3976bdc><!--[--><article class="box" data-v-a3976bdc><div class="icon" data-v-a3976bdc>🎬</div><h2 class="title" data-v-a3976bdc>常用流媒体使用指引</h2><p class="details" data-v-a3976bdc>针对 Netflix（防广告漂移）、TVer（日剧全屏置顶）、YouTube（轨道挑选）的实战技巧。</p><!----></article><!--]--></a></div><div class="grid-6 item" data-v-a6181336><a class="VPLink link no-icon VPFeature" href="/cowatcher-extension-public/zh/providers/openrouter.html" data-v-a6181336 data-v-a3976bdc><!--[--><article class="box" data-v-a3976bdc><div class="icon" data-v-a3976bdc>🤖</div><h2 class="title" data-v-a3976bdc>翻译方案怎么选？</h2><p class="details" data-v-a3976bdc>开箱即用免费翻译、有独立显卡用本地零花费 Ollama、或接入 DeepSeek/Claude 顶尖大模型。</p><!----></article><!--]--></a></div><div class="grid-6 item" data-v-a6181336><a class="VPLink link no-icon VPFeature" href="/cowatcher-extension-public/zh/guide/popup.html" data-v-a6181336 data-v-a3976bdc><!--[--><article class="box" data-v-a3976bdc><div class="icon" data-v-a3976bdc>📝</div><h2 class="title" data-v-a3976bdc>观影记录与生词背诵</h2><p class="details" data-v-a3976bdc>自动追踪看剧时长与剧集进度，跨集记住角色人名，生词一键加入 Anki 记忆库。</p><!----></article><!--]--></a></div><div class="grid-6 item" data-v-a6181336><a class="VPLink link no-icon VPFeature" href="/cowatcher-extension-public/zh/advanced/dual_model.html" data-v-a6181336 data-v-a3976bdc><!--[--><article class="box" data-v-a3976bdc><div class="icon" data-v-a3976bdc>⚙️</div><h2 class="title" data-v-a3976bdc>进阶流水线调优</h2><p class="details" data-v-a3976bdc>双模型协作机制、翻译缓冲与提前预载参数调优，专为极客与画质音画同步玩家打造。</p><!----></article><!--]--></a></div><div class="grid-6 item" data-v-a6181336><a class="VPLink link vp-external-link-icon no-icon VPFeature" href="https://github.com/SFBB/cowatcher-extension-public/blob/main/CONTRIBUTORS.md" target="_blank" rel="noreferrer" data-v-a6181336 data-v-a3976bdc><!--[--><article class="box" data-v-a3976bdc><div class="icon" data-v-a3976bdc>🌟</div><h2 class="title" data-v-a3976bdc>贡献者与赞助者榜单</h2><p class="details" data-v-a3976bdc>查看为 CoWatcher 贡献代码、文档与赞助咖啡的荣誉名册，了解如何参与社区建设。</p><!----></article><!--]--></a></div><!--]--></div></div></div><!--[--><!--]--><div class="vp-doc container" style="" data-v-8b561e3d data-v-8e2d4988><!--[--><div style="position:relative;" data-v-8b561e3d><div><h2 id="🧭-文档快速导航" tabindex="-1">🧭 文档快速导航 <a class="header-anchor" href="#🧭-文档快速导航" aria-label="Permalink to &quot;🧭 文档快速导航&quot;">​</a></h2><h3 id="_1-🌟-我该怎么选择适合我的翻译方式" tabindex="-1">1. 🌟 我该怎么选择适合我的翻译方式？ <a class="header-anchor" href="#_1-🌟-我该怎么选择适合我的翻译方式" aria-label="Permalink to &quot;1. 🌟 我该怎么选择适合我的翻译方式？&quot;">​</a></h3><p>CoWatcher 提供多种翻译接入方式，不管你是追剧高中生还是技术极客，都能找到最舒适的姿势：</p><table tabindex="0"><thead><tr><th style="text-align:left;">方案</th><th style="text-align:left;">适合人群</th><th style="text-align:left;">费用</th><th style="text-align:left;">特点</th><th style="text-align:left;">配置难度</th></tr></thead><tbody><tr><td style="text-align:left;"><strong>开箱即用免费翻译</strong></td><td style="text-align:left;">普通追剧党、学生党</td><td style="text-align:left;"><strong>完全免费</strong></td><td style="text-align:left;">装好插件直接能用，无需额外设置</td><td style="text-align:left;">⭐ 零门槛</td></tr><tr><td style="text-align:left;"><strong>电脑本地显卡 (Ollama)</strong></td><td style="text-align:left;">拥有独立显卡 (如 GTX 1660 / RTX 2060 以上)</td><td style="text-align:left;"><strong>完全免费</strong></td><td style="text-align:left;">保护隐私、不耗网络流量、响应速度快</td><td style="text-align:left;">⭐⭐ 需安装 Ollama</td></tr><tr><td style="text-align:left;"><strong>顶尖云端模型 (OpenRouter)</strong></td><td style="text-align:left;">追求极致地道翻译、人名梗句零出戏</td><td style="text-align:left;">按用量计费 (极便宜)</td><td style="text-align:left;">支持 DeepSeek、Claude、Gemini 等超聪明模型</td><td style="text-align:left;">⭐⭐ 需填入 API Key</td></tr></tbody></table><ul><li><a href="/cowatcher-extension-public/zh/providers/ollama.html">👉 查看 Ollama 本地部署教程</a></li><li><a href="/cowatcher-extension-public/zh/providers/openrouter.html">👉 查看 OpenRouter 云端 API 配置教程</a></li></ul><hr><h3 id="_2-⚡-最常用快捷操作速查" tabindex="-1">2. ⚡ 最常用快捷操作速查 <a class="header-anchor" href="#_2-⚡-最常用快捷操作速查" aria-label="Permalink to &quot;2. ⚡ 最常用快捷操作速查&quot;">​</a></h3><p>在播放视频时，你只需要掌握以下几个高频操作：</p><ul><li><p><strong><code>Alt + T</code></strong>：全局开关 AI 双语字幕，随时一键唤出或隐藏。</p></li><li><p><strong>双语上下层互换</strong>：在控制面板中随时将翻译置于主字幕或副字幕，灵活适应母语理解或外语听力精读。</p></li><li><p><strong>生词点击与查询</strong>：遇到不懂的台词单词，直接点击即可查看释义，并支持一键收录进 Anki 单词本。</p></li><li><p><strong>跨集人名自动记忆</strong>：第 1 集识别出的角色名和昵称，自动继承到第 2 集，追连载剧再也不怕译名乱变！</p></li><li><p><a href="/cowatcher-extension-public/zh/guide/popup.html">👉 阅读控制面板与快捷键详细指南</a></p></li></ul><hr><h3 id="_3-📺-平台实战指引" tabindex="-1">3. 📺 平台实战指引 <a class="header-anchor" href="#_3-📺-平台实战指引" aria-label="Permalink to &quot;3. 📺 平台实战指引&quot;">​</a></h3><ul><li><a href="/cowatcher-extension-public/zh/platforms/netflix.html">Netflix 深度使用技巧与防广告时移</a></li><li><a href="/cowatcher-extension-public/zh/platforms/tver.html">TVer 日剧与日本综娱全屏适配</a></li><li><a href="/cowatcher-extension-public/zh/platforms/youtube.html">YouTube 原生双语字幕与自动音轨提取</a></li></ul><hr><h3 id="_4-💖-鸣谢与社区贡献" tabindex="-1">4. 💖 鸣谢与社区贡献 <a class="header-anchor" href="#_4-💖-鸣谢与社区贡献" aria-label="Permalink to &quot;4. 💖 鸣谢与社区贡献&quot;">​</a></h3><p>CoWatcher 是完全开源透明的项目。欢迎阅读我们的 <a href="/cowatcher-extension-public/zh/architecture.html">核心系统架构白皮书</a>，或在 <a href="https://github.com/SFBB/cowatcher-extension-public" target="_blank" rel="noreferrer">GitHub 仓库</a> 提交 Issue、Pull Request，以及查看 <a href="https://github.com/SFBB/cowatcher-extension-public/blob/main/CONTRIBUTORS.md" target="_blank" rel="noreferrer">贡献者与赞助者榜单</a>！</p></div></div><!--]--></div></div></div><footer class="VPFooter" data-v-5d98c3a5 data-v-e315a0ad><div class="container" data-v-e315a0ad><p class="message" data-v-e315a0ad>Released under the MIT License.</p><p class="copyright" data-v-e315a0ad>Copyright © 2026 CoWatcher Contributors</p></div></footer><!--[--><!--]--></div></div>
-    <script>window.__VP_HASH_MAP__=JSON.parse("{\"architecture.md\":\"eRaPm4sA\",\"en_advanced_dual_model.md\":\"SN71OmBw\",\"en_architecture.md\":\"BSZq2z4g\",\"en_guide_popup.md\":\"D0gzrNrU\",\"en_index.md\":\"C4imuJWa\",\"en_platforms_netflix.md\":\"Cxd2jwiO\",\"en_platforms_tver.md\":\"Bl53GkIJ\",\"en_platforms_youtube.md\":\"DV7SEWnX\",\"en_providers_ollama.md\":\"D2tjXbfU\",\"en_providers_openrouter.md\":\"BQiKhjoY\",\"en_quickstart.md\":\"C2qZkS9h\",\"popup_guide.md\":\"CMAlqOup\",\"popup_guide_zh.md\":\"B44VF4qp\",\"zh_advanced_dual_model.md\":\"xaecj46d\",\"zh_architecture.md\":\"BuRjOjvx\",\"zh_guide_popup.md\":\"BjF5xvYK\",\"zh_index.md\":\"DelzQu7u\",\"zh_platforms_netflix.md\":\"w-cY0CaN\",\"zh_platforms_tver.md\":\"Z5z5Rs9_\",\"zh_platforms_youtube.md\":\"CcHBe0FU\",\"zh_providers_ollama.md\":\"BiEG5hQW\",\"zh_providers_openrouter.md\":\"UsFyNEii\",\"zh_quickstart.md\":\"C7H8tZQp\"}");window.__VP_SITE_DATA__=JSON.parse("{\"lang\":\"en-US\",\"dir\":\"ltr\",\"title\":\"CoWatcher\",\"description\":\"AI Dual Subtitles, Real-Time Translation, Language Immersion & More\",\"base\":\"/cowatcher-extension-public/\",\"head\":[],\"router\":{\"prefetchLinks\":true},\"appearance\":\"dark\",\"themeConfig\":{\"socialLinks\":[{\"icon\":\"github\",\"link\":\"https://github.com/SFBB/NetflixCoWatcher\"}],\"search\":{\"provider\":\"local\"},\"footer\":{\"message\":\"Released under the MIT License.\",\"copyright\":\"Copyright © 2026 CoWatcher Contributors\"}},\"locales\":{\"en\":{\"label\":\"English\",\"lang\":\"en\",\"link\":\"/en/\",\"themeConfig\":{\"nav\":[{\"text\":\"Home\",\"link\":\"/en/\"},{\"text\":\"Quickstart\",\"link\":\"/en/quickstart\"},{\"text\":\"AI Providers\",\"items\":[{\"text\":\"Ollama (Local / GPU)\",\"link\":\"/en/providers/ollama\"},{\"text\":\"OpenRouter (Cloud)\",\"link\":\"/en/providers/openrouter\"}]},{\"text\":\"Platforms\",\"items\":[{\"text\":\"Netflix\",\"link\":\"/en/platforms/netflix\"},{\"text\":\"TVer (Japan)\",\"link\":\"/en/platforms/tver\"},{\"text\":\"YouTube\",\"link\":\"/en/platforms/youtube\"}]},{\"text\":\"Architecture\",\"link\":\"/en/architecture\"}],\"sidebar\":[{\"text\":\"Getting Started\",\"items\":[{\"text\":\"Quickstart\",\"link\":\"/en/quickstart\"},{\"text\":\"Popup Interface Guide\",\"link\":\"/en/guide/popup\"}]},{\"text\":\"AI Providers Setup\",\"items\":[{\"text\":\"Ollama (Local Inference)\",\"link\":\"/en/providers/ollama\"},{\"text\":\"OpenRouter (Cloud Models)\",\"link\":\"/en/providers/openrouter\"}]},{\"text\":\"Supported Platforms\",\"items\":[{\"text\":\"Netflix\",\"link\":\"/en/platforms/netflix\"},{\"text\":\"TVer\",\"link\":\"/en/platforms/tver\"},{\"text\":\"YouTube\",\"link\":\"/en/platforms/youtube\"}]},{\"text\":\"Advanced Configuration\",\"items\":[{\"text\":\"Dual-Model Pipeline\",\"link\":\"/en/advanced/dual_model\"}]},{\"text\":\"Developer & Architecture\",\"items\":[{\"text\":\"System Architecture\",\"link\":\"/en/architecture\"}]}]}},\"zh\":{\"label\":\"简体中文\",\"lang\":\"zh-CN\",\"link\":\"/zh/\",\"themeConfig\":{\"nav\":[{\"text\":\"首页\",\"link\":\"/zh/\"},{\"text\":\"快速开始\",\"link\":\"/zh/quickstart\"},{\"text\":\"AI 服务商配置\",\"items\":[{\"text\":\"Ollama 本地显卡部署\",\"link\":\"/zh/providers/ollama\"},{\"text\":\"OpenRouter 云端模型\",\"link\":\"/zh/providers/openrouter\"}]},{\"text\":\"平台使用指南\",\"items\":[{\"text\":\"Netflix (网飞)\",\"link\":\"/zh/platforms/netflix\"},{\"text\":\"TVer (日剧/日本电视)\",\"link\":\"/zh/platforms/tver\"},{\"text\":\"YouTube\",\"link\":\"/zh/platforms/youtube\"}]},{\"text\":\"系统架构\",\"link\":\"/zh/architecture\"}],\"sidebar\":[{\"text\":\"入门指南\",\"items\":[{\"text\":\"快速开始\",\"link\":\"/zh/quickstart\"},{\"text\":\"弹窗面板与快捷键指南\",\"link\":\"/zh/guide/popup\"}]},{\"text\":\"AI 服务商配置\",\"items\":[{\"text\":\"Ollama 本地模型配置\",\"link\":\"/zh/providers/ollama\"},{\"text\":\"OpenRouter 云端 API 配置\",\"link\":\"/zh/providers/openrouter\"}]},{\"text\":\"流媒体平台指南\",\"items\":[{\"text\":\"Netflix 使用技巧\",\"link\":\"/zh/platforms/netflix\"},{\"text\":\"TVer 播放器全屏适配\",\"link\":\"/zh/platforms/tver\"},{\"text\":\"YouTube 双语字幕\",\"link\":\"/zh/platforms/youtube\"}]},{\"text\":\"进阶调优\",\"items\":[{\"text\":\"双模型流水线调优\",\"link\":\"/zh/advanced/dual_model\"}]},{\"text\":\"架构与开发\",\"items\":[{\"text\":\"核心架构白皮书\",\"link\":\"/zh/architecture\"}]}]}}},\"scrollOffset\":134,\"cleanUrls\":false}");</script>
-    
+    <!-- Navigation -->
+    <header>
+      <div class="nav-container">
+        <div class="logo-group">
+          <img src="../icons/icon48.png" alt="CoWatcher Logo" />
+          <span>CoWatcher</span>
+        </div>
+        <div class="nav-links">
+          <a href="#features" class="hide-mobile" data-i18n="nav-features"
+            >核心特性</a
+          >
+          <a href="#guide" class="hide-mobile" data-i18n="nav-guide"
+            >安装指南</a
+          >
+          <a
+            href="docs/"
+            id="doc-link"
+            target="_blank"
+            data-i18n="nav-docs"
+            >使用文档</a
+          >
+          <a
+            href="https://github.com/SFBB/cowatcher-extension-public"
+            target="_blank"
+            >GitHub</a
+          >
+          <a class="lang-toggle" id="lang-btn" href="../en/" onclick="localStorage.setItem('ncw_page_lang', 'en');">🌐 <span id="lang-text">English</span></a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <main>
+      <section class="hero">
+        <div class="badge-pill">
+          ✨
+          <span data-i18n="hero-badge"
+            >Netflix · TVer · YouTube 影视双语字幕 · 自动观影记录 · AI 智能伴侣</span
+          >
+        </div>
+
+        <h1 data-i18n="hero-title">
+          追剧看动漫，轻松看懂<br />
+          <span class="gradient-text">还能顺便学外语</span>
+        </h1>
+
+        <p class="subtitle" data-i18n="hero-sub">
+          智能观影记录 · 双模型地道快译 · 跨集角色记忆保持 · 原生排版无缝融入 · Anki
+          生词流与本地显卡 / 云端模型随心选
+        </p>
+
+        <div class="cta-group">
+          <a
+            href="https://github.com/SFBB/cowatcher-extension-public/releases"
+            target="_blank"
+            class="btn btn-primary"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span data-i18n="btn-download">下载最新扩展包 (.zip)</span>
+          </a>
+          <a
+            href="https://github.com/SFBB/cowatcher-extension-public"
+            target="_blank"
+            class="btn btn-secondary"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+              ></polygon>
+            </svg>
+            <span>Star on GitHub</span>
+          </a>
+          <a
+            href="https://ko-fi.com/sfbb49898"
+            target="_blank"
+            class="btn btn-kofi"
+          >
+            ☕ <span data-i18n="btn-kofi">赞助作者上架 Web Store</span>
+          </a>
+        </div>
+
+        <!-- Live Subtitle Simulator -->
+        <!-- <div class="player-showcase"> -->
+        <!--   <div class="player-bar"> -->
+        <!--     <div class="window-dots"> -->
+        <!--       <span></span><span></span><span></span> -->
+        <!--     </div> -->
+        <!--     <div>CoWatcher In-Player Preview (Netflix / TVer)</div> -->
+        <!--     <div style="font-size: 0.75rem; color: #10b981;">● Active</div> -->
+        <!--   </div> -->
+        <!---->
+        <!--   <div class="video-viewport"> -->
+        <!--     <div class="bg-cinema-ambient"></div> -->
+        <!---->
+        <!--     <div class="subtitles-box" id="demo-sub"> -->
+        <!--       <div class="sub-orig" id="demo-orig">「君の言葉を、もっと<span class="highlight-word" title="生词：知りたい (想知道)">知りたい</span>んだ。」</div> -->
+        <!--       <div class="sub-trans" id="demo-trans">“我想更加理解你所说的话。”</div> -->
+        <!--       <div class="sub-pill-tag"> -->
+        <!--         🤖 Gemma-4 Supervisor: 角色全名统一为「西宫硝子」| 词汇已收录 -->
+        <!--       </div> -->
+        <!--     </div> -->
+        <!---->
+        <!--     <div class="player-controls-mock"> -->
+        <!--       <div style="display: flex; gap: 0.75rem; align-items: center;"> -->
+        <!--         <span>08:24 / 24:12</span> -->
+        <!--         <span class="badge-sub-on">AI Sub ON</span> -->
+        <!--       </div> -->
+        <!--       <div> -->
+        <!--         <span>快捷开关：<kbd style="background:#333; padding:2px 5px; border-radius:3px; color:#fff;">Alt + T</kbd></span> -->
+        <!--       </div> -->
+        <!--     </div> -->
+        <!--   </div> -->
+        <!-- </div> -->
+      </section>
+
+      <!-- Features Section -->
+      <section class="section-title" id="features">
+        <h2 data-i18n="feat-title">为什么选择 CoWatcher？</h2>
+        <p data-i18n="feat-sub">
+          不仅仅是简单机翻，而是为你量身定制的 AI 智能观影伴侣与外语学习体系
+        </p>
+      </section>
+
+      <div class="features-grid">
+        <!-- Card 1 -->
+        <div class="feature-card">
+          <div class="feature-icon" style="color: #f43f5e">⚡</div>
+          <h3 data-i18n="feat-1-title">双模型协同架构 (Dual-Model)</h3>
+          <p data-i18n="feat-1-desc">
+            轻量快译模型负责毫秒级低延迟字幕生成；监督审校模型在后台动态纠错，确保长剧连播中的角色名、敬语与专属术语高度统一。
+          </p>
+          <div class="platform-tags">
+            <span class="platform-pill">translategemma:4b</span>
+            <span class="platform-pill">gemma4:e2b</span>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="feature-card">
+          <div class="feature-icon" style="color: #6366f1">🎬</div>
+          <h3 data-i18n="feat-2-title">智能观影记录与影视记忆 (Show Context & History)</h3>
+          <p data-i18n="feat-2-desc">
+            自动统计追剧活动与观看时长，第 1 集识别出的角色名与专有名词在下一集无缝继承。支持按语种独立隔离缓存，并在控制面板可视化查看与调整。
+          </p>
+          <div class="platform-tags">
+            <span class="platform-pill">观影时长统计</span>
+            <span class="platform-pill">跨集记忆</span>
+            <span class="platform-pill">Wiki校对</span>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="feature-card">
+          <div class="feature-icon" style="color: #38bdf8">🎓</div>
+          <h3 data-i18n="feat-3-title">语言学习与 Anki 深度整合</h3>
+          <p data-i18n="feat-3-desc">
+            原生支持双语对照，原语言与翻译字幕可一键互换主副层；后台自动提取对话中的生词并支持一键录入，无缝衔接你的背词工作流。
+          </p>
+          <div class="platform-tags">
+            <span class="platform-pill">双语对照</span>
+            <span class="platform-pill">Anki Workflow</span>
+          </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="feature-card">
+          <div class="feature-icon" style="color: #10b981">🛡️</div>
+          <h3 data-i18n="feat-4-title">广告时移与原生级融合排版</h3>
+          <p data-i18n="feat-4-desc">
+            深度适配 Netflix
+            广告版，智能校准插播广告后的时间轴偏移。同时完美支持横排与日剧/动漫常见的竖排排版，宛如官方原生质感。
+          </p>
+          <div class="platform-tags">
+            <span class="platform-pill">横竖排支持</span>
+            <span class="platform-pill">时间轴防漂移</span>
+          </div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="feature-card">
+          <div class="feature-icon" style="color: #eab308">☁️</div>
+          <h3 data-i18n="feat-5-title">多种翻译方案随心选 (Flexible AI Providers)</h3>
+          <p data-i18n="feat-5-desc">
+            内置免费翻译服务，开箱即用无需任何折腾；电脑有独立显卡可使用本地 Ollama 享受零费用与隐私保护；亦可一键直连 DeepSeek、Gemini、Claude 等顶尖云端模型。
+          </p>
+          <div class="platform-tags">
+            <span class="platform-pill">开箱即用免费</span>
+            <span class="platform-pill">本地显卡零成本</span>
+            <span class="platform-pill">顶尖大模型直连</span>
+          </div>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="feature-card">
+          <div class="feature-icon" style="color: #a855f7">💾</div>
+          <h3 data-i18n="feat-6-title">持久化缓存，Token 零浪费</h3>
+          <p data-i18n="feat-6-desc">
+            自动基于当前剧集与模型持久化缓存翻译结果。重温心仪电影或反复拉片复习时，秒级调出历史字幕，绝不多耗费一枚
+            Token 或多余算力。
+          </p>
+          <div class="platform-tags">
+            <span class="platform-pill">零重复计费</span>
+            <span class="platform-pill">秒级加载</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Install Guide -->
+      <section class="steps-section" id="guide">
+        <div class="section-title">
+          <h2 data-i18n="guide-title">三分钟快速上手</h2>
+          <p data-i18n="guide-sub">
+            只需简单几步，即可在 Chrome / Edge 中开启观影新体验
+          </p>
+        </div>
+
+        <div class="step-list">
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h4 data-i18n="step-1-title">下载扩展安装包</h4>
+              <p data-i18n="step-1-desc">
+                前往
+                <a
+                  href="https://github.com/SFBB/cowatcher-extension-public/releases"
+                  target="_blank"
+                  style="color: #38bdf8; text-decoration: underline"
+                  >GitHub Releases</a
+                >
+                下载最新的
+                <code>cowatcher-extension.zip</code>，并在本地解压缩。
+              </p>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4 data-i18n="step-2-title">打开开发者模式并加载</h4>
+              <p data-i18n="step-2-desc">
+                在浏览器地址栏输入
+                <code>chrome://extensions/</code>，勾选右上角的
+                <strong>开发者模式 (Developer Mode)</strong>，点击
+                <strong>加载已解压的扩展程序 (Load unpacked)</strong
+                >，选中解压出来的文件夹。
+              </p>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4 data-i18n="step-3-title">选择模型并开启观影</h4>
+              <p data-i18n="step-3-desc">
+                点击浏览器右上角 CoWatcher 插件图标，选择默认免费翻译、本地 Ollama 或填写云端 API Key，打开 Netflix、TVer 或 YouTube 播放页按下
+                <code>Alt + T</code> 即可立即享受！
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ko-fi Support Banner -->
+      <div class="coffee-callout">
+        <h3>
+          ☕
+          <span data-i18n="coffee-title"
+            >支持 CoWatcher 上架 Chrome 应用商店</span
+          >
+        </h3>
+        <p data-i18n="coffee-desc">
+          CoWatcher
+          坚持完全开源透明。如果您喜欢这个项目，欢迎请作者喝一杯咖啡，您的赞助将帮助我们支付
+          Chrome Web Store 开发者账号费用，让更多影迷与外语学习者直接一键安装！所有赞助者都将被永久记录在鸣谢名册中。
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem;">
+          <a
+            href="https://ko-fi.com/sfbb49898"
+            target="_blank"
+            class="btn btn-kofi"
+          >
+            👉 <span data-i18n="coffee-btn">前往 Ko-fi 请作者喝杯咖啡</span>
+          </a>
+          <a
+            href="https://github.com/SFBB/cowatcher-extension-public/blob/main/CONTRIBUTORS.md"
+            target="_blank"
+            class="btn"
+            style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);"
+          >
+            🌟 <span data-i18n="coffee-contributors">致谢与赞助者榜单</span>
+          </a>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+      <div class="footer-container">
+        <div>
+          <p>
+            <strong>CoWatcher</strong> - Smart Watch History & AI Bilingual Subtitle Assistant
+          </p>
+          <p style="margin-top: 0.35rem; font-size: 0.8rem">
+            Licensed under MIT © 2026 CoWatcher Contributors
+          </p>
+        </div>
+        <div class="footer-links">
+          <a
+            href="https://github.com/SFBB/cowatcher-extension-public"
+            target="_blank"
+            >GitHub Repo</a
+          >
+          <a href="docs/" target="_blank" id="footer-doc-link"
+            >控制面板详细指南</a
+          >
+          <a
+            href="https://github.com/SFBB/cowatcher-extension-public/blob/main/CONTRIBUTORS.md"
+            target="_blank"
+            data-i18n="footer-contributors"
+            >贡献者与赞助者</a
+          >
+          <a href="https://ko-fi.com/sfbb49898" target="_blank">Ko-fi 赞助</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // i18n Dictionary
+      const i18n = {
+        zh: {
+          "page-title": "CoWatcher - 智能观影记录 · 双语字幕 · AI实时翻译 · 沉浸式外语学习助手",
+          "nav-features": "核心特性",
+          "nav-guide": "安装指南",
+          "nav-docs": "使用文档",
+          "hero-badge": "Netflix · TVer · YouTube 影视双语字幕 · 自动观影记录 · AI 智能伴侣",
+          "hero-title":
+            '追剧看动漫，轻松看懂<br><span class="gradient-text">还能顺便学外语</span>',
+          "hero-sub":
+            "智能观影记录 · 双模型地道快译 · 跨集角色记忆保持 · 原生排版无缝融入 · Anki 生词流与本地显卡 / 云端模型随心选",
+          "btn-download": "下载最新扩展包 (.zip)",
+          "btn-kofi": "赞助作者上架 Web Store",
+          "feat-title": "为什么选择 CoWatcher？",
+          "feat-sub":
+            "不仅是实时字幕，更是为你量身定制的 AI 智能观影助手与外语学习伴侣",
+          "feat-1-title": "双模型协同翻译 (Dual-Model)",
+          "feat-1-desc":
+            "轻量快译模型负责毫秒级字幕生成，追剧流畅不卡顿；后台智能审校模型动态纠错，确保连播中角色名、敬语与专属术语高度统一，不再机翻出戏。",
+          "feat-2-title": "智能观影记录与影视记忆 (Show Context & History)",
+          "feat-2-desc":
+            "自动统计追剧活动与观看时长，第 1 集识别出的角色名与专有名词在下一集无缝继承。支持按语种独立隔离缓存，并在控制面板可视化查看与调整。",
+          "feat-3-title": "语言学习与 Anki 深度整合",
+          "feat-3-desc":
+            "原生支持双语对照，原语言与翻译字幕可一键互换主副层；后台自动提取对话中的生词并支持一键录入，无缝衔接你的背词工作流。",
+          "feat-4-title": "广告时移与原生级融合排版",
+          "feat-4-desc":
+            "深度适配 Netflix 广告版，智能校准插播广告后的时间轴偏移。同时完美支持横排与日剧/动漫常见的竖排排版，宛如官方原生质感。",
+          "feat-5-title": "多种翻译方案随心选 (Flexible AI Providers)",
+          "feat-5-desc":
+            "内置免费翻译服务，开箱即用无需任何折腾；电脑有独立显卡可使用本地 Ollama 享受零费用与隐私保护；亦可一键直连 DeepSeek、Gemini、Claude 等顶尖云端模型。",
+          "feat-6-title": "持久化缓存，Token 零浪费",
+          "feat-6-desc":
+            "自动基于当前剧集与模型持久化缓存翻译结果。重温心仪电影或反复拉片复习时，秒级调出历史字幕，绝不多耗费一枚 Token 或多余算力。",
+          "guide-title": "三分钟快速上手",
+          "guide-sub": "只需简单几步，即可在 Chrome / Edge 中开启观影新体验",
+          "step-1-title": "下载扩展安装包",
+          "step-1-desc":
+            "前往 GitHub Releases 下载最新的 cowatcher-extension.zip，并在本地解压缩。",
+          "step-2-title": "打开开发者模式并加载",
+          "step-2-desc":
+            "在浏览器地址栏输入 chrome://extensions/，勾选右上角的 开发者模式 (Developer Mode)，点击 加载已解压的扩展程序 (Load unpacked)，选中解压出来的文件夹。",
+          "step-3-title": "选择模型并开启观影",
+          "step-3-desc":
+            "点击浏览器右上角 CoWatcher 插件图标，选择默认免费翻译、本地 Ollama 或填写云端 API Key，打开 Netflix、TVer 或 YouTube 播放页按下 Alt + T 即可立即享受！",
+          "coffee-title": "支持 CoWatcher 上架 Chrome 应用商店",
+          "coffee-desc":
+            "CoWatcher 坚持完全开源透明。如果您喜欢这个项目，欢迎请作者喝一杯咖啡，您的赞助将帮助我们支付 Chrome Web Store 开发者账号费用与开源项目基础设施。所有赞助者都将被永久记录在鸣谢名册中！",
+          "coffee-btn": "前往 Ko-fi 请作者喝杯咖啡",
+          "coffee-contributors": "致谢与赞助者榜单",
+          "footer-contributors": "贡献者与赞助者",
+        },
+        en: {
+          "page-title": "CoWatcher - Smart Watch History & Notes · Dual Subtitles · Real-Time AI Translation · Language Immersion",
+          "nav-features": "Features",
+          "nav-guide": "Installation",
+          "nav-docs": "Documentation",
+          "hero-badge":
+            "Netflix · TVer · YouTube Bilingual Subtitles · Watch History · AI Streaming Companion",
+          "hero-title":
+            'Stream Your Favorite Shows, Understand Every Line<br><span class="gradient-text">And Effortlessly Master New Languages</span>',
+          "hero-sub":
+            "Smart Watch History & Notes · Dual-Model Pipeline · Cross-Episode Character Memory · Native Typography · Anki Vocab Workflow · Local GPU & Cloud APIs",
+          "btn-download": "Download Latest (.zip)",
+          "btn-kofi": "Support on Ko-fi",
+          "feat-title": "Why CoWatcher?",
+          "feat-sub":
+            "More than real-time subtitles — an AI-native streaming companion engineered for movie lovers and language learners",
+          "feat-1-title": "Dual-Model Collaborative Pipeline",
+          "feat-1-desc":
+            "A fast model produces instant subtitles with zero lag, while a background supervisor model audits character names, honorifics, and terminology consistency.",
+          "feat-2-title": "Smart Watch History & Context Memory",
+          "feat-2-desc":
+            "Automatically tracks viewing sessions and duration. Character aliases and terms discovered in Episode 1 seamlessly persist into Episode 2 and beyond with per-language caching.",
+          "feat-3-title": "Designed for Language Learners",
+          "feat-3-desc":
+            "Native dual-language rendering with 1-click swap for primary/secondary subtitles. Automatic vocabulary detection bridges directly into your Anki flashcard workflow.",
+          "feat-4-title": "Ad Break Guard & Native Typography",
+          "feat-4-desc":
+            "Intelligent timeline compensation preserves subtitle sync across ad interruptions. Flawlessly supports both horizontal and authentic Japanese vertical typography.",
+          "feat-5-title": "Flexible AI Providers & Free Fallback",
+          "feat-5-desc":
+            "Free built-in translation works right away. Run privately and free on your local GPU with Ollama, or connect directly to top-tier cloud models (DeepSeek, Gemini, Claude).",
+          "feat-6-title": "Persistent Subtitle Cache",
+          "feat-6-desc":
+            "Translations are cached by show and model. Replay favorite scenes or rewatch episodes instantly with zero token consumption and zero latency.",
+          "guide-title": "Quick Start in 3 Minutes",
+          "guide-sub":
+            "Get up and running in Chrome or Edge in a few simple clicks",
+          "step-1-title": "1. Download Extension Archive",
+          "step-1-desc":
+            "Navigate to GitHub Releases, download cowatcher-extension.zip, and extract it to a local folder.",
+          "step-2-title": "2. Enable Developer Mode & Load",
+          "step-2-desc":
+            'Go to chrome://extensions/ in your browser, switch on Developer Mode (top right), click "Load unpacked", and pick the extracted folder.',
+          "step-3-title": "3. Pick Provider & Start Watching",
+          "step-3-desc":
+            "Click the CoWatcher toolbar icon, pick free built-in translation, connect Ollama, or add your cloud API key, then press Alt + T in Netflix, TVer, or YouTube to start watching!",
+          "coffee-title": "Help Us Launch on the Chrome Web Store",
+          "coffee-desc":
+            "CoWatcher is 100% free and open-source. Buying the author a coffee helps cover Chrome Web Store developer registration fees and open-source infrastructure. All sponsors will be permanently acknowledged in our contributors roll!",
+          "coffee-btn": "Buy a Coffee on Ko-fi",
+          "coffee-contributors": "Sponsors & Contributors Roll",
+          "footer-contributors": "Contributors & Sponsors",
+        },
+      };
+
+      const STORAGE_KEY = 'ncw_page_lang';
+
+      function detectInitialLang() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved === 'zh' || saved === 'en') {
+            return saved;
+          }
+          const navLang = (navigator.language || navigator.userLanguage || '').toLowerCase();
+          if (navLang.startsWith('zh')) {
+            return 'zh';
+          }
+          return 'en';
+        } catch (e) {
+          return 'zh';
+        }
+      }
+
+      let currentLang = 'zh';
+try { localStorage.setItem(STORAGE_KEY, 'zh'); } catch(e){}
+
+      function toggleLang() {
+        currentLang = currentLang === 'zh' ? 'en' : 'zh';
+        try {
+          localStorage.setItem(STORAGE_KEY, currentLang);
+        } catch (e) {}
+        applyLang(currentLang);
+      }
+
+      function applyLang(lang) {
+        currentLang = lang;
+        const langText = document.getElementById('lang-text');
+        if (langText) {
+          langText.innerText = lang === 'zh' ? 'English' : '中文';
+        }
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+        // Update page title
+        if (i18n[lang] && i18n[lang]['page-title']) {
+          document.title = i18n[lang]['page-title'];
+        }
+
+        // Update doc links
+        const docLink = document.getElementById('doc-link');
+        const footerDocLink = document.getElementById('footer-doc-link');
+        if (docLink) {
+          docLink.href = 'docs/';
+        }
+        if (footerDocLink) {
+          footerDocLink.href = 'docs/';
+          footerDocLink.innerText =
+            lang === 'zh' ? '在线使用与配置指南' : 'Online Documentation & Guide';
+        }
+
+        // Update text nodes
+        const elements = document.querySelectorAll('[data-i18n]');
+        elements.forEach((el) => {
+          const key = el.getAttribute('data-i18n');
+          if (key && i18n[lang] && i18n[lang][key]) {
+            el.innerHTML = i18n[lang][key];
+          }
+        });
+      }
+
+      // Initialize language on page load based on browser detection or remembered preference
+      applyLang(currentLang);
+
+      // Dynamic Subtitle Demo cycling
+      const demoSamples = [
+        {
+          orig: '「君の言葉を、もっと<span class="highlight-word" title="生词：知りたい (想知道)">知りたい</span>んだ。」',
+          trans: "“我想更加理解你所说的话。”",
+          note: "🤖 Gemma-4 Supervisor: 角色全名统一为「西宫硝子」| 词汇已收录",
+        },
+        {
+          orig: '「あきらめたら、そこで<span class="highlight-word" title="生词：試合終了 (比赛结束)">試合終了</span>ですよ…？」',
+          trans: "“如果放弃的话，比赛可就在这里提前结束了哦…？”",
+          note: "⚡ TranslateGemma: 实时毫秒级流式快译",
+        },
+        {
+          orig: '「俺は海賊王になる<span class="highlight-word" title="生词：男 (男子汉)">男</span>だ！」',
+          trans: "“我可是要成为海贼王的男人！”",
+          note: "🎬 Context: 自动继承跨集角色名与词表",
+        },
+      ];
+
+      let demoIndex = 0;
+      setInterval(() => {
+        demoIndex = (demoIndex + 1) % demoSamples.length;
+        const box = document.getElementById("demo-sub");
+        if (!box) return;
+        box.style.opacity = "0";
+        box.style.transform = "translateY(6px)";
+        setTimeout(() => {
+          const sample = demoSamples[demoIndex];
+          document.getElementById("demo-orig").innerHTML = sample.orig;
+          document.getElementById("demo-trans").innerText = sample.trans;
+          const tag = box.querySelector(".sub-pill-tag");
+          if (tag) tag.innerText = sample.note;
+          box.style.transition = "all 0.5s ease-out";
+          box.style.opacity = "1";
+          box.style.transform = "translateY(0)";
+        }, 300);
+      }, 4500);
+    </script>
   </body>
 </html>
