@@ -529,7 +529,10 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
 
     const t1 = (candidateUrl.match(/[?&]t=([^&]+)/) || [])[1];
     const t2 = (targetUrl.match(/[?&]t=([^&]+)/) || [])[1];
-    if (t1 && t2 && t1 === t2) return true;
+    // If both have Netflix OCA CDN token (?t=...), they MUST match to be the same track stream
+    if (t1 && t2) {
+      return t1 === t2;
+    }
 
     try {
       const p1 = new URL(candidateUrl, window.location.origin).pathname;
@@ -540,7 +543,6 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     const clean1 = candidateUrl.split('?')[0];
     const clean2 = targetUrl.split('?')[0];
     if (clean1 && clean2 && clean1 !== 'https://' && clean1 !== 'http://') {
-      if (clean1 === clean2) return true;
       const path1 = clean1.replace(/^https?:\/\/[^/]+/, '');
       const path2 = clean2.replace(/^https?:\/\/[^/]+/, '');
       if (path1 && path2 && path1 !== '/' && path1 === path2) return true;
