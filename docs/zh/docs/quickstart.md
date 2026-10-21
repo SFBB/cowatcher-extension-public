@@ -35,8 +35,8 @@
 安装完成后，点击浏览器工具栏右上角的 **CoWatcher** 图标打开面板：
 
 1. **选择 AI 提供商**：
-   - 如果你有独立显卡（NVIDIA / Apple Silicon）并追求 **完全免费与绝对隐私**，推荐选择 **Ollama**。详见 [Ollama 配置指南](/zh/providers/ollama)。
-   - 如果你想使用目前最强的云端大模型（DeepSeek V3、Gemini 2.5 Flash、Claude 等），推荐选择 **OpenRouter**。详见 [OpenRouter 配置指南](/zh/providers/openrouter)。
+   - 如果你有独立显卡（NVIDIA / Apple Silicon）并追求 **完全免费与绝对隐私**，推荐选择 **Ollama**。详见 [Ollama 配置指南](/zh/docs/providers/ollama)。
+   - 如果你想使用目前最强的云端大模型（DeepSeek V3、Gemini 2.5 Flash、Claude 等），推荐选择 **OpenRouter**。详见 [OpenRouter 配置指南](/zh/docs/providers/openrouter)。
 2. **设置目标翻译语言**：
    - 在面板中将 **Target Language** 设置为你偏好的母语（如 `Chinese (Simplified)` 简体中文）。
 3. **确认连接指示灯**：
@@ -59,6 +59,6 @@
 ---
 
 ## 下一步阅读
-- 深入了解 [弹窗面板与快捷键指南](/zh/guide/popup)
-- 查看流媒体专属调优：[Netflix 说明](/zh/platforms/netflix) · [TVer 说明](/zh/platforms/tver) · [YouTube 说明](/zh/platforms/youtube)
-- 探索 [双模型流水线架构与调优](/zh/advanced/dual_model)
+- 深入了解 [弹窗面板与快捷键指南](/zh/docs/guide/popup)
+- 查看流媒体专属调优：[Netflix 说明](/zh/docs/platforms/netflix) · [TVer 说明](/zh/docs/platforms/tver) · [YouTube 说明](/zh/docs/platforms/youtube)
+- 探索 [双模型流水线架构与调优](/zh/docs/advanced/dual_model)
