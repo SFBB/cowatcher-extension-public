@@ -322,32 +322,17 @@ export class NetflixTrackRegistry {
       const timeout = setTimeout(async () => {
         if (!this.activeActivationWaiter) return;
         this.activeActivationWaiter = null;
-
-        // Check if playerTextTracks now has the populated URL
-        const playerTracks = this.playerBridge.getPlayerTextTracks();
-        const active = playerTracks.find(
-          (pt) => pt.trackId === targetTrack.trackId && pt.urls.length > 0,
+        const detail = await this.resolveActivatedTrackFromPlayer(
+          showId,
+          epId,
+          targetTrack,
+          targetBcp47,
         );
-        if (active && active.urls.length > 0) {
-          try {
-            const res = await window.fetch(active.urls[0].url);
-            if (res.ok) {
-              const rawText = await res.text();
-              const urls = active.urls.map((u) => u.url);
-              const detail = this.registerKnownTrack(showId, epId, targetBcp47, {
-                trackId: targetTrack.trackId,
-                displayName: targetTrack.displayName,
-                trackType: targetTrack.trackType,
-                urls,
-                rawText,
-                interceptedAt: Date.now(),
-              });
-              resolve(detail);
-              return;
-            }
-          } catch {}
+        if (detail) {
+          resolve(detail);
+        } else {
+          reject(new Error(`Activation timed out for ${targetBcp47}`));
         }
-        reject(new Error(`Activation timed out for ${targetBcp47}`));
       }, 2500);
 
       this.activeActivationWaiter = {
@@ -364,6 +349,35 @@ export class NetflixTrackRegistry {
 
       this.playerBridge.setTextTrack(targetTrack);
     });
+  }
+
+  private async resolveActivatedTrackFromPlayer(
+    showId: string,
+    epId: string,
+    targetTrack: NetflixTimedTextTrack,
+    targetBcp47: string,
+  ): Promise<KnownTrackDetail | null> {
+    const playerTracks = this.playerBridge.getPlayerTextTracks();
+    const active = playerTracks.find(
+      (pt) => pt.trackId === targetTrack.trackId && pt.urls.length > 0,
+    );
+    if (!active || active.urls.length === 0) return null;
+
+    try {
+      const res = await window.fetch(active.urls[0].url);
+      if (!res.ok) return null;
+      const rawText = await res.text();
+      return this.registerKnownTrack(showId, epId, targetBcp47, {
+        trackId: targetTrack.trackId,
+        displayName: targetTrack.displayName,
+        trackType: targetTrack.trackType,
+        urls: active.urls.map((u) => u.url),
+        rawText,
+        interceptedAt: Date.now(),
+      });
+    } catch {
+      return null;
+    }
   }
 
   private restoreOriginalTrack(
