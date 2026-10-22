@@ -57,14 +57,7 @@ export class SubtitlePipelineCoordinator {
   ) {}
 
   isLanguageMatchingTarget(rawLangStr: string, targetLangCode: string): boolean {
-    if (!rawLangStr || !targetLangCode) return false;
-    try {
-      const rawLang = Language.resolve(rawLangStr);
-      const targetLang = Language.resolve(targetLangCode);
-      return rawLang.code.toLowerCase() === targetLang.code.toLowerCase();
-    } catch {
-      return rawLangStr.toLowerCase().startsWith(targetLangCode.toLowerCase().slice(0, 2));
-    }
+    return Language.matches(rawLangStr, targetLangCode);
   }
 
   getPrecedingContextItems(targetCueIndex: number, maxContext = 3): PrecedingContextItem[] {

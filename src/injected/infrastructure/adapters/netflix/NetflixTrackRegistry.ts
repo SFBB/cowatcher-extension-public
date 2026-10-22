@@ -6,6 +6,7 @@ import {
 } from './NetflixTypes';
 import { NetflixPlayerBridge } from './NetflixPlayerBridge';
 import { NetflixMetadataManager } from './NetflixMetadataManager';
+import { Language } from '@shared/domain/value-objects/Language';
 import { Logger } from '@shared/utils/logger';
 
 export class NetflixTrackRegistry {
@@ -203,13 +204,22 @@ export class NetflixTrackRegistry {
   private getCachedTrack(
     showId: string,
     epId: string,
-    normalizedLang: string,
+    targetLang: string,
   ): KnownTrackDetail | null {
     const epMap = this.knownTracks.get(showId);
     if (!epMap) return null;
     const langMap = epMap.get(epId);
     if (!langMap) return null;
-    return langMap.get(normalizedLang) || null;
+
+    const direct = langMap.get(targetLang.toLowerCase());
+    if (direct) return direct;
+
+    for (const [storedLang, track] of langMap.entries()) {
+      if (Language.matches(storedLang, targetLang)) {
+        return track;
+      }
+    }
+    return null;
   }
 
   private findPlayerTrackByUrl(url: string): NetflixPlayerTextTrack | null {
@@ -250,7 +260,7 @@ export class NetflixTrackRegistry {
     const candidate = playerTracks.find(
       (pt) =>
         pt.bcp47 &&
-        pt.bcp47.toLowerCase() === normalizedLang &&
+        Language.matches(pt.bcp47, normalizedLang) &&
         pt.urls.length > 0,
     );
 
@@ -287,7 +297,7 @@ export class NetflixTrackRegistry {
   ): Promise<KnownTrackDetail | null> {
     const availableTracks = this.playerBridge.getAvailableTextTracks();
     const targetTrack = availableTracks.find(
-      (t) => t.bcp47 && t.bcp47.toLowerCase() === normalizedLang,
+      (t) => t.bcp47 && Language.matches(t.bcp47, normalizedLang),
     );
 
     if (!targetTrack || !targetTrack.bcp47) {
@@ -391,7 +401,7 @@ export class NetflixTrackRegistry {
   private resolveActivationWaiterIfMatches(detail: KnownTrackDetail): void {
     if (
       this.activeActivationWaiter &&
-      this.activeActivationWaiter.targetBcp47 === detail.lang
+      Language.matches(detail.lang, this.activeActivationWaiter.targetBcp47)
     ) {
       const waiter = this.activeActivationWaiter;
       this.activeActivationWaiter = null;
