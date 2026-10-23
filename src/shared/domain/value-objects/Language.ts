@@ -5,7 +5,9 @@
  */
 
 export interface LanguageInfo {
-  readonly code: string; // BCP-47 / ISO standard code (e.g. 'zh-CN', 'en')
+  readonly code: string; // Canonical code (e.g. 'zh-CN', 'en')
+  readonly iso639_1: string; // 2-letter ISO 639-1 base code (e.g. 'zh', 'en')
+  readonly bcp47Codes: readonly string[]; // All recognized BCP-47 variants & aliases (e.g. ['zh-Hans', 'zh-CN', 'zh-SG', 'zh'])
   readonly name: string; // Canonical English name (e.g. 'Simplified Chinese')
   readonly nativeName: string; // Native localized name (e.g. '简体中文')
   readonly label: string; // Display label for UI dropdowns
@@ -17,6 +19,8 @@ export class Language {
   private static readonly LANGUAGES: LanguageInfo[] = [
     {
       code: 'zh-CN',
+      iso639_1: 'zh',
+      bcp47Codes: ['zh-Hans', 'zh-CN', 'zh-SG', 'zh'],
       name: 'Simplified Chinese',
       nativeName: '简体中文',
       label: '简体中文 (Simplified Chinese)',
@@ -25,6 +29,8 @@ export class Language {
     },
     {
       code: 'zh-TW',
+      iso639_1: 'zh',
+      bcp47Codes: ['zh-Hant', 'zh-TW', 'zh-HK', 'zh-MO'],
       name: 'Traditional Chinese',
       nativeName: '繁體中文',
       label: '繁體中文 (Traditional Chinese)',
@@ -33,6 +39,8 @@ export class Language {
     },
     {
       code: 'en',
+      iso639_1: 'en',
+      bcp47Codes: ['en', 'en-US', 'en-GB', 'en-CA', 'en-AU'],
       name: 'English',
       nativeName: 'English',
       label: 'English',
@@ -41,6 +49,8 @@ export class Language {
     },
     {
       code: 'ja',
+      iso639_1: 'ja',
+      bcp47Codes: ['ja', 'ja-JP'],
       name: 'Japanese',
       nativeName: '日本語',
       label: '日本語 (Japanese)',
@@ -49,6 +59,8 @@ export class Language {
     },
     {
       code: 'ko',
+      iso639_1: 'ko',
+      bcp47Codes: ['ko', 'ko-KR'],
       name: 'Korean',
       nativeName: '한국어',
       label: '한국어 (Korean)',
@@ -57,6 +69,8 @@ export class Language {
     },
     {
       code: 'es',
+      iso639_1: 'es',
+      bcp47Codes: ['es', 'es-ES', 'es-419', 'es-MX', 'es-US', 'es-AR'],
       name: 'Spanish',
       nativeName: 'Español',
       label: 'Español (Spanish)',
@@ -65,6 +79,8 @@ export class Language {
     },
     {
       code: 'fr',
+      iso639_1: 'fr',
+      bcp47Codes: ['fr', 'fr-FR', 'fr-CA', 'fr-BE', 'fr-CH'],
       name: 'French',
       nativeName: 'Français',
       label: 'Français (French)',
@@ -73,6 +89,8 @@ export class Language {
     },
     {
       code: 'de',
+      iso639_1: 'de',
+      bcp47Codes: ['de', 'de-DE', 'de-AT', 'de-CH'],
       name: 'German',
       nativeName: 'Deutsch',
       label: 'Deutsch (German)',
@@ -81,6 +99,8 @@ export class Language {
     },
     {
       code: 'it',
+      iso639_1: 'it',
+      bcp47Codes: ['it', 'it-IT', 'it-CH'],
       name: 'Italian',
       nativeName: 'Italiano',
       label: 'Italiano (Italian)',
@@ -89,6 +109,8 @@ export class Language {
     },
     {
       code: 'pt',
+      iso639_1: 'pt',
+      bcp47Codes: ['pt', 'pt-BR', 'pt-PT'],
       name: 'Portuguese',
       nativeName: 'Português',
       label: 'Português (Portuguese)',
@@ -97,6 +119,8 @@ export class Language {
     },
     {
       code: 'ru',
+      iso639_1: 'ru',
+      bcp47Codes: ['ru', 'ru-RU'],
       name: 'Russian',
       nativeName: 'Русский',
       label: 'Русский (Russian)',
@@ -105,6 +129,8 @@ export class Language {
     },
     {
       code: 'vi',
+      iso639_1: 'vi',
+      bcp47Codes: ['vi', 'vi-VN'],
       name: 'Vietnamese',
       nativeName: 'Tiếng Việt',
       label: 'Tiếng Việt (Vietnamese)',
@@ -113,6 +139,8 @@ export class Language {
     },
     {
       code: 'id',
+      iso639_1: 'id',
+      bcp47Codes: ['id', 'id-ID'],
       name: 'Indonesian',
       nativeName: 'Bahasa Indonesia',
       label: 'Bahasa Indonesia',
@@ -121,6 +149,8 @@ export class Language {
     },
     {
       code: 'th',
+      iso639_1: 'th',
+      bcp47Codes: ['th', 'th-TH'],
       name: 'Thai',
       nativeName: 'ภาษาไทย',
       label: 'ภาษาไทย (Thai)',
@@ -129,6 +159,8 @@ export class Language {
     },
     {
       code: 'ar',
+      iso639_1: 'ar',
+      bcp47Codes: ['ar', 'ar-SA', 'ar-EG', 'ar-AE'],
       name: 'Arabic',
       nativeName: 'العربية',
       label: 'العربية (Arabic)',
@@ -137,18 +169,12 @@ export class Language {
     },
   ];
 
-  static readonly DEFAULT: LanguageInfo = Language.LANGUAGES[0]; // Simplified Chinese by default
+  static readonly DEFAULT: LanguageInfo = Language.LANGUAGES[0];
 
-  /**
-   * Returns all standard supported languages.
-   */
   static getAll(): LanguageInfo[] {
     return [...Language.LANGUAGES];
   }
 
-  /**
-   * Finds a language by its exact canonical code, or undefined.
-   */
   static get(code?: string | LanguageInfo): LanguageInfo | undefined {
     if (!code) return undefined;
     if (typeof code === 'object' && code !== null && 'code' in code) {
@@ -157,53 +183,88 @@ export class Language {
     return Language.LANGUAGES.find((l) => l.code.toLowerCase() === code.trim().toLowerCase());
   }
 
-  /**
-   * Resolves a language string (BCP-47 code, native name, English name, or alias)
-   * to a canonical LanguageInfo object.
-   */
-  static resolve(input?: string | LanguageInfo | any): LanguageInfo {
-    if (!input) {
-      return Language.DEFAULT;
-    }
-    if (typeof input === 'object' && input !== null) {
-      if (
-        'code' in input &&
-        typeof input.code === 'string' &&
-        'promptName' in input &&
-        typeof input.promptName === 'string'
-      ) {
-        return input as LanguageInfo;
-      }
-      if ('code' in input && typeof input.code === 'string') {
-        const found = Language.get(input.code);
-        if (found) return found;
-      }
-      if ('targetLanguage' in input && input.targetLanguage) {
-        return Language.resolve(input.targetLanguage);
-      }
+  static findByBcp47(bcpTag: string): LanguageInfo | undefined {
+    if (!bcpTag) return undefined;
+    const clean = bcpTag.trim().toLowerCase();
+    return Language.LANGUAGES.find((l) =>
+      l.bcp47Codes.some((alias) => alias.toLowerCase() === clean),
+    );
+  }
+
+  static matches(
+    a?: string | LanguageInfo | null,
+    b?: string | LanguageInfo | null,
+  ): boolean {
+    if (!a || !b) return false;
+    const infoA = Language.resolve(a);
+    const infoB = Language.resolve(b);
+
+    if (infoA.code.toLowerCase() === infoB.code.toLowerCase()) {
+      return true;
     }
 
-    const rawStr =
-      typeof input === 'string'
-        ? input
-        : typeof input?.code === 'string'
-          ? input.code
-          : typeof input?.name === 'string'
-            ? input.name
-            : typeof input?.label === 'string'
-              ? input.label
-              : '';
+    const strA = typeof a === 'string' ? a.trim().toLowerCase() : infoA.code.toLowerCase();
+    const strB = typeof b === 'string' ? b.trim().toLowerCase() : infoB.code.toLowerCase();
 
-    if (!rawStr || typeof rawStr !== 'string') {
-      return Language.DEFAULT;
-    }
+    return (
+      infoA.bcp47Codes.some((tag) => tag.toLowerCase() === strB) ||
+      infoB.bcp47Codes.some((tag) => tag.toLowerCase() === strA)
+    );
+  }
+
+  static resolve(input?: string | LanguageInfo | null): LanguageInfo {
+    if (!input) return Language.DEFAULT;
+    const fromObj = Language.resolveFromObject(input);
+    if (fromObj) return fromObj;
+
+    const rawStr = Language.extractRawString(input);
+    if (!rawStr) return Language.DEFAULT;
 
     const clean = rawStr.trim().toLowerCase();
+    const matchedBcp = Language.findByBcp47(clean);
+    if (matchedBcp) return matchedBcp;
 
-    // 1. Direct code or name match
+    const matchedExact = Language.findExactMatch(clean);
+    if (matchedExact) return matchedExact;
+
+    const matchedHeuristic = Language.findHeuristicMatch(clean);
+    if (matchedHeuristic) return matchedHeuristic;
+
+    return Language.createCustomLanguage(rawStr.trim());
+  }
+
+  private static resolveFromObject(input: unknown): LanguageInfo | null {
+    if (typeof input !== 'object' || input === null) return null;
+    const rec = input as Record<string, unknown>;
+
+    if (typeof rec.code === 'string' && typeof rec.promptName === 'string' && Array.isArray(rec.bcp47Codes)) {
+      return input as LanguageInfo;
+    }
+    if (typeof rec.code === 'string') {
+      const found = Language.get(rec.code);
+      if (found) return found;
+    }
+    if (rec.targetLanguage) {
+      return Language.resolve(rec.targetLanguage as string | LanguageInfo);
+    }
+    return null;
+  }
+
+  private static extractRawString(input: unknown): string {
+    if (typeof input === 'string') return input;
+    if (typeof input !== 'object' || input === null) return '';
+    const rec = input as Record<string, unknown>;
+    if (typeof rec.code === 'string') return rec.code;
+    if (typeof rec.name === 'string') return rec.name;
+    if (typeof rec.label === 'string') return rec.label;
+    return '';
+  }
+
+  private static findExactMatch(clean: string): LanguageInfo | null {
     for (const lang of Language.LANGUAGES) {
       if (
         lang.code.toLowerCase() === clean ||
+        lang.iso639_1.toLowerCase() === clean ||
         lang.name.toLowerCase() === clean ||
         lang.nativeName.toLowerCase() === clean ||
         lang.label.toLowerCase() === clean
@@ -211,118 +272,45 @@ export class Language {
         return lang;
       }
     }
+    return null;
+  }
 
-    // 2. Fuzzy heuristic matching for common localized patterns
-    if (
-      clean.includes('简') ||
-      clean === 'zh' ||
-      clean === 'zh-cn' ||
-      clean === 'chinese' ||
-      clean.includes('simplified')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'zh-CN')!;
-    }
-    if (clean.includes('繁') || clean === 'zh-tw' || clean.includes('traditional')) {
-      return Language.LANGUAGES.find((l) => l.code === 'zh-TW')!;
-    }
-    if (clean === 'en' || clean.includes('english') || clean.includes('英')) {
-      return Language.LANGUAGES.find((l) => l.code === 'en')!;
-    }
-    if (
-      clean === 'ja' ||
-      clean.includes('japan') ||
-      clean.includes('日本') ||
-      clean.includes('日文')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'ja')!;
-    }
-    if (
-      clean === 'ko' ||
-      clean.includes('korean') ||
-      clean.includes('韩') ||
-      clean.includes('韓') ||
-      clean.includes('한국')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'ko')!;
-    }
-    if (
-      clean === 'es' ||
-      clean.includes('span') ||
-      clean.includes('español') ||
-      clean.includes('西班')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'es')!;
-    }
-    if (
-      clean === 'fr' ||
-      clean.includes('french') ||
-      clean.includes('français') ||
-      clean.includes('法')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'fr')!;
-    }
-    if (
-      clean === 'de' ||
-      clean.includes('german') ||
-      clean.includes('deutsch') ||
-      clean.includes('德')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'de')!;
-    }
-    if (
-      clean === 'ru' ||
-      clean.includes('russian') ||
-      clean.includes('русский') ||
-      clean.includes('俄')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'ru')!;
-    }
-    if (
-      clean === 'pt' ||
-      clean.includes('portug') ||
-      clean.includes('português') ||
-      clean.includes('葡萄牙')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'pt')!;
-    }
-    if (
-      clean === 'it' ||
-      clean.includes('italian') ||
-      clean.includes('italiano') ||
-      clean.includes('意大')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'it')!;
-    }
-    if (
-      clean === 'vi' ||
-      clean.includes('vietnam') ||
-      clean.includes('tiếng việt') ||
-      clean.includes('越')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'vi')!;
-    }
-    if (clean === 'id' || clean.includes('indonesia') || clean.includes('印尼')) {
-      return Language.LANGUAGES.find((l) => l.code === 'id')!;
-    }
-    if (clean === 'th' || clean.includes('thai') || clean.includes('ไทย') || clean.includes('泰')) {
-      return Language.LANGUAGES.find((l) => l.code === 'th')!;
-    }
-    if (
-      clean === 'ar' ||
-      clean.includes('arab') ||
-      clean.includes('العربية') ||
-      clean.includes('阿拉')
-    ) {
-      return Language.LANGUAGES.find((l) => l.code === 'ar')!;
-    }
+  private static readonly HEURISTIC_PATTERNS: Array<{
+    code: string;
+    keywords: readonly string[];
+  }> = [
+    { code: 'zh-CN', keywords: ['简', 'zh', 'simplified'] },
+    { code: 'zh-TW', keywords: ['繁', 'traditional'] },
+    { code: 'en', keywords: ['english', '英'] },
+    { code: 'ja', keywords: ['japan', '日本', '日文'] },
+    { code: 'ko', keywords: ['korean', '韩', '한국'] },
+    { code: 'es', keywords: ['span', 'español', '西班'] },
+    { code: 'fr', keywords: ['french', 'français', '法'] },
+    { code: 'de', keywords: ['german', 'deutsch', '德'] },
+    { code: 'ru', keywords: ['russian', 'русский', '俄'] },
+    { code: 'pt', keywords: ['portug', '葡萄牙'] },
+    { code: 'it', keywords: ['italian', '意大'] },
+    { code: 'vi', keywords: ['vietnam', '越'] },
+    { code: 'id', keywords: ['indonesia', '印尼'] },
+    { code: 'th', keywords: ['thai', '泰'] },
+    { code: 'ar', keywords: ['arab', '阿拉'] },
+  ];
 
-    // 3. Fallback for unlisted custom language
-    const trimmed = rawStr.trim();
-    if (!trimmed) {
-      return Language.DEFAULT;
+  private static findHeuristicMatch(clean: string): LanguageInfo | null {
+    for (const item of Language.HEURISTIC_PATTERNS) {
+      if (item.keywords.some((kw) => clean.includes(kw))) {
+        return Language.LANGUAGES.find((l) => l.code === item.code) || null;
+      }
     }
+    return null;
+  }
+
+  private static createCustomLanguage(trimmed: string): LanguageInfo {
+    const iso = trimmed.slice(0, 2).toLowerCase();
     return {
       code: trimmed,
+      iso639_1: iso,
+      bcp47Codes: [trimmed],
       name: trimmed,
       nativeName: trimmed,
       label: trimmed,
