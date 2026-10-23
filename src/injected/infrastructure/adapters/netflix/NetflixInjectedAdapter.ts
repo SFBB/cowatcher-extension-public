@@ -277,13 +277,22 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
         await this.handleQueryNativeTrack(data.movieId, data.targetLangCode);
       }
 
+      if ((data as any).type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
+        const requestedMid = (data as any).movieId ? String((data as any).movieId) : null;
+        const currentActiveMid = this.playerBridge.getCurrentMovieId();
+        const targetEpId =
+          currentActiveMid ||
+          requestedMid ||
+          this.extractEpisodeId(window.location.href);
+        if (targetEpId) {
+          await this.handleEpisodeSelected(targetEpId);
+        }
+      }
+
       if ((data as any).type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
         const queryId = (data as any).queryId;
         const requestedMid = (data as any).movieId ? String((data as any).movieId) : null;
-        const targetMid =
-          requestedMid ||
-          this.playerBridge.getCurrentMovieId() ||
-          this.extractEpisodeId(window.location.href);
+        const currentActiveMid = this.playerBridge.getCurrentMovieId();
 
         const respond = (status: 'resolved' | 'null' | 'undefined', metadata?: VideoMetadata) => {
           window.postMessage(
@@ -296,6 +305,22 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
             '*'
           );
         };
+
+        // If a specific movie was requested, but the player is actively running a different movie,
+        // we are in a transitional phase (continuous autoplay or mid-navigation). Respond undefined to trigger retry.
+        if (requestedMid && currentActiveMid && requestedMid !== currentActiveMid) {
+          this.logger.warn(
+            'Netflix',
+            `QUERY_METADATA mismatch: requested=${requestedMid}, activePlayer=${currentActiveMid}. Retrying.`
+          );
+          respond('undefined');
+          return;
+        }
+
+        const targetMid =
+          currentActiveMid ||
+          requestedMid ||
+          this.extractEpisodeId(window.location.href);
 
         if (!targetMid) {
           respond('undefined');

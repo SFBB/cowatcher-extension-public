@@ -295,7 +295,7 @@ export class NetflixContentAdapter implements IStreamingAdapter {
     window.postMessage(
       {
         type: NCW_MESSAGE_TYPES.REQUEST_METADATA,
-        movieId: movieId || this.extractVideoId() || undefined,
+        movieId: movieId ? String(movieId) : undefined,
       },
       '*'
     );
@@ -303,7 +303,7 @@ export class NetflixContentAdapter implements IStreamingAdapter {
 
   async queryMetadata(movieId?: string): Promise<VideoMetadata | null | undefined> {
     const queryId = `qm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const effectiveMid = movieId || this.extractVideoId() || undefined;
+    const effectiveMid = movieId ? String(movieId) : undefined;
 
     return new Promise<VideoMetadata | null | undefined>((resolve) => {
       let resolved = false;

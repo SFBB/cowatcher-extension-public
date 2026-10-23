@@ -83,6 +83,14 @@ export class NetflixMetadataManager {
       targetEpisodeId,
     );
 
+    const isSeries = Array.isArray(video.seasons) && video.seasons.length > 0;
+    if (isSeries && !matchedEpisode && showId !== targetEpisodeId) {
+      return null;
+    }
+    if (!isSeries && showId !== targetEpisodeId) {
+      return null;
+    }
+
     return {
       type: NCW_MESSAGE_TYPES.METADATA_LOADED,
       showId,

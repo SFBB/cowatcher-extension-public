@@ -75,22 +75,30 @@ export class NetflixPlayerBridge {
     );
     if (sessions.length === 0) return null;
 
-    const targetMovieId = expectedMovieId || this.extractUrlMovieId();
-    if (targetMovieId) {
+    if (expectedMovieId) {
       for (const sid of sessions) {
         const p = vp.getVideoPlayerBySessionId(sid);
-        if (p && String(p.getMovieId()) === targetMovieId) {
+        if (p && String(p.getMovieId()) === expectedMovieId) {
           return p;
         }
       }
       return null;
     }
 
-    return vp.getVideoPlayerBySessionId(sessions[0]);
+    // When expectedMovieId is not provided, locate the actively playing session,
+    // or fallback to the latest session (chronologically newest).
+    for (let i = sessions.length - 1; i >= 0; i--) {
+      const p = vp.getVideoPlayerBySessionId(sessions[i]);
+      if (p && (!p.isPaused() || p.isPlaying?.())) {
+        return p;
+      }
+    }
+
+    return vp.getVideoPlayerBySessionId(sessions[sessions.length - 1]);
   }
 
   isPlayerReadyForMovie(expectedMovieId?: string): boolean {
-    const targetMovieId = expectedMovieId || this.extractUrlMovieId();
+    const targetMovieId = expectedMovieId || this.getCurrentMovieId();
     if (!targetMovieId) return false;
     const player = this.getActivePlayer(targetMovieId);
     if (!player || String(player.getMovieId()) !== targetMovieId) return false;
