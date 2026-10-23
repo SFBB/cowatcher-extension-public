@@ -20,6 +20,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
   private readonly metadataManager: NetflixMetadataManager;
   private readonly trackRegistry: NetflixTrackRegistry;
 
+  private currentEpisodeId: string | null = null;
   private lastReportedUrl = window.location.href;
   private lastEmittedSignature = '';
   private unhookNetwork?: () => void;
@@ -53,6 +54,8 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
 
     const initialEpId = this.extractEpisodeId(window.location.href);
     if (initialEpId) {
+      this.currentEpisodeId = initialEpId;
+      this.playerBridge.setExpectedMovieId(initialEpId);
       this.handleEpisodeSelected(initialEpId);
     }
   }
@@ -77,6 +80,8 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
 
         const currentEpId = this.extractEpisodeId(current);
         if (currentEpId) {
+          this.currentEpisodeId = currentEpId;
+          this.playerBridge.setExpectedMovieId(currentEpId);
           this.handleEpisodeSelected(currentEpId);
         }
       }
@@ -126,7 +131,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     const currentEpisodeId = this.playerBridge.getCurrentMovieId();
     if (known.episodeId !== currentEpisodeId) return;
 
-    const activeTrack = this.playerBridge.getActiveTextTrack();
+    const activeTrack = this.playerBridge.getActiveTextTrack(currentEpisodeId);
     if (!activeTrack || activeTrack.isNoneTrack || !activeTrack.bcp47) return;
 
     if (activeTrack.bcp47.toLowerCase() === known.lang) {
@@ -166,6 +171,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     this.unhookMetadata = NetworkHook.onMetadataPayload((_url, data) => {
       this.metadataManager.handleMetadataApiResponse(data);
       const currentEpId =
+        this.currentEpisodeId ||
         this.playerBridge.getCurrentMovieId() ||
         this.extractEpisodeId(window.location.href);
       if (currentEpId) {
@@ -196,6 +202,8 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     url: string,
   ): Promise<void> => {
     this.lastEmittedSignature = '';
+    this.currentEpisodeId = movieId;
+    this.playerBridge.setExpectedMovieId(movieId);
     window.postMessage(
       { type: NCW_MESSAGE_TYPES.EPISODE_CHANGED, movieId, sessionId, url },
       '*',
@@ -211,7 +219,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     showId: string,
     movieId: string,
   ): Promise<void> {
-    const activeTrack = this.playerBridge.getActiveTextTrack();
+    const activeTrack = this.playerBridge.getActiveTextTrack(movieId);
     if (!activeTrack || activeTrack.isNoneTrack || !activeTrack.bcp47) return;
 
     const track = await this.trackRegistry.getTrack(
@@ -229,7 +237,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     track: NetflixTimedTextTrack,
     isOff: boolean,
   ): Promise<void> => {
-    const currentEpId = this.playerBridge.getCurrentMovieId();
+    const currentEpId = this.currentEpisodeId || this.playerBridge.getCurrentMovieId();
     if (!currentEpId) return;
 
     if (isOff || !track.bcp47) {
@@ -279,10 +287,10 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
 
       if ((data as any).type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
         const requestedMid = (data as any).movieId ? String((data as any).movieId) : null;
-        const currentActiveMid = this.playerBridge.getCurrentMovieId();
         const targetEpId =
-          currentActiveMid ||
           requestedMid ||
+          this.currentEpisodeId ||
+          this.playerBridge.getCurrentMovieId() ||
           this.extractEpisodeId(window.location.href);
         if (targetEpId) {
           await this.handleEpisodeSelected(targetEpId);
@@ -292,7 +300,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
       if ((data as any).type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
         const queryId = (data as any).queryId;
         const requestedMid = (data as any).movieId ? String((data as any).movieId) : null;
-        const currentActiveMid = this.playerBridge.getCurrentMovieId();
+        const expectedMid = requestedMid || this.currentEpisodeId;
 
         const respond = (status: 'resolved' | 'null' | 'undefined', metadata?: VideoMetadata) => {
           window.postMessage(
@@ -306,27 +314,28 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
           );
         };
 
-        // If a specific movie was requested, but the player is actively running a different movie,
-        // we are in a transitional phase (continuous autoplay or mid-navigation). Respond undefined to trigger retry.
-        if (requestedMid && currentActiveMid && requestedMid !== currentActiveMid) {
+        // Strictly validate that the player for the expected movie ID is loaded
+        const player = this.playerBridge.getActivePlayer(expectedMid || undefined);
+        if (!player) {
           this.logger.warn(
             'Netflix',
-            `QUERY_METADATA mismatch: requested=${requestedMid}, activePlayer=${currentActiveMid}. Retrying.`
+            `QUERY_METADATA player not loaded yet for expected movie: ${expectedMid}. Responding undefined.`
           );
           respond('undefined');
           return;
         }
 
-        const targetMid =
-          currentActiveMid ||
-          requestedMid ||
-          this.extractEpisodeId(window.location.href);
-
-        if (!targetMid) {
+        const playerMovieId = String(player.getMovieId());
+        if (expectedMid && playerMovieId !== expectedMid) {
+          this.logger.warn(
+            'Netflix',
+            `QUERY_METADATA mismatch: expected=${expectedMid}, player=${playerMovieId}. Responding undefined.`
+          );
           respond('undefined');
           return;
         }
 
+        const targetMid = playerMovieId;
         const payload = this.metadataManager.buildMetadataPayload(targetMid);
         if (payload) {
           const meta: VideoMetadata = {
@@ -361,9 +370,10 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
   }
 
   private async handleRetryRequest(): Promise<void> {
-    const currentEpId = this.playerBridge.getCurrentMovieId();
-    const activeTrack = this.playerBridge.getActiveTextTrack();
-    if (!currentEpId || !activeTrack || activeTrack.isNoneTrack || !activeTrack.bcp47) return;
+    const currentEpId = this.currentEpisodeId || this.playerBridge.getCurrentMovieId();
+    if (!currentEpId) return;
+    const activeTrack = this.playerBridge.getActiveTextTrack(currentEpId);
+    if (!activeTrack || activeTrack.isNoneTrack || !activeTrack.bcp47) return;
 
     this.lastEmittedSignature = '';
     const showId = this.metadataManager.getShowId(currentEpId);

@@ -3,7 +3,7 @@ export interface SubtitleCueData {
   start: number; // in seconds
   end: number; // in seconds
   text: string;
-  position?: 'bottom' | 'top' | 'left-vertical' | 'right-vertical';
+  position?: "bottom" | "top" | "left-vertical" | "right-vertical";
 }
 
 export interface VideoMetadata {
@@ -19,8 +19,8 @@ export interface VideoMetadata {
   episodeNum?: number;
 }
 
-import { StreamingPlatformId } from '@shared/domain/constants/StreamingPlatforms';
-import { IAdDetector, AdDetectorOptions } from './IAdDetector';
+import { StreamingPlatformId } from "@shared/domain/constants/StreamingPlatforms";
+import { IAdDetector, AdDetectorOptions } from "./IAdDetector";
 
 export type { IAdDetector, AdDetectorOptions };
 
@@ -152,15 +152,13 @@ export interface IStreamingAdapter {
    * Listen for player time synchronization offset events
    */
   onTimeSync(
-    callback: (offsets: { cadmiumOffset?: number; adOffset?: number }) => void
+    callback: (offsets: { cadmiumOffset?: number; adOffset?: number }) => void,
   ): () => void;
 
   /**
    * Listen for metadata loaded events (show synopsis, show title, episode synopsis)
    */
-  onMetadataLoaded?(
-    callback: (metadata: VideoMetadata) => void
-  ): () => void;
+  onMetadataLoaded?(callback: (metadata: VideoMetadata) => void): () => void;
 
   /**
    * Listen for preloaded / staged subtitle tracks for upcoming episodes
@@ -171,14 +169,19 @@ export interface IStreamingAdapter {
       rawText: string;
       bcp47?: string | null;
       timestamp?: number;
-    }) => void
+    }) => void,
   ): () => void;
 
   /**
    * Listen for raw subtitle track data intercepted from platform
    */
   onSubtitleData(
-    callback: (data: { cues: SubtitleCueData[]; language: string; movieId?: string; isAsr?: boolean }) => void
+    callback: (data: {
+      cues: SubtitleCueData[];
+      language: string;
+      movieId?: string;
+      isAsr?: boolean;
+    }) => void,
   ): () => void;
 
   /**
@@ -190,6 +193,15 @@ export interface IStreamingAdapter {
    * Listen for subtitle track being turned OFF / disabled on the streaming platform
    */
   onSubtitleOff?(callback: () => void): () => void;
+
+  /**
+   * This is used to fetch subtitle.
+   * null means confirmed no subttile to fetch.
+   * undefined means we don't know if there is a subtitle to fetch.
+   */
+  fetchSubttile(
+    movieId: string,
+  ): Promise<{ rawText: string; bcp: string } | null | undefined>;
 
   /**
    * Request platform API to retry or fetch active subtitle track if not captured automatically
@@ -219,16 +231,14 @@ export interface IStreamingAdapter {
    * Query and fetch native official subtitle track matching target language if available
    */
   fetchNativeTargetTrack?(
-    targetLang: import('@shared/domain/value-objects/Language').LanguageInfo,
-    movieId?: string
+    targetLang: import("@shared/domain/value-objects/Language").LanguageInfo,
+    movieId?: string,
   ): Promise<SubtitleCueData[] | null | undefined>;
 
   /**
    * Create platform-specific ad detector
    */
-  createAdDetector?(
-    options?: AdDetectorOptions
-  ): IAdDetector;
+  createAdDetector?(options?: AdDetectorOptions): IAdDetector;
 
   /**
    * Cleanup observers and event hooks

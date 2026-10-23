@@ -24,6 +24,7 @@ export interface NetflixPlayerBridgeHandlers {
 export class NetflixPlayerBridge {
   private readonly logger = new Logger('NetflixPlayerBridge');
 
+  private expectedMovieId: string | null = null;
   private lastObservedMovieId: string | null = null;
   private lastObservedAdState = false;
   private lastObservedTrackId: string | null = null;
@@ -31,6 +32,18 @@ export class NetflixPlayerBridge {
   private checkIntervalTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly handlers: NetflixPlayerBridgeHandlers) {}
+
+  setExpectedMovieId(movieId: string | null): void {
+    const idStr = movieId ? String(movieId) : null;
+    if (this.expectedMovieId !== idStr) {
+      this.logger.info('Netflix', `Set expectedMovieId to: ${idStr}`);
+      this.expectedMovieId = idStr;
+    }
+  }
+
+  getExpectedMovieId(): string | null {
+    return this.expectedMovieId;
+  }
 
   start(): void {
     this.stop();
@@ -75,30 +88,25 @@ export class NetflixPlayerBridge {
     );
     if (sessions.length === 0) return null;
 
-    if (expectedMovieId) {
+    const targetMovieId = expectedMovieId || this.expectedMovieId;
+    if (targetMovieId) {
       for (const sid of sessions) {
         const p = vp.getVideoPlayerBySessionId(sid);
-        if (p && String(p.getMovieId()) === expectedMovieId) {
+        if (p && String(p.getMovieId()) === targetMovieId) {
           return p;
         }
       }
+      // Target movie is expected, but no player session matches it yet.
+      // Strictly return null; never return an unvalidated session from another episode!
       return null;
     }
 
-    // When expectedMovieId is not provided, locate the actively playing session,
-    // or fallback to the latest session (chronologically newest).
-    for (let i = sessions.length - 1; i >= 0; i--) {
-      const p = vp.getVideoPlayerBySessionId(sessions[i]);
-      if (p && (!p.isPaused() || p.isPlaying?.())) {
-        return p;
-      }
-    }
-
-    return vp.getVideoPlayerBySessionId(sessions[sessions.length - 1]);
+    // Only if expectedMovieId is completely unknown (cold boot):
+    return this.getRawObservedPlayer();
   }
 
   isPlayerReadyForMovie(expectedMovieId?: string): boolean {
-    const targetMovieId = expectedMovieId || this.getCurrentMovieId();
+    const targetMovieId = expectedMovieId || this.expectedMovieId;
     if (!targetMovieId) return false;
     const player = this.getActivePlayer(targetMovieId);
     if (!player || String(player.getMovieId()) !== targetMovieId) return false;
@@ -115,23 +123,23 @@ export class NetflixPlayerBridge {
     return String(player.getMovieId());
   }
 
-  getSegmentTime(): number {
-    const player = this.getActivePlayer();
+  getSegmentTime(expectedMovieId?: string): number {
+    const player = this.getActivePlayer(expectedMovieId);
     return player ? player.getSegmentTime() : 0;
   }
 
-  isPaused(): boolean {
-    const player = this.getActivePlayer();
+  isPaused(expectedMovieId?: string): boolean {
+    const player = this.getActivePlayer(expectedMovieId);
     return player ? player.isPaused() : false;
   }
 
-  isAd(): boolean {
-    const player = this.getActivePlayer();
+  isAd(expectedMovieId?: string): boolean {
+    const player = this.getActivePlayer(expectedMovieId);
     return player ? player.isAd() : false;
   }
 
-  getPlaybackRate(): number {
-    const player = this.getActivePlayer();
+  getPlaybackRate(expectedMovieId?: string): number {
+    const player = this.getActivePlayer(expectedMovieId);
     return player ? player.getPlaybackRate() : 1;
   }
 
@@ -170,6 +178,30 @@ export class NetflixPlayerBridge {
     return player.getInternalPlayer();
   }
 
+  /**
+   * Raw session scanner for internal observation loop.
+   * Finds the currently playing or newest session in Cadmium API without expectedMovieId constraints.
+   */
+  private getRawObservedPlayer(): NetflixPlayer | null {
+    const vp = window.netflix?.appContext?.state?.playerApp?.getAPI()?.videoPlayer;
+    if (!vp) return null;
+
+    const sessions = vp.getAllPlayerSessionIds().filter(
+      (s: string) => !s.includes('billboard') && !s.includes('preview-modal') && !s.includes('merch'),
+    );
+    if (sessions.length === 0) return null;
+
+    // Prefer actively playing session
+    for (let i = sessions.length - 1; i >= 0; i--) {
+      const p = vp.getVideoPlayerBySessionId(sessions[i]);
+      if (p && (!p.isPaused() || p.isPlaying?.())) {
+        return p;
+      }
+    }
+
+    return vp.getVideoPlayerBySessionId(sessions[sessions.length - 1]);
+  }
+
   private onVideoStateChange = (): void => {
     this.checkPlayerState();
   };
@@ -183,15 +215,23 @@ export class NetflixPlayerBridge {
   };
 
   private checkPlayerState(): void {
-    const player = this.getActivePlayer();
-    if (!player) return;
+    const observedPlayer = this.getRawObservedPlayer();
+    if (!observedPlayer) return;
 
-    this.checkAdState(player);
-    if (player.isAd()) return;
+    this.checkAdState(observedPlayer);
+    if (observedPlayer.isAd()) return;
 
-    this.checkEpisodeChange(player);
-    this.checkTrackChange();
-    this.dispatchTimeSync(player);
+    // Detect player-driven episode changes (e.g. continuous autoplay)
+    this.checkEpisodeChange(observedPlayer);
+
+    // If an expected episode is configured, ensure subsequent checks (tracks, time) only run
+    // when the observed player is verified to match the expected episode
+    if (this.expectedMovieId && String(observedPlayer.getMovieId()) !== this.expectedMovieId) {
+      return;
+    }
+
+    this.checkTrackChange(observedPlayer);
+    this.dispatchTimeSync(observedPlayer);
   }
 
   private checkAdState(player: NetflixPlayer): void {
@@ -207,6 +247,7 @@ export class NetflixPlayerBridge {
     const movieId = String(player.getMovieId());
     if (movieId !== this.lastObservedMovieId) {
       this.lastObservedMovieId = movieId;
+      this.expectedMovieId = movieId;
       this.logger.info('Netflix', `Episode changed to: ${movieId}`);
       this.handlers.onEpisodeChange?.(
         movieId,
@@ -216,8 +257,10 @@ export class NetflixPlayerBridge {
     }
   }
 
-  private checkTrackChange(): void {
-    const track = this.getActiveTextTrack();
+  private checkTrackChange(player: NetflixPlayer): void {
+    const internalP = player.getInternalPlayer();
+    if (!internalP) return;
+    const track = internalP.getTextTrack();
     if (!track) return;
 
     const trackId = track.trackId;

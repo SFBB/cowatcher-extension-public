@@ -3,54 +3,57 @@
  * Bridges DOM, streaming adapters, ad detector, subtitle synchronization manager, and message services.
  */
 
-import { NCW_CONSTANTS, ExtensionSettings } from '@shared/utils/constants';
-import NCW_I18N from '@shared/utils/i18n';
-import { SubtitleOverlay } from './presentation/SubtitleOverlay';
-import { SubtitleManager, CueItem } from './application/subtitleManager';
-import { createSubtitleCue } from '@shared/domain/entities/Subtitle';
-import { NetflixAdDetector as AdDetector } from './infrastructure/adapters/netflix/NetflixAdDetector';
-import { StreamingAdapterRegistry } from './domain/adapters/StreamingAdapterRegistry';
-import { NetflixContentAdapter } from './infrastructure/adapters/netflix/NetflixContentAdapter';
-import { TVerContentAdapter } from './infrastructure/adapters/tver/TVerContentAdapter';
-import { YouTubeContentAdapter } from './infrastructure/adapters/youtube/YouTubeContentAdapter';
-import { ContentMessageService } from './application/services/ContentMessageService';
-import { SubtitleParser } from './application/utils/parser';
-import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
-import { BrowserPlatformFactory } from '@shared/infrastructure/platform/BrowserPlatformFactory';
-import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
-import { Logger } from '@shared/utils/logger';
-import { Language, LanguageInfo } from '@shared/domain/value-objects/Language';
-import { AiSubState } from '@shared/domain/entities/AiSubState';
+import { NCW_CONSTANTS, ExtensionSettings } from "@shared/utils/constants";
+import NCW_I18N from "@shared/utils/i18n";
+import { SubtitleOverlay } from "./presentation/SubtitleOverlay";
+import { SubtitleManager, CueItem } from "./application/subtitleManager";
+import { createSubtitleCue } from "@shared/domain/entities/Subtitle";
+import { NetflixAdDetector as AdDetector } from "./infrastructure/adapters/netflix/NetflixAdDetector";
+import { StreamingAdapterRegistry } from "./domain/adapters/StreamingAdapterRegistry";
+import { NetflixContentAdapter } from "./infrastructure/adapters/netflix/NetflixContentAdapter";
+import { TVerContentAdapter } from "./infrastructure/adapters/tver/TVerContentAdapter";
+import { YouTubeContentAdapter } from "./infrastructure/adapters/youtube/YouTubeContentAdapter";
+import { ContentMessageService } from "./application/services/ContentMessageService";
+import { SubtitleParser } from "./application/utils/parser";
+import { BrowserStorageFactory } from "@shared/infrastructure/storage/BrowserStorageFactory";
+import { BrowserPlatformFactory } from "@shared/infrastructure/platform/BrowserPlatformFactory";
+import { NCW_STORAGE_KEYS } from "@shared/domain/constants/StorageKeys";
+import { Logger } from "@shared/utils/logger";
+import { Language, LanguageInfo } from "@shared/domain/value-objects/Language";
+import { AiSubState } from "@shared/domain/entities/AiSubState";
 
-const logger: Logger = new Logger('content');
+const logger: Logger = new Logger("content");
 
 (function () {
-  'use strict';
+  "use strict";
 
-  logger.info('Content', 'Content script initialized.');
+  logger.info("Content", "Content script initialized.");
 
   // Fallback injection for browsers/environments where static manifest world: "MAIN" is not available
   function ensureInjectedScript(): void {
-    if (typeof document === 'undefined') return;
+    if (typeof document === "undefined") return;
     if (
       document.documentElement &&
-      document.documentElement.getAttribute('data-ncw-injected') === 'true'
+      document.documentElement.getAttribute("data-ncw-injected") === "true"
     ) {
       return;
     }
     try {
-      const scriptUrl = BrowserPlatformFactory.getPlatform().getURL('injected/injected.js');
+      const scriptUrl = BrowserPlatformFactory.getPlatform().getURL(
+        "injected/injected.js",
+      );
       if (!scriptUrl) return;
 
-      if (document.querySelector('script[data-ncw-injected-script="true"]')) return;
+      if (document.querySelector('script[data-ncw-injected-script="true"]'))
+        return;
 
-      const s = document.createElement('script');
+      const s = document.createElement("script");
       s.src = scriptUrl;
       s.async = false;
-      s.setAttribute('data-ncw-injected-script', 'true');
+      s.setAttribute("data-ncw-injected-script", "true");
       (document.head || document.documentElement).appendChild(s);
     } catch (e) {
-      logger.warn('Content', 'Fallback script injection error:', e);
+      logger.warn("Content", "Fallback script injection error:", e);
     }
   }
 
@@ -61,7 +64,9 @@ const logger: Logger = new Logger('content');
   StreamingAdapterRegistry.register(new TVerContentAdapter());
   StreamingAdapterRegistry.register(new YouTubeContentAdapter());
 
-  const adapter = StreamingAdapterRegistry.getMatchingAdapter() || new NetflixContentAdapter();
+  const adapter =
+    StreamingAdapterRegistry.getMatchingAdapter() ||
+    new NetflixContentAdapter();
   const messageService = ContentMessageService.getInstance();
   const storage = BrowserStorageFactory.getStorage();
   const platform = BrowserPlatformFactory.getPlatform();
@@ -85,7 +90,12 @@ const logger: Logger = new Logger('content');
     ? adapter.createAdDetector(adDetectorOptions)
     : new AdDetector(adDetectorOptions);
 
-  const subtitleManager = new SubtitleManager(overlay, adDetector, settings, adapter);
+  const subtitleManager = new SubtitleManager(
+    overlay,
+    adDetector,
+    settings,
+    adapter,
+  );
 
   let currentVideoId: string | null = adapter.getVideoInfo()?.videoId || null;
   let currentUrl = window.location.href;
@@ -100,7 +110,7 @@ const logger: Logger = new Logger('content');
     bcp47: string | null;
     timestamp: number;
   } | null = null;
-  let currentSubtitleLanguage = 'auto';
+  let currentSubtitleLanguage = "auto";
   let lastParsedCues: CueItem[] | null = null;
 
   function isExtensionValid(): boolean {
@@ -111,7 +121,9 @@ const logger: Logger = new Logger('content');
     if (!isExtensionValid()) return;
     const showId =
       subtitleManager?.currentShowId ||
-      (typeof document !== 'undefined' ? document.documentElement?.dataset?.ncwShowId : null) ||
+      (typeof document !== "undefined"
+        ? document.documentElement?.dataset?.ncwShowId
+        : null) ||
       null;
     const videoId = currentVideoId || adapter.getVideoInfo()?.videoId || null;
     messageService
@@ -126,41 +138,48 @@ const logger: Logger = new Logger('content');
   function notifyVocabExtractor(
     cuesToFeed: CueItem[],
     movieIdToFeed?: string | null,
-    sourceLangToFeed?: string
+    sourceLangToFeed?: string,
   ): void {
     if (!isExtensionValid()) return;
     if (!settings.vocabExtractorEnabled) return;
     if (!cuesToFeed || cuesToFeed.length === 0) return;
     const configuredSrcLang =
-      settings.vocabSourceLanguage && settings.vocabSourceLanguage !== 'auto'
+      settings.vocabSourceLanguage && settings.vocabSourceLanguage !== "auto"
         ? settings.vocabSourceLanguage
         : null;
-    const rawLang = configuredSrcLang || sourceLangToFeed || currentSubtitleLanguage || 'auto';
-    const effectiveMovieId = movieIdToFeed || currentVideoId || '';
+    const rawLang =
+      configuredSrcLang ||
+      sourceLangToFeed ||
+      currentSubtitleLanguage ||
+      "auto";
+    const effectiveMovieId = movieIdToFeed || currentVideoId || "";
 
-    const effectiveLang: LanguageInfo | 'auto' =
-      rawLang === 'auto' ? 'auto' : Language.resolve(rawLang);
+    const effectiveLang: LanguageInfo | "auto" =
+      rawLang === "auto" ? "auto" : Language.resolve(rawLang);
+
+    const showTitle = adapter.getVideoInfo().mainTitle;
 
     messageService
       .feedVocabCues({
         movieId: effectiveMovieId,
         cues: cuesToFeed,
         sourceLanguage: effectiveLang,
-        trackHash: subtitleManager?.currentTrackHash || '',
-        showTitle: document.title || '',
+        trackHash: subtitleManager?.currentTrackHash || "",
+        showTitle: showTitle,
       })
       .catch(() => {});
   }
 
+  // Ths function only triggers when adapter.getVideoInfo.videoId reflects the new movie id.
   function handleEpisodeChange(info: { movieId: string; url?: string }): void {
-    const newVideoId = String(info.movieId || '');
+    const newVideoId = String(info.movieId || "");
     if (!newVideoId || newVideoId === currentVideoId) {
       return;
     }
 
     logger.info(
-      'Content',
-      `🔄 Transitioning to episode: ${currentVideoId || 'initial'} -> ${newVideoId}`
+      "Content",
+      `🔄 Transitioning to episode: ${currentVideoId || "initial"} -> ${newVideoId}`,
     );
     currentVideoId = newVideoId;
     currentUrl = info.url || window.location.href;
@@ -183,8 +202,8 @@ const logger: Logger = new Logger('content');
       const item = pendingSubtitlesByMovieId.get(currentVideoId);
       pendingSubtitlesByMovieId.delete(currentVideoId);
       try {
-        const stagedRawText = typeof item === 'string' ? item : item?.rawText;
-        const stagedBcp = typeof item === 'object' ? item?.bcp47 : null;
+        const stagedRawText = typeof item === "string" ? item : item?.rawText;
+        const stagedBcp = typeof item === "object" ? item?.bcp47 : null;
         if (stagedRawText) {
           const rawCues = adapter.parseSubtitle(stagedRawText);
           if (rawCues && rawCues.length > 0) {
@@ -195,27 +214,36 @@ const logger: Logger = new Logger('content');
                 endTime: c.end,
                 rawText: c.text,
                 position: c.position,
-              })
+              }),
             );
             lastParsedCues = cues;
             currentSubtitleLanguage =
-              stagedBcp || SubtitleParser.detectLanguage(stagedRawText, rawCues);
+              stagedBcp ||
+              SubtitleParser.detectLanguage(stagedRawText, rawCues);
             logger.info(
-              'Content',
-              `⚡ Instantly activated staged preloaded subtitle for ${currentVideoId} (${cues.length} cues, lang: ${currentSubtitleLanguage}).`
+              "Content",
+              `⚡ Instantly activated staged preloaded subtitle for ${currentVideoId} (${cues.length} cues, lang: ${currentSubtitleLanguage}).`,
             );
-            subtitleManager.loadCues(cues, currentVideoId, false, currentSubtitleLanguage);
+            subtitleManager.loadCues(
+              cues,
+              currentVideoId,
+              false,
+              currentSubtitleLanguage,
+            );
             notifyVocabExtractor(cues, currentVideoId, currentSubtitleLanguage);
             return;
           }
         }
       } catch (e) {
-        logger.warn('Content', 'Failed parsing staged subtitle by movieId:', e);
+        logger.warn("Content", "Failed parsing staged subtitle by movieId:", e);
       }
     }
 
     // 2. Fallback: check if we have a staged unknown preloaded subtitle captured recently (< 5 mins)
-    if (stagedNextEpisodeSubtitle && Date.now() - stagedNextEpisodeSubtitle.timestamp < 300000) {
+    if (
+      stagedNextEpisodeSubtitle &&
+      Date.now() - stagedNextEpisodeSubtitle.timestamp < 300000
+    ) {
       const staged = stagedNextEpisodeSubtitle;
       stagedNextEpisodeSubtitle = null;
       try {
@@ -225,21 +253,26 @@ const logger: Logger = new Logger('content');
           currentSubtitleLanguage =
             staged.bcp47 || SubtitleParser.detectLanguage(staged.rawText, cues);
           logger.info(
-            'Content',
-            `⚡ Instantly activated staged unknown preloaded subtitle for ${currentVideoId} (${cues.length} cues, lang: ${currentSubtitleLanguage}).`
+            "Content",
+            `⚡ Instantly activated staged unknown preloaded subtitle for ${currentVideoId} (${cues.length} cues, lang: ${currentSubtitleLanguage}).`,
           );
-          subtitleManager.loadCues(cues, currentVideoId, false, currentSubtitleLanguage);
+          subtitleManager.loadCues(
+            cues,
+            currentVideoId,
+            false,
+            currentSubtitleLanguage,
+          );
           notifyVocabExtractor(cues, currentVideoId, currentSubtitleLanguage);
           return;
         }
       } catch (e) {
-        logger.warn('Content', 'Failed parsing staged unknown subtitle:', e);
+        logger.warn("Content", "Failed parsing staged unknown subtitle:", e);
       }
     }
 
     logger.info(
-      'Content',
-      `No staged preloaded subtitle found for ${currentVideoId}. Requesting from Player API...`
+      "Content",
+      `No staged preloaded subtitle found for ${currentVideoId}. Requesting from Player API...`,
     );
     setTimeout(() => {
       adapter.requestSubtitleRetry();
@@ -249,7 +282,7 @@ const logger: Logger = new Logger('content');
   function handleUrlChange(newUrl: string): void {
     if (!newUrl || newUrl === currentUrl) return;
     currentUrl = newUrl;
-    logger.info('Content', `Page route changed: ${newUrl}`);
+    logger.info("Content", `Page route changed: ${newUrl}`);
 
     const newVid = adapter.getVideoInfo()?.videoId || null;
     if (!newVid) {
@@ -257,7 +290,7 @@ const logger: Logger = new Logger('content');
       subtitleManager.clearCues();
       overlay.hide(true);
       sendHeartbeat();
-    } else if (newVid !== currentVideoId) {
+    } else if (newVid && newVid !== currentVideoId) {
       handleEpisodeChange({ movieId: newVid, url: newUrl });
     }
 
@@ -268,36 +301,36 @@ const logger: Logger = new Logger('content');
 
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   function showToast(message: string): void {
-    let toast = document.getElementById('ncw-toast');
+    let toast = document.getElementById("ncw-toast");
     const playerTarget = adapter.getPlayerContainer() || document.body;
 
     if (!playerTarget) return;
 
     if (!toast) {
-      toast = document.createElement('div');
-      toast.id = 'ncw-toast';
-      toast.className = 'ncw-toast';
+      toast = document.createElement("div");
+      toast.id = "ncw-toast";
+      toast.className = "ncw-toast";
       playerTarget.appendChild(toast);
     } else if (toast.parentElement !== playerTarget) {
       playerTarget.appendChild(toast);
     }
 
     toast.textContent = message;
-    toast.classList.add('ncw-toast-show');
+    toast.classList.add("ncw-toast-show");
     if (toastTimer) {
       clearTimeout(toastTimer);
     }
     toastTimer = setTimeout(() => {
-      toast?.classList.remove('ncw-toast-show');
+      toast?.classList.remove("ncw-toast-show");
     }, 1800);
   }
 
   function toggleEnabledState(showNotification = true): void {
     if (!isExtensionValid()) {
       showToast(
-        settings.uiLanguage === 'zh'
-          ? '⚠️ 插件已在后台更新，请刷新网页 (F5)！'
-          : '⚠️ Extension updated. Please refresh page (F5)!'
+        settings.uiLanguage === "zh"
+          ? "⚠️ 插件已在后台更新，请刷新网页 (F5)！"
+          : "⚠️ Extension updated. Please refresh page (F5)!",
       );
       return;
     }
@@ -309,14 +342,20 @@ const logger: Logger = new Logger('content');
       settings.platformEnabled[adapter.platformName] = nextState;
     }
     logger.info(
-      'Content',
-      `Subtitle translation toggled for ${adapter.platformName}: ${nextState ? 'ON' : 'OFF'}`
+      "Content",
+      `Subtitle translation toggled for ${adapter.platformName}: ${nextState ? "ON" : "OFF"}`,
     );
 
     // Update authoritative state in Background via ContentMessageService
-    messageService.setAiSubEnabled(nextState, adapter.platformName).catch((err) => {
-      logger.warn('Content', 'Failed to set AI Sub state in background:', err);
-    });
+    messageService
+      .setAiSubEnabled(nextState, adapter.platformName)
+      .catch((err) => {
+        logger.warn(
+          "Content",
+          "Failed to set AI Sub state in background:",
+          err,
+        );
+      });
 
     // Persist via storage
     storage
@@ -336,7 +375,7 @@ const logger: Logger = new Logger('content');
         storage.set({ [NCW_STORAGE_KEYS.SETTINGS]: updated });
       })
       .catch((e) => {
-        logger.warn('Content', 'Storage access failed:', e);
+        logger.warn("Content", "Storage access failed:", e);
       });
 
     if (nextState) {
@@ -348,10 +387,15 @@ const logger: Logger = new Logger('content');
         lastParsedCues.length > 0
       ) {
         logger.info(
-          'Content',
-          'Restoring subtitle cues from content script cache upon enabling translation.'
+          "Content",
+          "Restoring subtitle cues from content script cache upon enabling translation.",
         );
-        subtitleManager.loadCues(lastParsedCues, currentVideoId, false, currentSubtitleLanguage);
+        subtitleManager.loadCues(
+          lastParsedCues,
+          currentVideoId,
+          false,
+          currentSubtitleLanguage,
+        );
       }
     }
 
@@ -361,18 +405,19 @@ const logger: Logger = new Logger('content');
 
     if (showNotification) {
       const msg = nextState
-        ? NCW_I18N.getText('toastEnabled', settings.uiLanguage)
-        : NCW_I18N.getText('toastDisabled', settings.uiLanguage);
+        ? NCW_I18N.getText("toastEnabled", settings.uiLanguage)
+        : NCW_I18N.getText("toastDisabled", settings.uiLanguage);
       showToast(msg);
     }
   }
 
   function applyNativeSubtitleVisibility(): void {
-    const shouldHide = settings.enabled !== false && settings.hideNativeSubtitles !== false;
+    const shouldHide =
+      settings.enabled !== false && settings.hideNativeSubtitles !== false;
     if (shouldHide) {
-      document.body.classList.add('ncw-hide-native-subs');
+      document.body.classList.add("ncw-hide-native-subs");
     } else {
-      document.body.classList.remove('ncw-hide-native-subs');
+      document.body.classList.remove("ncw-hide-native-subs");
     }
   }
 
@@ -382,11 +427,11 @@ const logger: Logger = new Logger('content');
   const BTN_FADE_TIMEOUT_MS = 2500;
 
   function showPlayerControlButton(): void {
-    const btn = document.getElementById('ncw-player-toggle-btn');
+    const btn = document.getElementById("ncw-player-toggle-btn");
     if (!btn) return;
 
-    if (btn.classList.contains('ncw-faded')) {
-      btn.classList.remove('ncw-faded');
+    if (btn.classList.contains("ncw-faded")) {
+      btn.classList.remove("ncw-faded");
     }
 
     scheduleButtonFade();
@@ -404,9 +449,9 @@ const logger: Logger = new Logger('content');
     btnFadeTimer = setTimeout(() => {
       btnFadeTimer = null;
       if (isBtnHovered) return;
-      const btn = document.getElementById('ncw-player-toggle-btn');
-      if (btn && !btn.classList.contains('ncw-faded')) {
-        btn.classList.add('ncw-faded');
+      const btn = document.getElementById("ncw-player-toggle-btn");
+      if (btn && !btn.classList.contains("ncw-faded")) {
+        btn.classList.add("ncw-faded");
       }
     }, BTN_FADE_TIMEOUT_MS);
   }
@@ -419,22 +464,34 @@ const logger: Logger = new Logger('content');
     showPlayerControlButton();
   }
 
-  window.addEventListener('mousemove', onPlayerUserActivity, { capture: true, passive: true });
-  window.addEventListener('pointermove', onPlayerUserActivity, { capture: true, passive: true });
-  window.addEventListener('keydown', onPlayerUserActivity, { capture: true, passive: true });
-  window.addEventListener('touchstart', onPlayerUserActivity, { capture: true, passive: true });
+  window.addEventListener("mousemove", onPlayerUserActivity, {
+    capture: true,
+    passive: true,
+  });
+  window.addEventListener("pointermove", onPlayerUserActivity, {
+    capture: true,
+    passive: true,
+  });
+  window.addEventListener("keydown", onPlayerUserActivity, {
+    capture: true,
+    passive: true,
+  });
+  window.addEventListener("touchstart", onPlayerUserActivity, {
+    capture: true,
+    passive: true,
+  });
   document.addEventListener(
-    'mouseleave',
+    "mouseleave",
     () => {
       isBtnHovered = false;
       scheduleButtonFade();
     },
-    { capture: true, passive: true }
+    { capture: true, passive: true },
   );
 
   function injectPlayerControlButton(): void {
     if (!adapter.isPlaybackPage()) {
-      const existing = document.getElementById('ncw-player-toggle-btn');
+      const existing = document.getElementById("ncw-player-toggle-btn");
       if (existing) existing.remove();
       if (btnFadeTimer) {
         clearTimeout(btnFadeTimer);
@@ -446,32 +503,35 @@ const logger: Logger = new Logger('content');
     const playerTarget = adapter.getPlayerContainer();
     if (!playerTarget || playerTarget === document.body) return;
 
-    let btn = document.getElementById('ncw-player-toggle-btn');
+    let btn = document.getElementById("ncw-player-toggle-btn");
     if (!btn) {
-      btn = document.createElement('div');
-      btn.id = 'ncw-player-toggle-btn';
-      btn.className = 'ncw-player-toggle-btn';
-      btn.setAttribute('role', 'button');
-      btn.setAttribute('tabindex', '0');
-      btn.setAttribute('title', NCW_I18N.getText('btnPlayerTitle', settings.uiLanguage));
+      btn = document.createElement("div");
+      btn.id = "ncw-player-toggle-btn";
+      btn.className = "ncw-player-toggle-btn";
+      btn.setAttribute("role", "button");
+      btn.setAttribute("tabindex", "0");
+      btn.setAttribute(
+        "title",
+        NCW_I18N.getText("btnPlayerTitle", settings.uiLanguage),
+      );
 
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
         toggleEnabledState();
         showPlayerControlButton();
       });
 
-      btn.addEventListener('mouseenter', () => {
+      btn.addEventListener("mouseenter", () => {
         isBtnHovered = true;
         if (btnFadeTimer) {
           clearTimeout(btnFadeTimer);
           btnFadeTimer = null;
         }
-        btn?.classList.remove('ncw-faded');
+        btn?.classList.remove("ncw-faded");
       });
 
-      btn.addEventListener('mouseleave', () => {
+      btn.addEventListener("mouseleave", () => {
         isBtnHovered = false;
         scheduleButtonFade();
       });
@@ -485,67 +545,71 @@ const logger: Logger = new Logger('content');
   }
 
   function updatePlayerControlButtonState(): void {
-    const btn = document.getElementById('ncw-player-toggle-btn');
+    const btn = document.getElementById("ncw-player-toggle-btn");
     if (!btn) return;
 
     const isEnabled = settings.enabled !== false;
-    const currentState = btn.getAttribute('data-enabled');
-    const currentLang = btn.getAttribute('data-lang');
-    const newState = isEnabled ? 'true' : 'false';
+    const currentState = btn.getAttribute("data-enabled");
+    const currentLang = btn.getAttribute("data-lang");
+    const newState = isEnabled ? "true" : "false";
 
-    btn.setAttribute('title', NCW_I18N.getText('btnPlayerTitle', settings.uiLanguage));
+    btn.setAttribute(
+      "title",
+      NCW_I18N.getText("btnPlayerTitle", settings.uiLanguage),
+    );
 
-    if (currentState === newState && currentLang === settings.uiLanguage) return;
-    btn.setAttribute('data-enabled', newState);
-    btn.setAttribute('data-lang', settings.uiLanguage || 'en');
+    if (currentState === newState && currentLang === settings.uiLanguage)
+      return;
+    btn.setAttribute("data-enabled", newState);
+    btn.setAttribute("data-lang", settings.uiLanguage || "en");
 
-    const onText = NCW_I18N.getText('btnPlayerOn', settings.uiLanguage);
-    const offText = NCW_I18N.getText('btnPlayerOff', settings.uiLanguage);
+    const onText = NCW_I18N.getText("btnPlayerOn", settings.uiLanguage);
+    const offText = NCW_I18N.getText("btnPlayerOff", settings.uiLanguage);
 
     if (isEnabled) {
       btn.innerHTML = `<span class="ncw-badge-icon">AI</span><span class="ncw-btn-text">${onText}</span>`;
-      btn.classList.add('ncw-active');
-      btn.classList.remove('ncw-inactive');
+      btn.classList.add("ncw-active");
+      btn.classList.remove("ncw-inactive");
     } else {
       btn.innerHTML = `<span class="ncw-badge-icon">AI</span><span class="ncw-btn-text">${offText}</span>`;
-      btn.classList.add('ncw-inactive');
-      btn.classList.remove('ncw-active');
+      btn.classList.add("ncw-inactive");
+      btn.classList.remove("ncw-active");
     }
 
     showPlayerControlButton();
   }
 
   // Keyboard shortcuts
-  window.addEventListener('keydown', (e) => {
+  window.addEventListener("keydown", (e) => {
     const activeEl = document.activeElement;
     if (
       activeEl &&
-      (activeEl.tagName === 'INPUT' ||
-        activeEl.tagName === 'TEXTAREA' ||
+      (activeEl.tagName === "INPUT" ||
+        activeEl.tagName === "TEXTAREA" ||
         (activeEl as HTMLElement).isContentEditable)
     ) {
       return;
     }
 
-    if (e.altKey && (e.key === 't' || e.key === 'T')) {
+    if (e.altKey && (e.key === "t" || e.key === "T")) {
       e.preventDefault();
       toggleEnabledState();
     } else if (
-      (e.key === '[' || (e.altKey && e.code === 'BracketLeft')) &&
+      (e.key === "[" || (e.altKey && e.code === "BracketLeft")) &&
       !e.ctrlKey &&
       !e.metaKey
     ) {
       e.preventDefault();
       adjustSubtitleOffset(0.5);
     } else if (
-      (e.key === ']' || (e.altKey && e.code === 'BracketRight')) &&
+      (e.key === "]" || (e.altKey && e.code === "BracketRight")) &&
       !e.ctrlKey &&
       !e.metaKey
     ) {
       e.preventDefault();
       adjustSubtitleOffset(-0.5);
     } else if (
-      (e.key === '\\' || (e.altKey && e.code === 'Backslash')) &&
+      (e.key === "\\" || (e.altKey && e.code === "Backslash")) &&
       !e.ctrlKey &&
       !e.metaKey
     ) {
@@ -557,13 +621,14 @@ const logger: Logger = new Logger('content');
   function adjustSubtitleOffset(delta: number): void {
     if (!isExtensionValid()) {
       showToast(
-        settings.uiLanguage === 'zh'
-          ? '⚠️ 插件已在后台更新，请刷新网页 (F5)！'
-          : '⚠️ Extension updated. Please refresh page (F5)!'
+        settings.uiLanguage === "zh"
+          ? "⚠️ 插件已在后台更新，请刷新网页 (F5)！"
+          : "⚠️ Extension updated. Please refresh page (F5)!",
       );
       return;
     }
-    const current = typeof settings.subSyncOffset === 'number' ? settings.subSyncOffset : 0;
+    const current =
+      typeof settings.subSyncOffset === "number" ? settings.subSyncOffset : 0;
     const updated = Math.round((current + delta) * 10) / 10;
     settings.subSyncOffset = updated;
     subtitleManager.updateSettings({ subSyncOffset: updated });
@@ -571,15 +636,18 @@ const logger: Logger = new Logger('content');
       .get<ExtensionSettings>([NCW_STORAGE_KEYS.SETTINGS])
       .then((res) => {
         if (!isExtensionValid()) return;
-        const s = { ...(res[NCW_STORAGE_KEYS.SETTINGS] || settings), subSyncOffset: updated };
+        const s = {
+          ...(res[NCW_STORAGE_KEYS.SETTINGS] || settings),
+          subSyncOffset: updated,
+        };
         storage.set({ [NCW_STORAGE_KEYS.SETTINGS]: s });
       })
       .catch((e) => {
-        logger.warn('Content', 'Storage sync failed:', e);
+        logger.warn("Content", "Storage sync failed:", e);
       });
 
-    const sign = updated > 0 ? '+' : '';
-    const msg = NCW_I18N.getText('toastSyncOffset', settings.uiLanguage, {
+    const sign = updated > 0 ? "+" : "";
+    const msg = NCW_I18N.getText("toastSyncOffset", settings.uiLanguage, {
       offset: `${sign}${updated.toFixed(1)}`,
     });
     showToast(msg);
@@ -588,9 +656,9 @@ const logger: Logger = new Logger('content');
   function resetSubtitleOffset(): void {
     if (!isExtensionValid()) {
       showToast(
-        settings.uiLanguage === 'zh'
-          ? '⚠️ 插件已在后台更新，请刷新网页 (F5)！'
-          : '⚠️ Extension updated. Please refresh page (F5)!'
+        settings.uiLanguage === "zh"
+          ? "⚠️ 插件已在后台更新，请刷新网页 (F5)！"
+          : "⚠️ Extension updated. Please refresh page (F5)!",
       );
       return;
     }
@@ -600,14 +668,19 @@ const logger: Logger = new Logger('content');
       .get<ExtensionSettings>([NCW_STORAGE_KEYS.SETTINGS])
       .then((res) => {
         if (!isExtensionValid()) return;
-        const s = { ...(res[NCW_STORAGE_KEYS.SETTINGS] || settings), subSyncOffset: 0 };
+        const s = {
+          ...(res[NCW_STORAGE_KEYS.SETTINGS] || settings),
+          subSyncOffset: 0,
+        };
         storage.set({ [NCW_STORAGE_KEYS.SETTINGS]: s });
       })
       .catch((e) => {
-        logger.warn('Content', 'Storage reset failed:', e);
+        logger.warn("Content", "Storage reset failed:", e);
       });
 
-    const msg = NCW_I18N.getText('toastSyncOffset', settings.uiLanguage, { offset: '0.0' });
+    const msg = NCW_I18N.getText("toastSyncOffset", settings.uiLanguage, {
+      offset: "0.0",
+    });
     showToast(msg);
   }
 
@@ -617,7 +690,7 @@ const logger: Logger = new Logger('content');
     .then((state: AiSubState | null) => {
       if (state) {
         const isPlatformOn =
-          typeof state.isPlatformEnabled === 'function'
+          typeof state.isPlatformEnabled === "function"
             ? state.isPlatformEnabled(adapter.platformName)
             : ((state.platformEnabled as Record<string, boolean> | undefined)?.[
                 adapter.platformName
@@ -631,14 +704,14 @@ const logger: Logger = new Logger('content');
       }
     })
     .catch((err) => {
-      logger.warn('Content', 'Could not fetch initial AiSubState:', err);
+      logger.warn("Content", "Could not fetch initial AiSubState:", err);
     });
 
   // 2. Push Listener: Listen to AI Sub state push events from Background service
   messageService.onAiSubStateChanged((state) => {
     if (state) {
       const isPlatformOn =
-        typeof state.isPlatformEnabled === 'function'
+        typeof state.isPlatformEnabled === "function"
           ? state.isPlatformEnabled(adapter.platformName)
           : ((state.platformEnabled as Record<string, boolean> | undefined)?.[
               adapter.platformName
@@ -647,8 +720,8 @@ const logger: Logger = new Logger('content');
             true);
       if (settings.enabled !== isPlatformOn) {
         logger.info(
-          'Content',
-          `Received AiSubState push for ${adapter.platformName}: enabled=${isPlatformOn}`
+          "Content",
+          `Received AiSubState push for ${adapter.platformName}: enabled=${isPlatformOn}`,
         );
         settings.enabled = isPlatformOn;
         subtitleManager.updateSettings({ enabled: isPlatformOn });
@@ -668,7 +741,7 @@ const logger: Logger = new Logger('content');
           settings = { ...settings, ...res[NCW_STORAGE_KEYS.SETTINGS] };
           if (
             settings.platformEnabled &&
-            typeof settings.platformEnabled[adapter.platformName] === 'boolean'
+            typeof settings.platformEnabled[adapter.platformName] === "boolean"
           ) {
             settings.enabled = settings.platformEnabled[adapter.platformName]!;
           }
@@ -699,8 +772,16 @@ const logger: Logger = new Logger('content');
       updatePlayerControlButtonState();
       applyNativeSubtitleVisibility();
 
-      if (!oldVocabEnabled && settings.vocabExtractorEnabled && lastParsedCues) {
-        notifyVocabExtractor(lastParsedCues, currentVideoId, currentSubtitleLanguage);
+      if (
+        !oldVocabEnabled &&
+        settings.vocabExtractorEnabled &&
+        lastParsedCues
+      ) {
+        notifyVocabExtractor(
+          lastParsedCues,
+          currentVideoId,
+          currentSubtitleLanguage,
+        );
       }
       sendHeartbeat();
     });
@@ -708,11 +789,12 @@ const logger: Logger = new Logger('content');
     storage.onChanged((changes) => {
       if (!isExtensionValid()) return;
       if (changes[NCW_STORAGE_KEYS.SETTINGS]?.newValue) {
-        const newSettings = changes[NCW_STORAGE_KEYS.SETTINGS].newValue as ExtensionSettings;
+        const newSettings = changes[NCW_STORAGE_KEYS.SETTINGS]
+          .newValue as ExtensionSettings;
         settings = { ...settings, ...newSettings };
         if (
           settings.platformEnabled &&
-          typeof settings.platformEnabled[adapter.platformName] === 'boolean'
+          typeof settings.platformEnabled[adapter.platformName] === "boolean"
         ) {
           settings.enabled = settings.platformEnabled[adapter.platformName]!;
         }
@@ -737,7 +819,7 @@ const logger: Logger = new Logger('content');
         endTime: c.end,
         rawText: c.text,
         position: c.position,
-      })
+      }),
     );
     if (cues.length > 0) {
       lastParsedCues = cues;
@@ -746,26 +828,34 @@ const logger: Logger = new Logger('content');
       if (data.movieId && !currentVideoId) {
         currentVideoId = data.movieId;
       }
-      subtitleManager.loadCues(cues, effectiveMid, Boolean(data.isAsr), currentSubtitleLanguage);
+      subtitleManager.loadCues(
+        cues,
+        effectiveMid,
+        Boolean(data.isAsr),
+        currentSubtitleLanguage,
+      );
       notifyVocabExtractor(cues, effectiveMid, currentSubtitleLanguage);
     }
   });
 
-  if (typeof adapter.onSubtitleOff === 'function') {
+  if (typeof adapter.onSubtitleOff === "function") {
     adapter.onSubtitleOff(() => {
-      logger.info('Content', 'Subtitle OFF event received from platform adapter.');
+      logger.info(
+        "Content",
+        "Subtitle OFF event received from platform adapter.",
+      );
       lastParsedCues = null;
       subtitleManager.clearCues();
     });
   }
 
   // 6. Connect adapter platform-specific hooks
-  if (typeof adapter.onMetadataLoaded === 'function') {
+  if (typeof adapter.onMetadataLoaded === "function") {
     adapter.onMetadataLoaded((meta) => {
       if (!isExtensionValid()) return;
       logger.info(
-        'Content',
-        `Metadata loaded event received for: ${meta.mainTitle} (showId=${meta.showId || 'N/A'}, ep=${meta.episodeTitle})`
+        "Content",
+        `Metadata loaded event received for: ${meta.mainTitle} (showId=${meta.showId || "N/A"}, ep=${meta.episodeTitle})`,
       );
       if (meta.videoId && !currentVideoId) {
         currentVideoId = meta.videoId;
@@ -784,9 +874,9 @@ const logger: Logger = new Logger('content');
 
   adapter.onTimeSync(({ cadmiumOffset, adOffset }) => {
     if (!isExtensionValid()) return;
-    if (typeof cadmiumOffset === 'number') {
+    if (typeof cadmiumOffset === "number") {
       subtitleManager.setCadmiumOffset(cadmiumOffset);
-    } else if (typeof adOffset === 'number') {
+    } else if (typeof adOffset === "number") {
       subtitleManager.setCadmiumOffset(-adOffset);
     }
   });
@@ -794,10 +884,13 @@ const logger: Logger = new Logger('content');
   adapter.onSubtitlePreload(({ movieId, rawText, bcp47, timestamp }) => {
     if (!isExtensionValid()) return;
     if (movieId) {
-      pendingSubtitlesByMovieId.set(String(movieId), { rawText, bcp47: bcp47 || null });
+      pendingSubtitlesByMovieId.set(String(movieId), {
+        rawText,
+        bcp47: bcp47 || null,
+      });
       logger.info(
-        'Content',
-        `📦 Staged preloaded subtitle in content script for episode ${movieId}`
+        "Content",
+        `📦 Staged preloaded subtitle in content script for episode ${movieId}`,
       );
     } else {
       try {
@@ -810,7 +903,7 @@ const logger: Logger = new Logger('content');
                 endTime: c.end,
                 rawText: c.text,
                 position: c.position,
-              })
+              }),
             )
           : [];
         stagedNextEpisodeSubtitle = {
@@ -820,11 +913,11 @@ const logger: Logger = new Logger('content');
           timestamp: timestamp || Date.now(),
         };
         logger.info(
-          'Content',
-          `📦 Staged unknown preloaded subtitle in content script (${cues?.length || 0} cues)`
+          "Content",
+          `📦 Staged unknown preloaded subtitle in content script (${cues?.length || 0} cues)`,
         );
       } catch (e) {
-        logger.warn('Content', 'Failed to parse staged subtitle:', e);
+        logger.warn("Content", "Failed to parse staged subtitle:", e);
       }
     }
   });
@@ -862,8 +955,8 @@ const logger: Logger = new Logger('content');
         retryCount++;
         if (retryCount <= 10 && retryCount % 2 === 0) {
           logger.info(
-            'Content',
-            'Subtitle cues not yet caught during playback. Triggering adapter retry...'
+            "Content",
+            "Subtitle cues not yet caught during playback. Triggering adapter retry...",
           );
           adapter.requestSubtitleRetry();
         }
@@ -887,12 +980,12 @@ const logger: Logger = new Logger('content');
       const t = m.target as HTMLElement | null;
       return (
         t &&
-        (t.id === 'ncw-subtitle-container' ||
-          t.id === 'ncw-player-toggle-btn' ||
-          t.id === 'ncw-toast' ||
-          t.closest?.('#ncw-subtitle-container') ||
-          t.closest?.('#ncw-player-toggle-btn') ||
-          t.closest?.('#ncw-toast'))
+        (t.id === "ncw-subtitle-container" ||
+          t.id === "ncw-player-toggle-btn" ||
+          t.id === "ncw-toast" ||
+          t.closest?.("#ncw-subtitle-container") ||
+          t.closest?.("#ncw-player-toggle-btn") ||
+          t.closest?.("#ncw-toast"))
       );
     });
 
