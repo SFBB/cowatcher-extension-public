@@ -202,6 +202,15 @@ export interface IStreamingAdapter {
   requestMetadata?(movieId?: string): void;
 
   /**
+   * Actively query authoritative metadata for the current video from injected player/platform state.
+   * Returns tri-state result:
+   * - VideoMetadata: Confirmed metadata found
+   * - null: Confirmed no episodic metadata exists (standalone video)
+   * - undefined: Unknown / pending (in transition or loading, caller should schedule retry)
+   */
+  queryMetadata(movieId?: string): Promise<VideoMetadata | null | undefined>;
+
+  /**
    * Clear any cached metadata on episode or show transitions
    */
   clearMetadata?(): void;

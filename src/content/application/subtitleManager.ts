@@ -452,6 +452,10 @@ export class SubtitleManager {
     );
     this.sessionEpoch = Date.now();
 
+    if (this.historyTracker) {
+      this.historyTracker.onEpisodeChange(newIdStr);
+    }
+
     // Check if newIdStr is confirmed to belong to the currently active show:
     const isKnownEpisodeOfCurrentShow = Boolean(
       newIdStr &&

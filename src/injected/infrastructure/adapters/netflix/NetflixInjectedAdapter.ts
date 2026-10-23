@@ -1,4 +1,5 @@
 import { IInjectedAdapter, InjectedMetadataLoadedPayload } from '../../../domain/IInjectedAdapter';
+import { VideoMetadata } from '../../../../content/domain/adapters/IStreamingAdapter';
 import { STREAMING_PLATFORMS } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
 import { NetworkHook } from '../../network/NetworkHook';
@@ -256,6 +257,93 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     });
   }
 
+  resolveAuthoritativeMetadata(targetEpisodeId?: string): VideoMetadata | null | undefined {
+    const targetId =
+      targetEpisodeId ||
+      this.kadmiumBridge?.getActiveMovieId() ||
+      this.extractVideoId(window.location.href);
+
+    if (!targetId) return undefined;
+
+    // 1. Check cached show metadata if available
+    if (this.cachedShowMetadata) {
+      const v = this.cachedShowMetadata;
+      const showId = String(v.id || '');
+      const showTitle = String(v.title || '');
+      const showSynopsis = typeof v.synopsis === 'string' ? v.synopsis : undefined;
+
+      if (Array.isArray(v.seasons)) {
+        for (const season of v.seasons) {
+          if (Array.isArray(season.episodes)) {
+            const ep = season.episodes.find((e: any) => String(e.id || e.episodeId) === targetId);
+            if (ep) {
+              return {
+                mainTitle: showTitle,
+                episodeTitle: String(ep.title || ''),
+                fullTitle: ep.title ? `${showTitle} - ${ep.title}` : showTitle,
+                videoId: targetId,
+                showId,
+                seasonId: season.id ? String(season.id) : undefined,
+                showSummary: showSynopsis,
+                episodeSummary: typeof ep.synopsis === 'string' ? ep.synopsis : undefined,
+                seasonNum: typeof season.seq === 'number' ? Number(season.seq) : undefined,
+                episodeNum: ep.seq !== undefined ? Number(ep.seq) : undefined,
+              };
+            }
+          }
+        }
+      }
+
+      // Standalone movie check: if cached metadata matches videoId and has no seasons
+      if (String(v.id) === targetId && (!v.seasons || v.seasons.length === 0)) {
+        return null; // Confirmed standalone title
+      }
+    }
+
+    // 2. Check Falcor Cache as immediate secondary source
+    try {
+      const falcor = window.netflix?.falcorCache?.videos;
+      const currentVideoObj = falcor?.[targetId];
+      if (currentVideoObj) {
+        const epSummary = currentVideoObj.synopsis?.value || currentVideoObj.regularSynopsis?.value || '';
+        const epTitle = currentVideoObj.title?.value || '';
+        const showRef = currentVideoObj.ancestor?.value || currentVideoObj.show?.value;
+        const showId = Array.isArray(showRef)
+          ? showRef[1]
+          : typeof showRef === 'string'
+            ? showRef
+            : null;
+
+        if (showId && falcor[showId]) {
+          const showObj = falcor[showId];
+          const shSummary = showObj.synopsis?.value || showObj.regularSynopsis?.value || '';
+          const shTitle = showObj.title?.value || '';
+          const epSeq = currentVideoObj.episodeNumber?.value || currentVideoObj.seq?.value;
+          const seasonSeq = currentVideoObj.seasonNumber?.value;
+
+          return {
+            mainTitle: shTitle || epTitle,
+            episodeTitle: epTitle,
+            fullTitle: epTitle ? (shTitle ? `${shTitle} - ${epTitle}` : epTitle) : shTitle,
+            videoId: targetId,
+            showId: String(showId),
+            showSummary: shSummary,
+            episodeSummary: epSummary,
+            seasonNum: typeof seasonSeq === 'number' ? seasonSeq : undefined,
+            episodeNum: typeof epSeq === 'number' ? epSeq : undefined,
+          };
+        } else if (showRef === null || (!showId && currentVideoObj.type?.value === 'movie')) {
+          return null; // Confirmed standalone movie
+        }
+      }
+    } catch {
+      // Ignore falcor inspection error
+    }
+
+    // Unknown / pending: caller must retry
+    return undefined;
+  }
+
   private emitMetadataForEpisode(targetEpisodeId?: string): boolean {
     if (!this.cachedShowMetadata) return false;
     const v = this.cachedShowMetadata;
@@ -263,7 +351,10 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     const showTitle = String(v.title || '');
     const showSynopsis = typeof v.synopsis === 'string' ? v.synopsis : undefined;
 
-    const targetId = targetEpisodeId || this.extractVideoId(window.location.href);
+    const targetId =
+      targetEpisodeId ||
+      this.kadmiumBridge?.getActiveMovieId() ||
+      this.extractVideoId(window.location.href);
 
     let matchedSeason: any = null;
     let matchedEpisode: any = null;
@@ -278,25 +369,6 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
               matchedSeason = season;
               matchedEpisode = ep;
               break;
-            }
-          }
-        }
-      }
-
-      // 2. If targetId was not an episode (e.g. it was a seasonId or missing), match via currentEpisode pointer
-      if (!matchedEpisode && (!targetId || targetId === showId)) {
-        const currentEpId = v.currentEpisode ? String(v.currentEpisode) : '';
-        if (currentEpId) {
-          for (const season of v.seasons) {
-            if (Array.isArray(season.episodes)) {
-              const ep = season.episodes.find(
-                (e: any) => String(e.id || e.episodeId) === currentEpId
-              );
-              if (ep) {
-                matchedSeason = season;
-                matchedEpisode = ep;
-                break;
-              }
             }
           }
         }
@@ -367,10 +439,13 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     return true;
   }
 
-  private handleMetadataPayload(data: any): void {
+  private handleMetadataPayload(data: any, targetMovieId?: string): void {
     if (!data || !data.video) return;
     this.cachedShowMetadata = data.video;
-    const currentMid = this.extractVideoId(window.location.href);
+    const currentMid =
+      targetMovieId ||
+      this.kadmiumBridge?.getActiveMovieId() ||
+      this.extractVideoId(window.location.href);
     this.emitMetadataForEpisode(currentMid || undefined);
   }
 
@@ -399,7 +474,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
         });
         if (res.ok) {
           const data = await res.json();
-          this.handleMetadataPayload(data);
+          this.handleMetadataPayload(data, movieId);
         }
       } catch (err) {
         this.logger.warn('Netflix', 'Failed to fetch metadata proactively:', err);
@@ -513,6 +588,42 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
           if (!this.emitMetadataForEpisode(targetMid)) {
             this.ensureMetadata(targetMid, true);
           }
+        }
+      }
+
+      if (event.data.type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
+        const queryId = event.data.queryId;
+        const requestedMid = event.data.movieId ? String(event.data.movieId) : null;
+        const targetMid =
+          requestedMid ||
+          this.kadmiumBridge?.getActiveMovieId() ||
+          this.extractVideoId(window.location.href);
+
+        const respond = (status: 'resolved' | 'null' | 'undefined', metadata?: VideoMetadata) => {
+          window.postMessage(
+            {
+              type: NCW_MESSAGE_TYPES.QUERY_METADATA_RESULT,
+              queryId,
+              status,
+              metadata,
+            },
+            '*'
+          );
+        };
+
+        if (!targetMid) {
+          respond('undefined');
+          return;
+        }
+
+        const meta = this.resolveAuthoritativeMetadata(targetMid);
+        if (meta === undefined) {
+          this.ensureMetadata(targetMid, true);
+          respond('undefined');
+        } else if (meta === null) {
+          respond('null');
+        } else {
+          respond('resolved', meta);
         }
       }
     });

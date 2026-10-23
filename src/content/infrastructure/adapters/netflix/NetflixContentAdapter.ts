@@ -301,6 +301,57 @@ export class NetflixContentAdapter implements IStreamingAdapter {
     );
   }
 
+  async queryMetadata(movieId?: string): Promise<VideoMetadata | null | undefined> {
+    const queryId = `qm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const effectiveMid = movieId || this.extractVideoId() || undefined;
+
+    return new Promise<VideoMetadata | null | undefined>((resolve) => {
+      let resolved = false;
+      let timer: any = null;
+
+      const handler = (event: MessageEvent) => {
+        if (event.source !== window || !event.data) return;
+        if (
+          event.data.type === NCW_MESSAGE_TYPES.QUERY_METADATA_RESULT &&
+          event.data.queryId === queryId
+        ) {
+          resolved = true;
+          clearTimeout(timer);
+          window.removeEventListener('message', handler);
+
+          const { status, metadata } = event.data;
+          if (status === 'resolved' && metadata) {
+            this.cachedMetadata = metadata;
+            resolve(metadata);
+          } else if (status === 'null') {
+            resolve(null);
+          } else {
+            resolve(undefined);
+          }
+        }
+      };
+
+      window.addEventListener('message', handler);
+
+      window.postMessage(
+        {
+          type: NCW_MESSAGE_TYPES.QUERY_METADATA,
+          queryId,
+          movieId: effectiveMid,
+        },
+        '*'
+      );
+
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          window.removeEventListener('message', handler);
+          resolve(undefined);
+        }
+      }, 1500);
+    });
+  }
+
   clearMetadata(): void {
     this.cachedMetadata = undefined;
     if (typeof document !== 'undefined' && document.documentElement?.dataset) {

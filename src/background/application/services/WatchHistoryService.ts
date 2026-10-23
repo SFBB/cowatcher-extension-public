@@ -87,53 +87,64 @@ export class WatchHistoryService {
         const sessionStore = tx.objectStore(WatchHistoryService.STORE_SESSIONS);
         const showStore = tx.objectStore(WatchHistoryService.STORE_SHOWS);
 
-        // 1. Save or update session
-        sessionStore.put(session);
+        // 1. Check if session already exists to prevent duplicate heartbeat counting
+        const prevSessionReq = sessionStore.get(session.id);
+        prevSessionReq.onsuccess = () => {
+          const prevSession: WatchSession | undefined = prevSessionReq.result;
+          const isNewSession = !prevSession;
+          const prevSeconds = prevSession?.effectiveWatchSeconds || 0;
+          const deltaSeconds = Math.max(0, (session.effectiveWatchSeconds || 0) - prevSeconds);
 
-        // 2. Update show summary
-        const showReq = showStore.get(session.showId);
-        showReq.onsuccess = () => {
-          let summary: ShowWatchSummary = showReq.result;
-          if (!summary) {
-            summary = {
-              showId: session.showId,
-              showTitle: session.showTitle || 'Unknown Show',
-              platform: session.platform,
-              totalWatchSeconds: session.effectiveWatchSeconds || 0,
-              firstWatchedAt: session.startedAt,
-              lastWatchedAt: session.endedAt || session.startedAt,
-              sessionsCount: 1,
-              episodesCount: 1,
-              lastEpisode: {
-                seasonNum: session.seasonNum,
-                episodeNum: session.episodeNum,
-                episodeTitle: session.episodeTitle,
+          // Save or update session
+          sessionStore.put(session);
+
+          // 2. Update show summary with delta seconds only
+          const showReq = showStore.get(session.showId);
+          showReq.onsuccess = () => {
+            let summary: ShowWatchSummary = showReq.result;
+            if (!summary) {
+              summary = {
+                showId: session.showId,
+                showTitle: session.showTitle || 'Unknown Show',
+                platform: session.platform,
+                totalWatchSeconds: session.effectiveWatchSeconds || 0,
+                firstWatchedAt: session.startedAt,
+                lastWatchedAt: session.endedAt || session.startedAt,
+                sessionsCount: 1,
+                episodesCount: 1,
+                lastEpisode: {
+                  seasonNum: session.seasonNum,
+                  episodeNum: session.episodeNum,
+                  episodeTitle: session.episodeTitle,
+                  videoId: session.videoId,
+                  lastContentTime: session.toContentTime,
+                  videoDuration: session.videoDuration,
+                  updatedAt: session.endedAt || session.startedAt,
+                },
+              };
+            } else {
+              summary.totalWatchSeconds = (summary.totalWatchSeconds || 0) + deltaSeconds;
+              summary.lastWatchedAt = Math.max(summary.lastWatchedAt || 0, session.endedAt || session.startedAt);
+              if (isNewSession) {
+                summary.sessionsCount = (summary.sessionsCount || 0) + 1;
+              }
+              summary.showTitle = session.showTitle || summary.showTitle;
+              summary.platform = session.platform || summary.platform;
+
+              // Update last episode progress
+              summary.lastEpisode = {
+                seasonNum: session.seasonNum !== undefined ? session.seasonNum : summary.lastEpisode?.seasonNum,
+                episodeNum: session.episodeNum !== undefined ? session.episodeNum : summary.lastEpisode?.episodeNum,
+                episodeTitle: session.episodeTitle || summary.lastEpisode?.episodeTitle,
                 videoId: session.videoId,
                 lastContentTime: session.toContentTime,
-                videoDuration: session.videoDuration,
+                videoDuration: session.videoDuration || summary.lastEpisode?.videoDuration || 0,
                 updatedAt: session.endedAt || session.startedAt,
-              },
-            };
-          } else {
-            summary.totalWatchSeconds = (summary.totalWatchSeconds || 0) + (session.effectiveWatchSeconds || 0);
-            summary.lastWatchedAt = Math.max(summary.lastWatchedAt || 0, session.endedAt || session.startedAt);
-            summary.sessionsCount = (summary.sessionsCount || 0) + 1;
-            summary.showTitle = session.showTitle || summary.showTitle;
-            summary.platform = session.platform || summary.platform;
+              };
+            }
 
-            // Update last episode progress
-            summary.lastEpisode = {
-              seasonNum: session.seasonNum !== undefined ? session.seasonNum : summary.lastEpisode?.seasonNum,
-              episodeNum: session.episodeNum !== undefined ? session.episodeNum : summary.lastEpisode?.episodeNum,
-              episodeTitle: session.episodeTitle || summary.lastEpisode?.episodeTitle,
-              videoId: session.videoId,
-              lastContentTime: session.toContentTime,
-              videoDuration: session.videoDuration || summary.lastEpisode?.videoDuration || 0,
-              updatedAt: session.endedAt || session.startedAt,
-            };
-          }
-
-          showStore.put(summary);
+            showStore.put(summary);
+          };
         };
 
         tx.oncomplete = () => {
@@ -183,14 +194,21 @@ export class WatchHistoryService {
       this.getAllSessions(db),
     ]);
 
-    // Compute unique episodes count per show & overall
+    // Compute accurate stats per show from stored sessions
     const showEpMap = new Map<string, Set<string>>();
+    const showStatsMap = new Map<string, { seconds: number; count: number }>();
     const allUniqueEpisodes = new Set<string>();
     let totalWatchSeconds = 0;
     const dailyMap = new Map<string, { seconds: number; count: number }>();
 
     for (const s of sessions) {
       totalWatchSeconds += s.effectiveWatchSeconds || 0;
+      if (s.showId) {
+        const st = showStatsMap.get(s.showId) || { seconds: 0, count: 0 };
+        st.seconds += s.effectiveWatchSeconds || 0;
+        st.count += 1;
+        showStatsMap.set(s.showId, st);
+      }
       if (s.videoId) {
         allUniqueEpisodes.add(s.videoId);
         if (!showEpMap.has(s.showId)) {
@@ -208,10 +226,15 @@ export class WatchHistoryService {
       dailyMap.set(dateKey, existingDaily);
     }
 
-    // Attach accurate episode counts to each show summary
+    // Attach accurate episode counts & heal any heartbeat-inflated stats
     for (const show of shows) {
       const eps = showEpMap.get(show.showId);
       show.episodesCount = eps ? eps.size : (show.episodesCount || 1);
+      const st = showStatsMap.get(show.showId);
+      if (st) {
+        show.totalWatchSeconds = st.seconds;
+        show.sessionsCount = st.count;
+      }
     }
 
     // Build sorted daily trends
@@ -226,9 +249,9 @@ export class WatchHistoryService {
     // Sort shows by lastWatchedAt descending
     shows.sort((a, b) => (b.lastWatchedAt || 0) - (a.lastWatchedAt || 0));
 
-    // Sort recent sessions descending, take top 100
+    // Sort recent sessions descending, take top 500
     sessions.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
-    const recentSessions = sessions.slice(0, 100);
+    const recentSessions = sessions.slice(0, 500);
 
     return {
       shows,

@@ -110,9 +110,6 @@ export class KadmiumPlayerBridge {
   getActivePlayer(): KadmiumActivePlayer | null {
     try {
       const currentUrlMovieId = this.extractVideoId(window.location.href);
-      if (!currentUrlMovieId) {
-        return null;
-      }
 
       const vp = window.netflix?.appContext?.state?.playerApp?.getAPI()?.videoPlayer;
       if (!vp) return null;
@@ -125,12 +122,14 @@ export class KadmiumPlayerBridge {
       };
 
       // 1. Preferred: Non-ad player session matching current URL
-      for (let i = sessions.length - 1; i >= 0; i--) {
-        const sId = sessions[i];
-        if (isNonWatchSession(sId)) continue;
-        const p = vp.getVideoPlayerBySessionId(sId);
-        if (p && !p.isAd?.() && String(p.getMovieId?.()) === currentUrlMovieId) {
-          return { player: p, sessionId: sId };
+      if (currentUrlMovieId) {
+        for (let i = sessions.length - 1; i >= 0; i--) {
+          const sId = sessions[i];
+          if (isNonWatchSession(sId)) continue;
+          const p = vp.getVideoPlayerBySessionId(sId);
+          if (p && !p.isAd?.() && String(p.getMovieId?.()) === currentUrlMovieId) {
+            return { player: p, sessionId: sId };
+          }
         }
       }
 
@@ -159,6 +158,19 @@ export class KadmiumPlayerBridge {
       return null;
     } catch {
       return null;
+    }
+  }
+
+  getActiveMovieId(): string | null {
+    try {
+      const active = this.getActivePlayer();
+      if (active?.player && typeof active.player.getMovieId === 'function') {
+        const mid = active.player.getMovieId();
+        if (mid) return String(mid);
+      }
+      return this.extractVideoId(window.location.href);
+    } catch {
+      return this.extractVideoId(window.location.href);
     }
   }
 

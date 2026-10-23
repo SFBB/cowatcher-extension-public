@@ -1,4 +1,5 @@
 import { IInjectedAdapter } from '../../../domain/IInjectedAdapter';
+import { VideoMetadata } from '../../../../content/domain/adapters/IStreamingAdapter';
 import { STREAMING_PLATFORMS, StreamingPlatformId } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
 import { Logger } from '@shared/utils/logger';
@@ -778,6 +779,56 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
           );
           window.postMessage(this.lastMetaPayload, '*');
         }
+      }
+
+      if (event.data.type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
+        const queryId = event.data.queryId;
+        const targetEpId = event.data.movieId
+          ? String(event.data.movieId)
+          : this.extractEpisodeId(window.location.href);
+
+        const respond = (status: 'resolved' | 'null' | 'undefined', metadata?: VideoMetadata) => {
+          window.postMessage(
+            {
+              type: NCW_MESSAGE_TYPES.QUERY_METADATA_RESULT,
+              queryId,
+              status,
+              metadata,
+            },
+            '*'
+          );
+        };
+
+        if (!targetEpId) {
+          respond('undefined');
+          return;
+        }
+
+        if (this.lastMetaPayload) {
+          const p = this.lastMetaPayload;
+          const currentEp = p.currentEpisode;
+          if (currentEp && (!targetEpId || currentEp.episodeId === targetEpId)) {
+            const meta: VideoMetadata = {
+              mainTitle: p.showTitle || '',
+              episodeTitle: currentEp.episodeTitle || '',
+              fullTitle: currentEp.episodeTitle
+                ? (p.showTitle ? `${p.showTitle} - ${currentEp.episodeTitle}` : currentEp.episodeTitle)
+                : p.showTitle || '',
+              videoId: currentEp.episodeId || targetEpId,
+              showId: p.showId || targetEpId,
+              seasonId: p.seasonId,
+              showSummary: p.showSynopsis,
+              episodeSummary: currentEp.episodeSynopsis,
+              seasonNum: p.seasonSeq,
+              episodeNum: currentEp.episodeSeq,
+            };
+            respond('resolved', meta);
+            return;
+          }
+        }
+
+        this.triggerMetadataFetchIfReady();
+        respond('undefined');
       }
     };
     window.addEventListener('message', this.messageListener);

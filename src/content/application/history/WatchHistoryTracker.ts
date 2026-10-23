@@ -8,7 +8,15 @@ export class WatchHistoryTracker {
   private readonly messageService: ContentMessageService;
   private readonly logger: Logger = new Logger('WatchHistoryTracker');
 
-  private currentMetadata?: VideoMetadata;
+  // Tri-state metadata:
+  // - VideoMetadata: Confirmed metadata loaded
+  // - null: Confirmed standalone video without episodic show metadata
+  // - undefined: Unknown / pending (in-flight or in transition, caller schedules retry)
+  private currentMetadata: VideoMetadata | null | undefined = undefined;
+  private isResolvingMetadata: boolean = false;
+  private pendingRetryTimer: any = null;
+  private retryCount: number = 0;
+
   private currentSessionId: string | null = null;
   private sessionStartedAt: number = 0;
   private fromContentTime: number = 0;
@@ -79,6 +87,28 @@ export class WatchHistoryTracker {
     this.boundVideo = null;
   }
 
+  onEpisodeChange(newMovieId: string | null): void {
+    const newIdStr = newMovieId ? String(newMovieId) : null;
+    this.logger.info('Tracker', `Episode change detected (${newIdStr || 'new'}).`);
+
+    // Flush previous session if it has watch time
+    if (this.currentSessionId && this.effectiveWatchSeconds >= 3) {
+      this.flushSession(false);
+    }
+    this.currentSessionId = null;
+    this.effectiveWatchSeconds = 0;
+    this.currentMetadata = undefined; // reset to pending
+    this.retryCount = 0;
+    if (this.pendingRetryTimer) {
+      clearTimeout(this.pendingRetryTimer);
+      this.pendingRetryTimer = null;
+    }
+
+    if (newIdStr) {
+      this.resolveMetadata(newIdStr);
+    }
+  }
+
   onMetadataLoaded(meta: VideoMetadata): void {
     if (!meta) return;
 
@@ -91,6 +121,63 @@ export class WatchHistoryTracker {
     }
 
     this.currentMetadata = meta;
+    this.retryCount = 0;
+    if (this.pendingRetryTimer) {
+      clearTimeout(this.pendingRetryTimer);
+      this.pendingRetryTimer = null;
+    }
+  }
+
+  async resolveMetadata(movieId?: string): Promise<VideoMetadata | null | undefined> {
+    if (this.isResolvingMetadata) return this.currentMetadata;
+    this.isResolvingMetadata = true;
+
+    try {
+      const result = await this.adapter.queryMetadata(movieId);
+      this.isResolvingMetadata = false;
+
+      if (result !== undefined) {
+        // Tri-state: concrete VideoMetadata or null (confirmed standalone)
+        this.retryCount = 0;
+        if (this.pendingRetryTimer) {
+          clearTimeout(this.pendingRetryTimer);
+          this.pendingRetryTimer = null;
+        }
+        this.currentMetadata = result;
+        this.logger.info(
+          'Tracker',
+          `Metadata resolved: ${result ? result.fullTitle : 'null (standalone video)'}`
+        );
+        return result;
+      } else {
+        // Tri-state: undefined -> Unknown / pending, schedule retry
+        this.scheduleRetry(movieId);
+        return undefined;
+      }
+    } catch (e) {
+      this.isResolvingMetadata = false;
+      this.scheduleRetry(movieId);
+      return undefined;
+    }
+  }
+
+  private scheduleRetry(movieId?: string): void {
+    if (this.pendingRetryTimer) return;
+    if (this.retryCount >= 10) return;
+
+    this.retryCount++;
+    const delay = Math.min(1000 * Math.pow(1.4, this.retryCount), 5000);
+    this.logger.debug(
+      'Tracker',
+      `Metadata status is undefined (pending). Scheduling retry #${this.retryCount} in ${Math.round(delay)}ms.`
+    );
+
+    this.pendingRetryTimer = setTimeout(() => {
+      this.pendingRetryTimer = null;
+      if (this.isPlaying || this.currentSessionId) {
+        this.resolveMetadata(movieId);
+      }
+    }, delay);
   }
 
   private onPlay(): void {
@@ -107,6 +194,11 @@ export class WatchHistoryTracker {
     }
 
     this.lastWallClockTick = now;
+
+    // If metadata is still undefined, kick off resolution
+    if (this.currentMetadata === undefined) {
+      this.resolveMetadata();
+    }
   }
 
   private onPause(): void {
@@ -164,10 +256,6 @@ export class WatchHistoryTracker {
   private flushSession(isOngoing: boolean): void {
     if (!this.currentSessionId) return;
 
-    const meta = this.currentMetadata;
-    const showId = meta?.showId || meta?.videoId;
-    if (!showId) return;
-
     // Discard negligible blips under 3 seconds
     if (this.effectiveWatchSeconds < 3) {
       if (!isOngoing) {
@@ -177,17 +265,46 @@ export class WatchHistoryTracker {
       return;
     }
 
+    // Tri-state check:
+    // If undefined: metadata is unknown / pending.
+    // Do NOT discard! Defer and retry query so we never drop the session or record garbage.
+    if (this.currentMetadata === undefined) {
+      this.logger.info(
+        'Tracker',
+        `Flush deferred: metadata is undefined (pending). Scheduling active query retry.`
+      );
+      this.resolveMetadata();
+      return;
+    }
+
+    // Determine showId, showTitle, videoId based on concrete data or null (standalone)
+    let meta = this.currentMetadata;
+    let showId: string;
+    let showTitle: string;
+    let videoId: string;
+
+    if (meta === null) {
+      // Confirmed standalone title
+      videoId = this.adapter.extractVideoId() || 'standalone_video';
+      showId = videoId;
+      showTitle = this.adapter.getVideoInfo()?.mainTitle || 'Standalone Video';
+    } else {
+      showId = meta.showId || meta.videoId;
+      showTitle = meta.fullTitle || meta.mainTitle || 'Unknown Show';
+      videoId = meta.videoId || showId;
+    }
+
     const duration = this.boundVideo?.duration || this.adapter.getVideoElement()?.duration || 0;
 
     const session: WatchSession = {
       id: this.currentSessionId,
       platform: this.adapter.platformName || 'unknown',
       showId,
-      showTitle: meta?.fullTitle || meta?.mainTitle || 'Unknown Show',
+      showTitle,
       seasonNum: meta?.seasonNum,
       episodeNum: meta?.episodeNum,
       episodeTitle: meta?.episodeTitle,
-      videoId: meta?.videoId || showId,
+      videoId,
       startedAt: this.sessionStartedAt,
       endedAt: Date.now(),
       fromContentTime: Math.max(0, Math.round(this.fromContentTime)),
@@ -213,6 +330,10 @@ export class WatchHistoryTracker {
   }
 
   destroy(): void {
+    if (this.pendingRetryTimer) {
+      clearTimeout(this.pendingRetryTimer);
+      this.pendingRetryTimer = null;
+    }
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;

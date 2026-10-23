@@ -8,6 +8,7 @@ import {
   InjectedUrlChangedPayload,
   InjectedNativeTrackDataPayload,
 } from '../../../domain/IInjectedAdapter';
+import { VideoMetadata } from '../../../../content/domain/adapters/IStreamingAdapter';
 import { STREAMING_PLATFORMS, StreamingPlatformId } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
 import { NetworkHook } from '../../network/NetworkHook';
@@ -747,6 +748,75 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
         this.handleQueryNativeTrack(event.data.movieId, event.data.targetLangCode);
       } else if (type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
         this.emitMetadataForCurrentVideo();
+      } else if (type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
+        const queryId = event.data.queryId;
+        const targetVid = event.data.movieId
+          ? String(event.data.movieId)
+          : this.getCurrentVideoId();
+
+        const respond = (status: 'resolved' | 'null' | 'undefined', metadata?: VideoMetadata) => {
+          window.postMessage(
+            {
+              type: NCW_MESSAGE_TYPES.QUERY_METADATA_RESULT,
+              queryId,
+              status,
+              metadata,
+            },
+            '*'
+          );
+        };
+
+        if (!targetVid) {
+          respond('undefined');
+          return;
+        }
+
+        let title = '';
+        let channelName = '';
+        let description = '';
+
+        const player = this.getPlayerElement();
+        if (player && typeof player.getVideoData === 'function') {
+          try {
+            const data = player.getVideoData();
+            if (data) {
+              if (data.video_id && targetVid && data.video_id !== targetVid) {
+                // Player has not yet switched to the requested video
+                respond('undefined');
+                return;
+              }
+              if (data.title) title = data.title;
+              if (data.author) channelName = data.author;
+            }
+          } catch {}
+        }
+
+        if (!title && window.ytInitialPlayerResponse?.videoDetails) {
+          const details = window.ytInitialPlayerResponse.videoDetails;
+          if (details.videoId === targetVid) {
+            if (details.title) title = details.title;
+            if (details.author) channelName = details.author;
+            if (details.shortDescription) description = details.shortDescription;
+          }
+        }
+
+        if (!title) {
+          title = document.title ? document.title.replace(/\s*-\s*YouTube$/i, '').trim() : '';
+        }
+
+        if (title) {
+          const meta: VideoMetadata = {
+            mainTitle: title,
+            episodeTitle: '',
+            fullTitle: title,
+            videoId: targetVid,
+            showId: targetVid,
+            showSummary: channelName ? `Channel: ${channelName}` : description || undefined,
+          };
+          respond('resolved', meta);
+        } else {
+          respond('undefined');
+        }
       }
     };
     window.addEventListener('message', this.messageListener);
