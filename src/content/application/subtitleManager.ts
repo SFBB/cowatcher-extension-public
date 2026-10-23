@@ -357,6 +357,7 @@ export class SubtitleManager {
   }
 
   clearCues(): void {
+    this.pipeline.stopNativePollingInterval();
     if (this.isContextValid()) {
       this.messageService.clearQueues().catch(() => {});
     }
@@ -373,6 +374,7 @@ export class SubtitleManager {
   }
 
   onEpisodeChange(newMovieId: string | number | null): void {
+    this.pipeline.stopNativePollingInterval();
     this.contextManager.onEpisodeChange(newMovieId);
     this.store.clearTranslations();
     this.pipeline.isTranslating = false;
@@ -564,6 +566,7 @@ export class SubtitleManager {
   }
 
   private handleSettingsDisabled(): void {
+    this.pipeline.stopNativePollingInterval();
     this.overlay.hide(true);
     this.syncer.activeCueId = null;
     this.pipeline.isTranslating = false;
@@ -572,6 +575,7 @@ export class SubtitleManager {
   }
 
   private handleTranslationSettingsChanged(): void {
+    this.pipeline.stopNativePollingInterval();
     if (this.isContextValid()) this.messageService.clearQueues().catch(() => {});
     const epoch = Date.now();
     this.store.sessionEpoch = epoch;

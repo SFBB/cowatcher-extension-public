@@ -47,6 +47,7 @@ export class SubtitlePipelineCoordinator {
   isTranslating = false;
   isReviewing = false;
   isPreReviewing = false;
+  private nativePollingTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly messageService: ContentMessageService,
@@ -554,27 +555,82 @@ export class SubtitlePipelineCoordinator {
     return hitCount >= cues.length * 0.7;
   }
 
-  async tryLoadNativeBilingualSubtitles(cues: SubtitleCue[], epoch: number, trackHash?: string): Promise<boolean> {
-    if (this.getSettings().preferNativeSubtitles === false || !this.adapter?.fetchNativeTargetTrack) return false;
+  async tryLoadNativeBilingualSubtitles(
+    cues: SubtitleCue[],
+    epoch: number,
+    trackHash?: string,
+  ): Promise<'found' | 'not_found' | 'not_ready'> {
+    if (this.getSettings().preferNativeSubtitles === false || !this.adapter?.fetchNativeTargetTrack) {
+      return 'not_found';
+    }
     const targetLang: LanguageInfo = Language.resolve(this.getSettings().targetLanguage);
 
     try {
-      const nativeCues = await this.adapter.fetchNativeTargetTrack(targetLang, this.delegate.getCurrentMovieId() || undefined);
-      if (!nativeCues || nativeCues.length === 0 || this.store.sessionEpoch !== epoch || this.store.cues !== cues) return false;
+      const nativeCues = await this.adapter.fetchNativeTargetTrack(
+        targetLang,
+        this.delegate.getCurrentMovieId() || undefined,
+      );
+      if (this.store.sessionEpoch !== epoch || this.store.cues !== cues) return 'not_found';
+
+      if (nativeCues === undefined) {
+        return 'not_ready';
+      }
+      if (nativeCues === null || nativeCues.length === 0) {
+        return 'not_found';
+      }
 
       if (this.isIdenticalNativeTrack(cues, nativeCues, targetLang)) {
-        return true;
+        return 'found';
       }
 
       const alignResult = SubtitleAlignmentService.align(cues, nativeCues);
       if (alignResult.matchCoverage >= 0.7) {
         this.applyAlignedNativeSubtitles(cues, alignResult, targetLang, trackHash);
-        return true;
+        return 'found';
       }
-      return false;
+      return 'not_found';
     } catch (err) {
       this.logger.warn('SubtitlePipelineCoordinator', 'Error during native subtitle loading:', err);
-      return false;
+      return 'not_found';
+    }
+  }
+
+  startNativePollingInterval(cues: SubtitleCue[], epoch: number, trackHash?: string): void {
+    this.stopNativePollingInterval();
+    let attempts = 0;
+    const maxAttempts = 12;
+
+    this.nativePollingTimer = setInterval(async () => {
+      attempts++;
+      if (this.store.sessionEpoch !== epoch || this.store.cues !== cues || attempts >= maxAttempts) {
+        this.stopNativePollingInterval();
+        return;
+      }
+
+      const res = await this.tryLoadNativeBilingualSubtitles(cues, epoch, trackHash);
+      if (this.store.sessionEpoch !== epoch || this.store.cues !== cues) {
+        this.stopNativePollingInterval();
+        return;
+      }
+
+      if (res === 'found') {
+        this.stopNativePollingInterval();
+        if (this.delegate.isContextValid()) {
+          this.messageService.clearQueues().catch(() => {});
+        }
+        this.isTranslating = false;
+        this.isReviewing = false;
+        this.logger.info('SubtitlePipelineCoordinator', 'Native track acquired via polling! Preempted LLM.');
+      } else if (res === 'not_found') {
+        this.stopNativePollingInterval();
+      }
+    }, 1000);
+  }
+
+  stopNativePollingInterval(): void {
+    if (this.nativePollingTimer) {
+      clearInterval(this.nativePollingTimer);
+      this.nativePollingTimer = null;
     }
   }
 
@@ -659,8 +715,16 @@ export class SubtitlePipelineCoordinator {
       if (this.store.sessionEpoch !== epoch || this.store.cues !== cues) return;
 
       if (!cacheHit && this.getSettings().preferNativeSubtitles !== false) {
-        const nativeLoaded = await this.tryLoadNativeBilingualSubtitles(cues, epoch, hash);
-        if (nativeLoaded) return;
+        const nativeResult = await this.tryLoadNativeBilingualSubtitles(cues, epoch, hash);
+        if (nativeResult === 'found') {
+          this.stopNativePollingInterval();
+          return;
+        }
+        if (nativeResult === 'not_ready') {
+          this.startNativePollingInterval(cues, epoch, hash);
+        } else {
+          this.stopNativePollingInterval();
+        }
       }
 
       if (this.store.sessionEpoch !== epoch || this.store.cues !== cues) return;

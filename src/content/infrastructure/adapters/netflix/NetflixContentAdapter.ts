@@ -316,61 +316,76 @@ export class NetflixContentAdapter implements IStreamingAdapter {
   async fetchNativeTargetTrack(
     targetLang: import('@shared/domain/value-objects/Language').LanguageInfo,
     movieId?: string
-  ): Promise<SubtitleCueData[] | null> {
+  ): Promise<SubtitleCueData[] | null | undefined> {
     const effectiveMid = movieId || this.extractVideoId() || '';
     const langCode = targetLang?.code || 'en';
 
-    return new Promise<SubtitleCueData[] | null>((resolve) => {
-      let resolved = false;
-      let timer: any = null;
-
-      const handler = (event: MessageEvent) => {
-        if (event.source !== window || !event.data) return;
-        if (event.data.type === NCW_MESSAGE_TYPES.NATIVE_TRACK_DATA) {
-          if (
-            event.data.movieId === effectiveMid &&
-            (event.data.targetLangCode === langCode || !event.data.targetLangCode)
-          ) {
-            cleanup();
-            if (event.data.found && event.data.rawText) {
-              try {
-                const cues = this.parseSubtitle(event.data.rawText);
-                resolve(cues);
-              } catch {
-                resolve(null);
-              }
-            } else {
-              resolve(null);
-            }
-          }
-        }
-      };
-
-      const cleanup = () => {
-        if (resolved) return;
-        resolved = true;
-        if (timer) clearTimeout(timer);
-        window.removeEventListener('message', handler);
-      };
-
-      window.addEventListener('message', handler);
-      this.messageListeners.push(handler);
-
-      // Timeout after 3.5 seconds
-      timer = setTimeout(() => {
-        cleanup();
-        resolve(null);
-      }, 3500);
-
-      window.postMessage(
-        {
-          type: NCW_MESSAGE_TYPES.QUERY_NATIVE_TRACK,
-          movieId: effectiveMid,
-          targetLangCode: langCode,
-        },
-        '*'
-      );
+    return new Promise<SubtitleCueData[] | null | undefined>((resolve) => {
+      this.executeNativeTrackQuery(effectiveMid, langCode, resolve);
     });
+  }
+
+  private executeNativeTrackQuery(
+    effectiveMid: string,
+    langCode: string,
+    resolve: (res: SubtitleCueData[] | null | undefined) => void
+  ): void {
+    let resolved = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (resolved) return;
+      resolved = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('message', handler);
+    };
+
+    const handler = (event: MessageEvent) => {
+      if (event.source !== window || !event.data) return;
+      if (this.isMatchingNativeTrackMessage(event.data, effectiveMid, langCode)) {
+        cleanup();
+        resolve(this.parseNativeTrackResponse(event.data));
+      }
+    };
+
+    window.addEventListener('message', handler);
+    this.messageListeners.push(handler);
+    timer = setTimeout(() => {
+      cleanup();
+      resolve(undefined);
+    }, 3500);
+
+    window.postMessage(
+      { type: NCW_MESSAGE_TYPES.QUERY_NATIVE_TRACK, movieId: effectiveMid, targetLangCode: langCode },
+      '*'
+    );
+  }
+
+  private isMatchingNativeTrackMessage(
+    data: { type?: string; movieId?: string; targetLangCode?: string },
+    effectiveMid: string,
+    langCode: string
+  ): boolean {
+    return (
+      data.type === NCW_MESSAGE_TYPES.NATIVE_TRACK_DATA &&
+      data.movieId === effectiveMid &&
+      (data.targetLangCode === langCode || !data.targetLangCode)
+    );
+  }
+
+  private parseNativeTrackResponse(
+    data: { status?: string; found?: boolean; rawText?: string }
+  ): SubtitleCueData[] | null | undefined {
+    if (data.status === 'not_ready') return undefined;
+    if (data.status === 'not_found' || !data.found) return null;
+    if (data.rawText) {
+      try {
+        return this.parseSubtitle(data.rawText);
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   dispose(): void {

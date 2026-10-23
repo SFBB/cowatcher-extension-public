@@ -94,12 +94,27 @@ export class NetflixTrackRegistry {
     showId: string,
     epId: string,
     lang: string,
-  ): Promise<KnownTrackDetail | null> {
+  ): Promise<KnownTrackDetail | null | undefined> {
     const normalizedLang = lang.toLowerCase();
 
     const cached = this.getCachedTrack(showId, epId, normalizedLang);
     if (cached) {
       return cached;
+    }
+
+    if (!this.playerBridge.isPlayerReadyForMovie(epId)) {
+      this.logger.info('Netflix', `Player not ready yet for episode ${epId}. Returning undefined.`);
+      return undefined;
+    }
+
+    const availableTracks = this.playerBridge.getAvailableTextTracks(epId);
+    const targetTrack = availableTracks.find(
+      (t) => t.bcp47 && Language.matches(t.bcp47, normalizedLang),
+    );
+
+    if (!targetTrack || !targetTrack.bcp47) {
+      this.logger.info('Netflix', `Confirmed no native track matching ${lang} for episode ${epId}. Returning null.`);
+      return null;
     }
 
     const proactivelyFetched = await this.tryProactiveFetch(
@@ -111,7 +126,7 @@ export class NetflixTrackRegistry {
       return proactivelyFetched;
     }
 
-    return this.probeTrackViaActivation(showId, epId, normalizedLang);
+    return this.probeTrackViaActivation(showId, epId, targetTrack, normalizedLang);
   }
 
   // --------------------------------------------------------------------------
@@ -256,7 +271,7 @@ export class NetflixTrackRegistry {
     epId: string,
     normalizedLang: string,
   ): Promise<KnownTrackDetail | null> {
-    const playerTracks = this.playerBridge.getPlayerTextTracks();
+    const playerTracks = this.playerBridge.getPlayerTextTracks(epId);
     const candidate = playerTracks.find(
       (pt) =>
         pt.bcp47 &&
@@ -293,18 +308,14 @@ export class NetflixTrackRegistry {
   private async probeTrackViaActivation(
     showId: string,
     epId: string,
-    normalizedLang: string,
+    targetTrack: NetflixTimedTextTrack,
+    _normalizedLang: string,
   ): Promise<KnownTrackDetail | null> {
-    const availableTracks = this.playerBridge.getAvailableTextTracks();
-    const targetTrack = availableTracks.find(
-      (t) => t.bcp47 && Language.matches(t.bcp47, normalizedLang),
-    );
-
     if (!targetTrack || !targetTrack.bcp47) {
       return null;
     }
 
-    const originalTrack = this.playerBridge.getActiveTextTrack();
+    const originalTrack = this.playerBridge.getActiveTextTrack(epId);
 
     try {
       const detail = await this.executeTrackActivationSwitch(
@@ -313,10 +324,10 @@ export class NetflixTrackRegistry {
         targetTrack,
         targetTrack.bcp47.toLowerCase(),
       );
-      this.restoreOriginalTrack(originalTrack);
+      this.restoreOriginalTrack(originalTrack, epId);
       return detail;
     } catch (err) {
-      this.restoreOriginalTrack(originalTrack);
+      this.restoreOriginalTrack(originalTrack, epId);
       this.logger.warn('Netflix', 'Track activation probe failed:', err);
       return null;
     }
@@ -357,7 +368,7 @@ export class NetflixTrackRegistry {
         },
       };
 
-      this.playerBridge.setTextTrack(targetTrack);
+      this.playerBridge.setTextTrack(targetTrack, epId);
     });
   }
 
@@ -367,7 +378,7 @@ export class NetflixTrackRegistry {
     targetTrack: NetflixTimedTextTrack,
     targetBcp47: string,
   ): Promise<KnownTrackDetail | null> {
-    const playerTracks = this.playerBridge.getPlayerTextTracks();
+    const playerTracks = this.playerBridge.getPlayerTextTracks(epId);
     const active = playerTracks.find(
       (pt) => pt.trackId === targetTrack.trackId && pt.urls.length > 0,
     );
@@ -392,9 +403,10 @@ export class NetflixTrackRegistry {
 
   private restoreOriginalTrack(
     originalTrack: NetflixTimedTextTrack | null,
+    epId?: string,
   ): void {
     if (originalTrack) {
-      this.playerBridge.setTextTrack(originalTrack);
+      this.playerBridge.setTextTrack(originalTrack, epId);
     }
   }
 

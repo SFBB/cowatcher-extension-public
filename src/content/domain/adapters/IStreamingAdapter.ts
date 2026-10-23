@@ -212,7 +212,7 @@ export interface IStreamingAdapter {
   fetchNativeTargetTrack?(
     targetLang: import('@shared/domain/value-objects/Language').LanguageInfo,
     movieId?: string
-  ): Promise<SubtitleCueData[] | null>;
+  ): Promise<SubtitleCueData[] | null | undefined>;
 
   /**
    * Create platform-specific ad detector

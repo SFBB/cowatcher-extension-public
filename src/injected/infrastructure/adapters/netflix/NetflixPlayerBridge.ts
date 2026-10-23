@@ -58,10 +58,15 @@ export class NetflixPlayerBridge {
   }
 
   // --------------------------------------------------------------------------
-  // Authoritative Netflix Player Getters
+  // Authoritative Netflix Player Getters & Validations
   // --------------------------------------------------------------------------
 
-  getActivePlayer(): NetflixPlayer | null {
+  extractUrlMovieId(url: string = window.location.href): string | null {
+    const match = (url || '').match(/\/watch\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  getActivePlayer(expectedMovieId?: string): NetflixPlayer | null {
     const vp = window.netflix?.appContext?.state?.playerApp?.getAPI()?.videoPlayer;
     if (!vp) return null;
 
@@ -70,11 +75,34 @@ export class NetflixPlayerBridge {
     );
     if (sessions.length === 0) return null;
 
+    const targetMovieId = expectedMovieId || this.extractUrlMovieId();
+    if (targetMovieId) {
+      for (const sid of sessions) {
+        const p = vp.getVideoPlayerBySessionId(sid);
+        if (p && String(p.getMovieId()) === targetMovieId) {
+          return p;
+        }
+      }
+      return null;
+    }
+
     return vp.getVideoPlayerBySessionId(sessions[0]);
   }
 
-  getCurrentMovieId(): string | null {
-    const player = this.getActivePlayer();
+  isPlayerReadyForMovie(expectedMovieId?: string): boolean {
+    const targetMovieId = expectedMovieId || this.extractUrlMovieId();
+    if (!targetMovieId) return false;
+    const player = this.getActivePlayer(targetMovieId);
+    if (!player || String(player.getMovieId()) !== targetMovieId) return false;
+
+    const internalP = player.getInternalPlayer();
+    if (!internalP) return false;
+    const tracks = internalP.getTextTrackList();
+    return Array.isArray(tracks) && tracks.length > 0;
+  }
+
+  getCurrentMovieId(expectedMovieId?: string): string | null {
+    const player = this.getActivePlayer(expectedMovieId);
     if (!player) return null;
     return String(player.getMovieId());
   }
@@ -99,26 +127,26 @@ export class NetflixPlayerBridge {
     return player ? player.getPlaybackRate() : 1;
   }
 
-  getActiveTextTrack(): NetflixTimedTextTrack | null {
-    const internalP = this.getInternalPlayer();
+  getActiveTextTrack(expectedMovieId?: string): NetflixTimedTextTrack | null {
+    const internalP = this.getInternalPlayer(expectedMovieId);
     if (!internalP) return null;
     return internalP.getTextTrack();
   }
 
-  getAvailableTextTracks(): readonly NetflixTimedTextTrack[] {
-    const internalP = this.getInternalPlayer();
+  getAvailableTextTracks(expectedMovieId?: string): readonly NetflixTimedTextTrack[] {
+    const internalP = this.getInternalPlayer(expectedMovieId);
     if (!internalP) return [];
     return internalP.getTextTrackList();
   }
 
-  getPlayerTextTracks(): readonly NetflixPlayerTextTrack[] {
-    const internalP = this.getInternalPlayer();
+  getPlayerTextTracks(expectedMovieId?: string): readonly NetflixPlayerTextTrack[] {
+    const internalP = this.getInternalPlayer(expectedMovieId);
     if (!internalP) return [];
     return internalP.getPlayerTextTracks();
   }
 
-  setTextTrack(track: NetflixTimedTextTrack): void {
-    const internalP = this.getInternalPlayer();
+  setTextTrack(track: NetflixTimedTextTrack, expectedMovieId?: string): void {
+    const internalP = this.getInternalPlayer(expectedMovieId);
     if (internalP) {
       internalP.setTextTrack(track);
     }
@@ -128,8 +156,8 @@ export class NetflixPlayerBridge {
   // Internal State Observers & Event Dispatchers
   // --------------------------------------------------------------------------
 
-  private getInternalPlayer(): NetflixInternalPlayer | null {
-    const player = this.getActivePlayer();
+  private getInternalPlayer(expectedMovieId?: string): NetflixInternalPlayer | null {
+    const player = this.getActivePlayer(expectedMovieId);
     if (!player) return null;
     return player.getInternalPlayer();
   }

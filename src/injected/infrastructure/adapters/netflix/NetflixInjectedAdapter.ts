@@ -299,16 +299,26 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     targetLangCode: string,
   ): Promise<void> {
     const showId = this.metadataManager.getShowId(movieId);
-    const track = await this.trackRegistry.getTrack(showId, movieId, targetLangCode);
+    const trackResult = await this.trackRegistry.getTrack(showId, movieId, targetLangCode);
+
+    let status: 'found' | 'not_found' | 'not_ready';
+    if (trackResult === undefined) {
+      status = 'not_ready';
+    } else if (trackResult === null) {
+      status = 'not_found';
+    } else {
+      status = 'found';
+    }
 
     window.postMessage(
       {
         type: NCW_MESSAGE_TYPES.NATIVE_TRACK_DATA,
         movieId,
         targetLangCode,
-        found: track !== null,
-        bcp47: track ? track.lang : undefined,
-        rawText: track ? track.rawText : undefined,
+        status,
+        found: status === 'found',
+        bcp47: trackResult ? trackResult.lang : undefined,
+        rawText: trackResult ? trackResult.rawText : undefined,
       },
       '*',
     );
