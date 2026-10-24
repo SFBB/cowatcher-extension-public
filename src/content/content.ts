@@ -21,6 +21,8 @@ import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
 import { Logger } from '@shared/utils/logger';
 import { Language, LanguageInfo } from '@shared/domain/value-objects/Language';
 import { AiSubState } from '@shared/domain/entities/AiSubState';
+import { startTriStatePoll, PollHandle } from './application/utils/pollHelper';
+import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPayload';
 
 const logger: Logger = new Logger('content');
 
@@ -102,13 +104,12 @@ const logger: Logger = new Logger('content');
         adapter,
     );
 
-    let currentVideoId: string | null =
-        subtitleManager.videoInfo?.videoId || null;
+    let currentVideoId: string | null = null;
     let currentUrl = window.location.href;
     let retryCount = 0;
     const pendingSubtitlesByMovieId = new Map<
         string,
-        { rawText: string; bcp47: string | null } | string
+        { rawText: string; bcp47: string | null }
     >();
     let currentSubtitleLanguage = 'auto';
     let lastParsedCues: CueItem[] | null = null;
@@ -119,14 +120,16 @@ const logger: Logger = new Logger('content');
 
     async function sendHeartbeat(): Promise<void> {
         if (!isExtensionValid()) return;
+        const videoId =
+            currentVideoId || adapter.extractVideoId() || null;
+        const datasetPayload = videoId
+            ? PlaybackDatasetHelper.read(videoId)
+            : null;
         const showId =
             subtitleManager?.currentShowId ||
-            (typeof document !== 'undefined'
-                ? document.documentElement?.dataset?.ncwShowId
-                : null) ||
+            datasetPayload?.showId ||
             null;
-        const videoId =
-            currentVideoId || adapter.getVideoInfo()?.videoId || null;
+
         try {
             await messageService.sendHeartbeat({
                 showId,
@@ -146,6 +149,20 @@ const logger: Logger = new Logger('content');
         if (!isExtensionValid()) return;
         if (!settings.vocabExtractorEnabled) return;
         if (!cuesToFeed || cuesToFeed.length === 0) return;
+
+        // Invariant: Verify entity consistency
+        if (
+            movieIdToFeed &&
+            currentVideoId &&
+            movieIdToFeed !== currentVideoId
+        ) {
+            logger.warn(
+                'Content',
+                `notifyVocabExtractor dropped cues: movieId ${movieIdToFeed} !== currentVideoId ${currentVideoId}`,
+            );
+            return;
+        }
+
         const configuredSrcLang =
             settings.vocabSourceLanguage &&
             settings.vocabSourceLanguage !== 'auto'
@@ -161,7 +178,7 @@ const logger: Logger = new Logger('content');
         const effectiveLang: LanguageInfo | 'auto' =
             rawLang === 'auto' ? 'auto' : Language.resolve(rawLang);
 
-        const showTitle = adapter.getVideoInfo().mainTitle;
+        const showTitle = subtitleManager?.videoInfo?.mainTitle || '';
 
         try {
             await messageService.feedVocabCues({
@@ -176,12 +193,17 @@ const logger: Logger = new Logger('content');
         }
     }
 
-    let subtitlePollTimer: ReturnType<typeof setTimeout> | null = null;
+    let subtitlePollHandle: PollHandle<{ rawText: string; bcp: string }> | null = null;
+    let subtitleAbortController: AbortController | null = null;
 
     function stopSubtitlePolling(): void {
-        if (subtitlePollTimer) {
-            clearTimeout(subtitlePollTimer);
-            subtitlePollTimer = null;
+        if (subtitlePollHandle) {
+            subtitlePollHandle.stop();
+            subtitlePollHandle = null;
+        }
+        if (subtitleAbortController) {
+            subtitleAbortController.abort();
+            subtitleAbortController = null;
         }
     }
 
@@ -225,128 +247,92 @@ const logger: Logger = new Logger('content');
         return true;
     }
 
-    function startSubtitlePolling(
-        targetVideoId: string,
-        maxAttempts = 15,
-        intervalMs = 1000,
-    ): void {
-        stopSubtitlePolling();
-
-        let attempts = 0;
-        const poll = async () => {
-            // 1. Guard: episode changed or context invalid
-            if (!isExtensionValid() || currentVideoId !== targetVideoId) {
-                stopSubtitlePolling();
-                return;
-            }
-
-            // 2. Guard: subtitles already loaded by another source (e.g. pushed by adapter)
-            if (subtitleManager.cues && subtitleManager.cues.length > 0) {
-                stopSubtitlePolling();
-                return;
-            }
-
-            attempts++;
-            try {
-                const result = await adapter.fetchSubttile(targetVideoId);
-                // Guard race condition after await
-                if (!isExtensionValid() || currentVideoId !== targetVideoId) {
-                    stopSubtitlePolling();
-                    return;
-                }
-
-                if (result && result.rawText) {
-                    const activated = await activateParsedSubtitle(
-                        result.rawText,
-                        result.bcp,
-                        targetVideoId,
-                        `Successfully polled subtitle at attempt ${attempts}`,
-                    );
-                    if (activated) {
-                        stopSubtitlePolling();
-                        return;
-                    }
-                } else if (result === null) {
-                    logger.info(
-                        'Content',
-                        `Confirmed no subtitle available for ${targetVideoId} during polling (status: null).`,
-                    );
-                    stopSubtitlePolling();
-                    return;
-                } else if (result === undefined) {
-                    logger.info(
-                        'Content',
-                        `Subtitle status for ${targetVideoId} still pending (attempt ${attempts}/${maxAttempts})...`,
-                    );
-                }
-            } catch (err) {
-                logger.warn(
-                    'Content',
-                    `Error polling subtitle for ${targetVideoId}:`,
-                    err,
-                );
-            }
-
-            if (attempts < maxAttempts) {
-                subtitlePollTimer = setTimeout(poll, intervalMs);
-            } else {
-                logger.info(
-                    'Content',
-                    `Subtitle polling timed out for ${targetVideoId} after ${maxAttempts} attempts.`,
-                );
-                stopSubtitlePolling();
-            }
-        };
-
-        subtitlePollTimer = setTimeout(poll, intervalMs);
-    }
-
     async function fetchAndActivateSubtitle(
         targetVideoId: string,
         sourceDescription = 'proactively fetched',
     ): Promise<boolean> {
         if (!targetVideoId) return false;
+        stopSubtitlePolling();
 
-        try {
-            const subtitleRaw = await adapter.fetchSubttile(targetVideoId);
-            // Guard against race condition: user switched episodes or context invalidated while awaiting fetch
+        const abortController = new AbortController();
+        subtitleAbortController = abortController;
+
+        const handle = await startTriStatePoll(
+            () => adapter.fetchSubttile(targetVideoId),
+            {
+                immediate: true,
+                intervalMs: 1000,
+                maxAttempts: 25,
+                timeoutMs: 3 * 60 * 1000,
+                backoffFactor: 1.1,
+                maxIntervalMs: 3000,
+                abortSignal: abortController.signal,
+                onSuccess: async (result) => {
+                    // Entity consistency check: must still be current video
+                    if (!isExtensionValid() || currentVideoId !== targetVideoId) {
+                        return;
+                    }
+                    if (result && result.rawText) {
+                        await activateParsedSubtitle(
+                            result.rawText,
+                            result.bcp,
+                            targetVideoId,
+                            `Background polled ${sourceDescription} subtitle`,
+                        );
+                    } else if (result === null) {
+                        logger.info(
+                            'Content',
+                            `Confirmed no subtitle available for ${targetVideoId} during polling (status: null).`,
+                        );
+                    }
+                },
+                onAbort: (reason) => {
+                    logger.debug(
+                        'Content',
+                        `Subtitle polling for ${targetVideoId} ended: ${reason}`,
+                    );
+                },
+                onError: (err) => {
+                    logger.warn(
+                        'Content',
+                        `Error polling subtitle for ${targetVideoId}:`,
+                        err,
+                    );
+                },
+            },
+        );
+
+        subtitlePollHandle = handle;
+
+        // If immediate attempt yielded definitive result (T or null), process right away
+        if (handle.initialResult !== undefined) {
             if (!isExtensionValid() || currentVideoId !== targetVideoId) {
                 return false;
             }
-
-            if (subtitleRaw && subtitleRaw.rawText) {
-                const activated = await activateParsedSubtitle(
-                    subtitleRaw.rawText,
-                    subtitleRaw.bcp,
+            if (handle.initialResult && handle.initialResult.rawText) {
+                return await activateParsedSubtitle(
+                    handle.initialResult.rawText,
+                    handle.initialResult.bcp,
                     targetVideoId,
                     `Instantly activated ${sourceDescription} subtitle`,
                 );
-                if (activated) return true;
-            } else if (subtitleRaw === null) {
+            } else if (handle.initialResult === null) {
                 logger.info(
                     'Content',
                     `Confirmed no subtitle available for ${targetVideoId} (status: null).`,
                 );
                 return false;
-            } else if (subtitleRaw === undefined) {
-                logger.info(
-                    'Content',
-                    `We want to fetch subtitle of ${targetVideoId}, but currently, we don't know its real status, so we will retry later`,
-                );
-                startSubtitlePolling(targetVideoId);
-                return false;
             }
-        } catch (e) {
-            logger.warn(
-                'Content',
-                `Failed fetching subtitle for ${targetVideoId} (${sourceDescription}):`,
-                e,
-            );
         }
+
+        logger.info(
+            'Content',
+            `Subtitle for ${targetVideoId} is pending (undefined), background polling started.`,
+        );
         return false;
     }
 
-    // Ths function only triggers when adapter.getVideoInfo.videoId reflects the new movie id.
+    // Handles video/episode transition and manages context, DOM mount, and subtitle resolution
     async function handleEpisodeChange(info: {
         movieId: string;
         url?: string;
@@ -382,13 +368,10 @@ const logger: Logger = new Logger('content');
             const item = pendingSubtitlesByMovieId.get(currentVideoId);
             pendingSubtitlesByMovieId.delete(currentVideoId);
             try {
-                const stagedRawText =
-                    typeof item === 'string' ? item : item?.rawText;
-                const stagedBcp = typeof item === 'object' ? item?.bcp47 : null;
-                if (stagedRawText) {
+                if (item?.rawText) {
                     const activated = await activateParsedSubtitle(
-                        stagedRawText,
-                        stagedBcp,
+                        item.rawText,
+                        item.bcp47,
                         currentVideoId,
                         'Instantly activated staged preloaded subtitle',
                     );
@@ -421,7 +404,7 @@ const logger: Logger = new Logger('content');
         currentUrl = newUrl;
         logger.info('Content', `Page route changed: ${newUrl}`);
 
-        const newVid = adapter.getVideoInfo()?.videoId || null;
+        const newVid = adapter.extractVideoId(newUrl) || null;
         if (!newVid) {
             currentVideoId = null;
             stopSubtitlePolling();
@@ -968,6 +951,15 @@ const logger: Logger = new Logger('content');
     });
 
     adapter.onSubtitleData(async (data) => {
+        // Invariant: Verify entity consistency
+        if (data.movieId && currentVideoId && data.movieId !== currentVideoId) {
+            logger.warn(
+                'Content',
+                `Dropped stale onSubtitleData for ${data.movieId} because currentVideoId is ${currentVideoId}.`,
+            );
+            return;
+        }
+
         const cues: CueItem[] = data.cues.map((c) =>
             createSubtitleCue({
                 id: c.id,
@@ -980,7 +972,7 @@ const logger: Logger = new Logger('content');
         if (cues.length > 0) {
             lastParsedCues = cues;
             currentSubtitleLanguage = data.language;
-            const effectiveMid = data.movieId || currentVideoId;
+            const effectiveMid = data.movieId || currentVideoId || '';
             if (data.movieId && !currentVideoId) {
                 currentVideoId = data.movieId;
             }
@@ -999,10 +991,17 @@ const logger: Logger = new Logger('content');
     });
 
     if (typeof adapter.onSubtitleOff === 'function') {
-        adapter.onSubtitleOff(() => {
+        adapter.onSubtitleOff((offMovieId?: string) => {
+            if (offMovieId && currentVideoId && offMovieId !== currentVideoId) {
+                logger.warn(
+                    'Content',
+                    `Ignored SUBTITLE_OFF for ${offMovieId} because currentVideoId is ${currentVideoId}.`,
+                );
+                return;
+            }
             logger.info(
                 'Content',
-                'Subtitle OFF event received from platform adapter.',
+                `Subtitle OFF event received for ${offMovieId || currentVideoId || 'current video'}.`,
             );
             lastParsedCues = null;
             subtitleManager.clearCues();
@@ -1013,6 +1012,13 @@ const logger: Logger = new Logger('content');
     if (typeof adapter.onMetadataLoaded === 'function') {
         adapter.onMetadataLoaded(async (meta) => {
             if (!isExtensionValid()) return;
+            if (meta.videoId && currentVideoId && meta.videoId !== currentVideoId) {
+                logger.warn(
+                    'Content',
+                    `Dropped stale onMetadataLoaded for ${meta.videoId} because currentVideoId is ${currentVideoId}.`,
+                );
+                return;
+            }
             logger.info(
                 'Content',
                 `Metadata loaded event received for: ${meta.mainTitle} (showId=${meta.showId || 'N/A'}, ep=${meta.episodeTitle})`,
@@ -1032,8 +1038,11 @@ const logger: Logger = new Logger('content');
         await handleUrlChange(url);
     });
 
-    adapter.onTimeSync(({ cadmiumOffset, adOffset }) => {
+    adapter.onTimeSync(({ movieId, cadmiumOffset, adOffset }) => {
         if (!isExtensionValid()) return;
+        if (movieId && currentVideoId && movieId !== currentVideoId) {
+            return;
+        }
         if (typeof cadmiumOffset === 'number') {
             subtitleManager.setCadmiumOffset(cadmiumOffset);
         } else if (typeof adOffset === 'number') {
@@ -1082,6 +1091,7 @@ const logger: Logger = new Logger('content');
             if (
                 currentVideoId &&
                 subtitleManager.cues.length === 0 &&
+                !subtitlePollHandle &&
                 !video.paused &&
                 video.currentTime > 1
             ) {
@@ -1089,9 +1099,9 @@ const logger: Logger = new Logger('content');
                 if (retryCount <= 10 && retryCount % 2 === 0) {
                     logger.info(
                         'Content',
-                        'Subtitle cues not yet caught during playback. Triggering adapter retry...',
+                        'Subtitle cues not yet caught during playback. Triggering adapter fetch retry...',
                     );
-                    adapter.requestSubtitleRetry();
+                    fetchAndActivateSubtitle(currentVideoId).catch(() => {});
                 }
             }
         }
@@ -1107,6 +1117,16 @@ const logger: Logger = new Logger('content');
     }
 
     scanAndAttachVideo();
+
+    // Bootstrap initial playback episode if starting directly on a video page
+    const initialVid = adapter.extractVideoId();
+    if (initialVid) {
+        logger.info(
+            'Content',
+            `Bootstrapping initial episode from page route: ${initialVid}`,
+        );
+        handleEpisodeChange({ movieId: initialVid }).catch(() => {});
+    }
 
     const bodyObserver = new MutationObserver((mutations) => {
         const isInternalMutation = mutations.every((m) => {

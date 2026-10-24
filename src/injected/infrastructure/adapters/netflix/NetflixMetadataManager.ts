@@ -100,6 +100,7 @@ export class NetflixMetadataManager {
 
         return {
             type: NCW_MESSAGE_TYPES.METADATA_LOADED,
+            movieId: targetEpisodeId,
             showId,
             showTitle: video.title,
             showSynopsis: video.synopsis,

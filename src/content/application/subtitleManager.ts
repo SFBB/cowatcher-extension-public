@@ -174,7 +174,7 @@ export class SubtitleManager {
         return this.pipeline.isPreReviewing;
     }
     get videoInfo(): VideoMetadata | null {
-        return this.contextManager.vidoeInfo;
+        return this.contextManager.videoInfo;
     }
 
     private createAsrMerger(): AsrStreamMerger {
@@ -780,7 +780,7 @@ export class SubtitleManager {
             );
             if (!this.syncer.video.paused) this.syncer.startRafLoop();
         } else if (this.store.cues.length === 0 && this.adapter) {
-            this.adapter.requestSubtitleRetry();
+            // Subtitle loading is managed by fetchSubttile and content polling orchestrator
         }
     }
 }

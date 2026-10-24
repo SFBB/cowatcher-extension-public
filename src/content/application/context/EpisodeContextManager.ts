@@ -10,6 +10,7 @@ import { SubtitleLearningManager } from '../learning/SubtitleLearningManager';
 import { WatchHistoryTracker } from '../history/WatchHistoryTracker';
 import { SubtitleCue } from '@shared/domain/entities/Subtitle';
 import { Logger } from '@shared/utils/logger';
+import { startTriStatePoll, PollHandle } from '../utils/pollHelper';
 
 export interface EpisodeContextDelegate {
     isContextValid(): boolean;
@@ -27,7 +28,58 @@ export class EpisodeContextManager {
     currentShowId: string | null = null;
     currentContext: Context = Context.createEmpty(Language.DEFAULT);
     hasWarmedUpForEpisode = false;
-    latestMetadata?: VideoMetadata;
+    private _latestMetadata?: VideoMetadata;
+    private metadataPollHandle: PollHandle<VideoMetadata> | null = null;
+    private metadataAbortController: AbortController | null = null;
+
+    get latestMetadata(): VideoMetadata | undefined {
+        if (!this._latestMetadata) return undefined;
+        // Output consistency verification: must match currentMovieId
+        if (
+            this.currentMovieId &&
+            this._latestMetadata.videoId &&
+            this._latestMetadata.videoId !== this.currentMovieId
+        ) {
+            this.logger.warn(
+                'EpisodeContextManager',
+                `latestMetadata consistency check failed (${this._latestMetadata.videoId} !== ${this.currentMovieId}). Invalidating stale metadata.`,
+            );
+            this._latestMetadata = undefined;
+            return undefined;
+        }
+        return this._latestMetadata;
+    }
+
+    set latestMetadata(meta: VideoMetadata | undefined) {
+        if (!meta) {
+            this._latestMetadata = undefined;
+            return;
+        }
+        // Input validation: If metadata has videoId, it MUST match currentMovieId
+        if (
+            this.currentMovieId &&
+            meta.videoId &&
+            meta.videoId !== this.currentMovieId
+        ) {
+            this.logger.warn(
+                'EpisodeContextManager',
+                `Rejected metadata for ${meta.videoId} because currentMovieId is ${this.currentMovieId}. Inconsistency strictly prevented.`,
+            );
+            return;
+        }
+        // If metadata does not contain videoId, guarantee it belongs to currentMovieId
+        if (!meta.videoId && this.currentMovieId) {
+            meta = { ...meta, videoId: this.currentMovieId };
+        }
+        if (!this.currentMovieId && meta.videoId) {
+            this.currentMovieId = meta.videoId;
+        }
+        this._latestMetadata = meta;
+    }
+
+    get videoInfo(): VideoMetadata | null {
+        return this.latestMetadata || null;
+    }
 
     constructor(
         private readonly messageService: ContentMessageService,
@@ -50,10 +102,6 @@ export class EpisodeContextManager {
         return Boolean(
             matchContextEpisode || matchLatestMeta || matchCurrentMovie,
         );
-    }
-
-    get vidoeInfo(): VideoMetadata | null {
-        return this.latestMetadata || null;
     }
 
     private clearDOMDatasetAttributes(): void {
@@ -139,25 +187,69 @@ export class EpisodeContextManager {
         this.currentContext = Context.createEmpty(
             this.getSettings().targetLanguage,
         );
-        this.adapter?.clearMetadata?.();
-        if (newIdStr && this.adapter?.requestMetadata) {
+        this.latestMetadata = undefined;
+
+        if (this.metadataPollHandle) {
+            this.metadataPollHandle.stop();
+            this.metadataPollHandle = null;
+        }
+        if (this.metadataAbortController) {
+            this.metadataAbortController.abort();
+            this.metadataAbortController = null;
+        }
+
+        if (newIdStr && this.adapter) {
             this.logger.info(
                 'EpisodeContextManager',
-                `Requesting fresh metadata for episode (${newIdStr}).`,
+                `Querying fresh metadata for episode (${newIdStr}) via startTriStatePoll.`,
             );
-            this.adapter.requestMetadata(newIdStr);
+            const abortController = new AbortController();
+            this.metadataAbortController = abortController;
+
+            startTriStatePoll(
+                () => this.adapter!.queryMetadata(newIdStr),
+                {
+                    immediate: true,
+                    intervalMs: 1200,
+                    maxAttempts: 15,
+                    timeoutMs: 60 * 1000,
+                    backoffFactor: 1.2,
+                    maxIntervalMs: 3000,
+                    abortSignal: abortController.signal,
+                    onSuccess: (meta) => {
+                        // Strict output/callback validation: Must still be on newIdStr
+                        if (this.currentMovieId !== newIdStr) {
+                            this.logger.warn(
+                                'EpisodeContextManager',
+                                `Discarding polled metadata for ${newIdStr} because currentMovieId changed to ${this.currentMovieId}.`,
+                            );
+                            return;
+                        }
+                        if (meta) {
+                            this.onMetadataLoaded(meta);
+                        }
+                    },
+                    onError: (err) => {
+                        this.logger.warn(
+                            'EpisodeContextManager',
+                            `Failed querying metadata for ${newIdStr}:`,
+                            err,
+                        );
+                    },
+                },
+            ).then((handle) => {
+                this.metadataPollHandle = handle;
+                if (handle.initialResult !== undefined) {
+                    if (this.currentMovieId === newIdStr && handle.initialResult) {
+                        this.onMetadataLoaded(handle.initialResult);
+                    }
+                }
+            }).catch(() => {});
         }
     }
 
     private notifyCurrentShowEpisodeChanged(newIdStr: string | null): void {
-        let currentShowInfo: VideoMetadata | null = null;
-        if (this.adapter) {
-            try {
-                currentShowInfo = this.adapter.getVideoInfo();
-            } catch {
-                // Ignore
-            }
-        }
+        const currentShowInfo = this.videoInfo;
         const targetLanguage =
             this.getSettings().targetLanguage || Language.DEFAULT;
         const matched = this.currentContext?.episodes?.find(
@@ -312,16 +404,13 @@ export class EpisodeContextManager {
     }
 
     private resolveShowInfoForWarmup(override?: VideoMetadata): VideoMetadata {
-        let showInfo: VideoMetadata = override ||
-            this.latestMetadata || {
+        const showInfo: VideoMetadata = override ||
+            this.videoInfo || {
                 fullTitle: '',
                 mainTitle: '',
                 episodeTitle: '',
                 videoId: this.currentMovieId || '',
             };
-        if (!override && !this.latestMetadata && this.adapter) {
-            showInfo = this.adapter.getVideoInfo();
-        }
         if (!showInfo.videoId && this.currentMovieId)
             showInfo.videoId = this.currentMovieId;
         if (!showInfo.showId && this.currentShowId)

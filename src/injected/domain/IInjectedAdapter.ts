@@ -34,9 +34,14 @@ export interface InjectedSubtitleOffPayload {
 
 export interface InjectedTimeSyncPayload {
     type: typeof NCW_CONSTANTS.MESSAGE_TYPES.TIME_SYNC;
+    movieId?: string;
     cadmiumOffset?: number;
     adOffset?: number;
-    [key: string]: any;
+    segmentTime?: number;
+    syncAt?: number;
+    isPaused?: boolean;
+    playbackRate?: number;
+    [key: string]: unknown;
 }
 
 export interface InjectedEpisodeChangedPayload {
@@ -53,6 +58,7 @@ export interface InjectedUrlChangedPayload {
 
 export interface InjectedMetadataLoadedPayload {
     type: typeof NCW_CONSTANTS.MESSAGE_TYPES.METADATA_LOADED;
+    movieId?: string;
     showId: string;
     showTitle: string;
     showSynopsis?: string;
@@ -65,11 +71,12 @@ export interface InjectedMetadataLoadedPayload {
         episodeSeq?: number;
         episodeSynopsis?: string;
     };
-    rawMetadata?: any;
+    rawMetadata?: unknown;
 }
 
 export interface InjectedAdStateChangedPayload {
     type: typeof NCW_CONSTANTS.MESSAGE_TYPES.AD_STATE_CHANGED;
+    movieId?: string;
     isAd: boolean;
 }
 
@@ -83,6 +90,23 @@ export interface InjectedNativeTrackDataPayload {
     error?: string;
 }
 
+export interface InjectedQueryMetadataResultPayload {
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.QUERY_METADATA_RESULT;
+    queryId: string;
+    status: 'resolved' | 'null' | 'undefined';
+    movieId?: string;
+    metadata?: unknown;
+}
+
+export interface InjectedQuerySubtitleResultPayload {
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.QUERY_SUBTITLE_RESULT;
+    queryId: string;
+    status: 'resolved' | 'null' | 'undefined';
+    movieId?: string;
+    rawText?: string;
+    bcp?: string;
+}
+
 /**
  * All outgoing events that an IInjectedAdapter can post to window.
  */
@@ -94,7 +118,9 @@ export type InjectedOutgoingEvent =
     | InjectedEpisodeChangedPayload
     | InjectedUrlChangedPayload
     | InjectedAdStateChangedPayload
-    | InjectedNativeTrackDataPayload;
+    | InjectedNativeTrackDataPayload
+    | InjectedQueryMetadataResultPayload
+    | InjectedQuerySubtitleResultPayload;
 
 /**
  * Incoming event sent from Content Script to Injected Script.
@@ -109,8 +135,29 @@ export interface InjectedQueryNativeTrackEvent {
     targetLangCode: string;
 }
 
+export interface InjectedQueryMetadataEvent {
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.QUERY_METADATA;
+    queryId: string;
+    movieId?: string;
+}
+
+export interface InjectedQuerySubtitleEvent {
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.QUERY_SUBTITLE;
+    queryId: string;
+    movieId?: string;
+}
+
+export interface InjectedRequestMetadataEvent {
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.REQUEST_METADATA;
+    movieId?: string;
+}
+
 export type InjectedIncomingEvent =
-    InjectedSubtitleRetryEvent | InjectedQueryNativeTrackEvent;
+    | InjectedSubtitleRetryEvent
+    | InjectedQueryNativeTrackEvent
+    | InjectedQueryMetadataEvent
+    | InjectedQuerySubtitleEvent
+    | InjectedRequestMetadataEvent;
 
 /**
  * Domain interface for Platform Injected Adapters.

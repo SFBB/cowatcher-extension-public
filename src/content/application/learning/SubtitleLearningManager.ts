@@ -304,13 +304,13 @@ export class SubtitleLearningManager {
         );
     }
 
-    private toggleUserMarkedWord(
+    private async toggleUserMarkedWord(
         word: string,
         contextSentence: string,
         contextTranslation: string | undefined,
         tokenEl?: HTMLElement,
         container?: HTMLElement,
-    ): void {
+    ): Promise<void> {
         const movieId = this.currentMovieId || 'default';
         const normalized = word.toLowerCase();
         const isCurrentlyMarked = this.userVocabWords.has(normalized);
@@ -330,6 +330,11 @@ export class SubtitleLearningManager {
                 tokenEl.classList.add('is-user-marked');
             }
 
+            const currentTimestamp =
+                (await this.adapter?.getContentTime()) ??
+                this.adapter?.getVideoElement()?.currentTime ??
+                0;
+
             const wordItem: VocabWordItem = {
                 word,
                 pos: '',
@@ -337,7 +342,7 @@ export class SubtitleLearningManager {
                 meaning: '',
                 sentence: contextSentence, // Contex sentence as example!
                 sentenceTranslation: contextTranslation || '',
-                timestamp: this.adapter.getContentTime(),
+                timestamp: currentTimestamp,
                 frequency: 1,
                 source: 'user', // Explicitly user-marked!
                 createdAt: Date.now(),

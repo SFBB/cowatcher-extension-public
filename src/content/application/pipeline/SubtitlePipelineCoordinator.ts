@@ -954,13 +954,14 @@ export class SubtitlePipelineCoordinator {
         pairs: Array<{ originalText: string; translatedText: string }>,
     ): void {
         const effectiveHash = trackHash || this.store.currentTrackHash;
+        const currentContext = this.delegate.getCurrentContext();
         if (effectiveHash) {
-            const showInfo = this.adapter?.getVideoInfo();
+            const showTitle = currentContext?.mainTitle || currentContext?.title || '';
             this.messageService
                 .saveSubtitleCache({
                     trackHash: effectiveHash,
                     movieId: this.delegate.getCurrentMovieId() || '',
-                    showTitle: showInfo?.mainTitle || showInfo?.fullTitle || '',
+                    showTitle,
                     targetLanguage: targetLang.code || 'en',
                     provider: 'netflix_native',
                     translationModel: 'official',
@@ -974,10 +975,9 @@ export class SubtitlePipelineCoordinator {
             this.getSettings().extractTermsFromNativeSubtitles &&
             pairs.length > 0
         ) {
-            const showInfo = this.adapter?.getVideoInfo();
             const showId =
-                showInfo?.showId ||
                 this.delegate.getCurrentShowId() ||
+                currentContext?.showId ||
                 this.delegate.getCurrentMovieId() ||
                 '';
             this.messageService

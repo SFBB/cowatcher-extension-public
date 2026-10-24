@@ -7,13 +7,14 @@ import {
 import { Logger } from '@shared/utils/logger';
 
 export interface NetflixPlayerBridgeHandlers {
-    readonly onAdStateChange?: (isAd: boolean) => void;
+    readonly onAdStateChange?: (isAd: boolean, movieId?: string) => void;
     readonly onEpisodeChange?: (
         movieId: string,
         sessionId: string,
         url: string,
     ) => void;
     readonly onTimeSync?: (payload: {
+        movieId: string;
         segmentTime: number;
         syncAt: number;
         isPaused: boolean;
@@ -252,8 +253,12 @@ export class NetflixPlayerBridge {
         const isAd = player.isAd();
         if (isAd !== this.lastObservedAdState) {
             this.lastObservedAdState = isAd;
-            this.logger.info('Netflix', `Ad state changed: ${isAd}`);
-            this.handlers.onAdStateChange?.(isAd);
+            const movieId = String(player.getMovieId());
+            this.logger.info(
+                'Netflix',
+                `Ad state changed: ${isAd} for movie ${movieId}`,
+            );
+            this.handlers.onAdStateChange?.(isAd, movieId);
         }
     }
 
@@ -290,9 +295,11 @@ export class NetflixPlayerBridge {
 
     private dispatchTimeSync(player: NetflixPlayer): void {
         const segmentTime = player.getSegmentTime();
+        const movieId = String(player.getMovieId());
         this.handlers.onTimeSync?.({
+            movieId,
             segmentTime,
-            syncAt: Date.now(),
+            syncAt: performance.now(),
             isPaused: player.isPaused(),
             playbackRate: player.getPlaybackRate(),
         });

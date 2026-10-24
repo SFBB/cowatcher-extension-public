@@ -5,6 +5,7 @@ import {
 import { VideoMetadata } from '../../../../content/domain/adapters/IStreamingAdapter';
 import { STREAMING_PLATFORMS } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
+import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPayload';
 import { NetworkHook } from '../../network/NetworkHook';
 import { NetflixPlayerBridge } from './NetflixPlayerBridge';
 import { NetflixMetadataManager } from './NetflixMetadataManager';
@@ -25,6 +26,8 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     private lastEmittedSignature = '';
     private unhookNetwork?: () => void;
     private unhookMetadata?: () => void;
+    private cleanupMessageListener?: () => void;
+    private cleanupRouteMonitoring?: () => void;
 
     constructor() {
         this.metadataManager = new NetflixMetadataManager();
@@ -60,9 +63,12 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     }
 
     destroy(): void {
+        this.cleanupMessageListener?.();
+        this.cleanupRouteMonitoring?.();
         this.unhookNetwork?.();
         this.unhookMetadata?.();
         this.playerBridge.stop();
+        PlaybackDatasetHelper.clear();
     }
 
     // --------------------------------------------------------------------------
@@ -88,28 +94,45 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
             }
         };
 
-        this.wrapHistoryMethods(notifyUrlChange);
+        const restoreHistory = this.wrapHistoryMethods(notifyUrlChange);
         window.addEventListener('popstate', notifyUrlChange);
+
+        let navHandler: (() => void) | null = null;
         if (window.navigation) {
-            window.navigation.addEventListener('navigate', () => {
+            navHandler = () => {
                 setTimeout(notifyUrlChange, 0);
-            });
+            };
+            window.navigation.addEventListener('navigate', navHandler);
         }
+
+        this.cleanupRouteMonitoring = () => {
+            restoreHistory();
+            window.removeEventListener('popstate', notifyUrlChange);
+            if (navHandler && window.navigation) {
+                window.navigation.removeEventListener('navigate', navHandler);
+            }
+        };
     }
 
-    private wrapHistoryMethods(callback: () => void): void {
+    private wrapHistoryMethods(callback: () => void): () => void {
         const origPush = history.pushState;
+        const origReplace = history.replaceState;
+
         history.pushState = function (...args) {
             const res = origPush.apply(this, args);
             callback();
             return res;
         };
 
-        const origReplace = history.replaceState;
         history.replaceState = function (...args) {
             const res = origReplace.apply(this, args);
             callback();
             return res;
+        };
+
+        return () => {
+            history.pushState = origPush;
+            history.replaceState = origReplace;
         };
     }
 
@@ -198,11 +221,10 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
         const payload = this.metadataManager.buildMetadataPayload(episodeId);
         if (!payload) return;
 
-        this.metadataManager.syncToDomDataset(payload);
         window.postMessage(payload, '*');
         this.logger.info(
             'Netflix',
-            `Emitted metadata for show ${payload.showId}.`,
+            `Emitted metadata for movie ${episodeId} (show ${payload.showId}).`,
         );
     }
 
@@ -297,20 +319,40 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     };
 
     private handleTimeSync = (payload: {
+        movieId: string;
         segmentTime: number;
         syncAt: number;
         isPaused: boolean;
         playbackRate: number;
     }): void => {
+        // 1. Authoritative high-frequency dataset sync (Type 4)
+        PlaybackDatasetHelper.write({
+            movieId: payload.movieId,
+            currentTime: payload.segmentTime,
+            syncAt: payload.syncAt,
+            isPaused: payload.isPaused,
+            playbackRate: payload.playbackRate,
+        });
+
+        // 2. Timeline sync event notification (Type 3)
         window.postMessage(
             { type: NCW_MESSAGE_TYPES.TIME_SYNC, ...payload },
             '*',
         );
     };
 
-    private handleAdStateChange = (isAd: boolean): void => {
+    private handleAdStateChange = (isAd: boolean, movieId?: string): void => {
+        const effectiveMid =
+            movieId ||
+            this.currentEpisodeId ||
+            this.playerBridge.getCurrentMovieId() ||
+            '';
         window.postMessage(
-            { type: NCW_MESSAGE_TYPES.AD_STATE_CHANGED, isAd },
+            {
+                type: NCW_MESSAGE_TYPES.AD_STATE_CHANGED,
+                isAd,
+                movieId: effectiveMid,
+            },
             '*',
         );
     };
@@ -320,7 +362,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
     // --------------------------------------------------------------------------
 
     private setupMessageListener(): void {
-        window.addEventListener('message', async (event) => {
+        const messageHandler = async (event: MessageEvent) => {
             if (event.source !== window || !event.data) return;
             const data: InjectedIncomingEvent = event.data;
 
@@ -335,9 +377,9 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
                 );
             }
 
-            if ((data as any).type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
-                const requestedMid = (data as any).movieId
-                    ? String((data as any).movieId)
+            if (data.type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
+                const requestedMid = data.movieId
+                    ? String(data.movieId)
                     : null;
                 const targetEpId =
                     requestedMid ||
@@ -349,10 +391,10 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
                 }
             }
 
-            if ((data as any).type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
-                const queryId = (data as any).queryId;
-                const requestedMid = (data as any).movieId
-                    ? String((data as any).movieId)
+            if (data.type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
+                const queryId = data.queryId;
+                const requestedMid = data.movieId
+                    ? String(data.movieId)
                     : null;
                 const expectedMid = requestedMid || this.currentEpisodeId;
 
@@ -365,6 +407,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
                             type: NCW_MESSAGE_TYPES.QUERY_METADATA_RESULT,
                             queryId,
                             status,
+                            movieId: expectedMid || undefined,
                             metadata,
                         },
                         '*',
@@ -425,7 +468,10 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
                                         targetMid,
                                     );
                                 if (freshPayload) {
-                                    window.postMessage(freshPayload, '*');
+                                    window.postMessage(
+                                        { ...freshPayload, movieId: targetMid },
+                                        '*',
+                                    );
                                 }
                             }
                         });
@@ -433,10 +479,10 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
                 }
             }
 
-            if ((data as any).type === NCW_MESSAGE_TYPES.QUERY_SUBTITLE) {
-                const queryId = (data as any).queryId;
-                const requestedMid = (data as any).movieId
-                    ? String((data as any).movieId)
+            if (data.type === NCW_MESSAGE_TYPES.QUERY_SUBTITLE) {
+                const queryId = data.queryId;
+                const requestedMid = data.movieId
+                    ? String(data.movieId)
                     : null;
                 const expectedMid = requestedMid || this.currentEpisodeId;
 
@@ -449,6 +495,7 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
                             type: NCW_MESSAGE_TYPES.QUERY_SUBTITLE_RESULT,
                             queryId,
                             status,
+                            movieId: expectedMid || undefined,
                             rawText: payload?.rawText,
                             bcp: payload?.bcp,
                         },
@@ -496,7 +543,12 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
                     respond('undefined');
                 }
             }
-        });
+        };
+
+        window.addEventListener('message', messageHandler);
+        this.cleanupMessageListener = () => {
+            window.removeEventListener('message', messageHandler);
+        };
     }
 
     private async handleRetryRequest(): Promise<void> {

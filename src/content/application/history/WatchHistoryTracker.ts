@@ -5,6 +5,7 @@ import {
 import { ContentMessageService } from '../services/ContentMessageService';
 import { WatchSession } from '@shared/domain/entities/WatchHistory';
 import { Logger } from '@shared/utils/logger';
+import { startTriStatePoll, PollHandle } from '../utils/pollHelper';
 
 export class WatchHistoryTracker {
     private readonly adapter: IStreamingAdapter;
@@ -16,9 +17,9 @@ export class WatchHistoryTracker {
     // - null: Confirmed standalone video without episodic show metadata
     // - undefined: Unknown / pending (in-flight or in transition, caller schedules retry)
     private currentMetadata: VideoMetadata | null | undefined = undefined;
-    private isResolvingMetadata: boolean = false;
-    private pendingRetryTimer: any = null;
-    private retryCount: number = 0;
+    private currentMovieId: string | null = null;
+    private metadataPollHandle: PollHandle<VideoMetadata> | null = null;
+    private metadataAbortController: AbortController | null = null;
 
     private currentSessionId: string | null = null;
     private sessionStartedAt: number = 0;
@@ -104,13 +105,17 @@ export class WatchHistoryTracker {
         if (this.currentSessionId && this.effectiveWatchSeconds >= 3) {
             this.flushSession(false);
         }
+        this.currentMovieId = newIdStr;
         this.currentSessionId = null;
         this.effectiveWatchSeconds = 0;
         this.currentMetadata = undefined; // reset to pending
-        this.retryCount = 0;
-        if (this.pendingRetryTimer) {
-            clearTimeout(this.pendingRetryTimer);
-            this.pendingRetryTimer = null;
+        if (this.metadataPollHandle) {
+            this.metadataPollHandle.stop();
+            this.metadataPollHandle = null;
+        }
+        if (this.metadataAbortController) {
+            this.metadataAbortController.abort();
+            this.metadataAbortController = null;
         }
 
         if (newIdStr) {
@@ -120,6 +125,24 @@ export class WatchHistoryTracker {
 
     onMetadataLoaded(meta: VideoMetadata): void {
         if (!meta) return;
+
+        // Input consistency check: If metadata has videoId, it MUST match currentMovieId
+        if (
+            this.currentMovieId &&
+            meta.videoId &&
+            meta.videoId !== this.currentMovieId
+        ) {
+            this.logger.warn(
+                'Tracker',
+                `Dropped metadata for ${meta.videoId} because currentMovieId is ${this.currentMovieId}. Inconsistency strictly prevented.`,
+            );
+            return;
+        }
+
+        // If metadata does not contain videoId, bound to currentMovieId
+        if (!meta.videoId && this.currentMovieId) {
+            meta = { ...meta, videoId: this.currentMovieId };
+        }
 
         // If switching to a different episode or show, flush previous session first
         if (
@@ -131,81 +154,85 @@ export class WatchHistoryTracker {
         }
 
         this.currentMetadata = meta;
-        this.retryCount = 0;
-        if (this.pendingRetryTimer) {
-            clearTimeout(this.pendingRetryTimer);
-            this.pendingRetryTimer = null;
-        }
     }
 
     async resolveMetadata(
         movieId?: string,
     ): Promise<VideoMetadata | null | undefined> {
-        if (this.isResolvingMetadata) return this.currentMetadata;
-        this.isResolvingMetadata = true;
-
-        try {
-            const result = await this.adapter.queryMetadata(movieId);
-            this.isResolvingMetadata = false;
-
-            if (result !== undefined) {
-                // Tri-state: concrete VideoMetadata or null (confirmed standalone)
-                this.retryCount = 0;
-                if (this.pendingRetryTimer) {
-                    clearTimeout(this.pendingRetryTimer);
-                    this.pendingRetryTimer = null;
-                }
-                this.currentMetadata = result;
-                this.logger.info(
-                    'Tracker',
-                    `Metadata resolved: ${result ? result.fullTitle : 'null (standalone video)'}`,
-                );
-                return result;
-            } else {
-                // Tri-state: undefined -> Unknown / pending, schedule retry
-                this.scheduleRetry(movieId);
-                return undefined;
-            }
-        } catch (e) {
-            this.isResolvingMetadata = false;
-            this.scheduleRetry(movieId);
-            return undefined;
+        const targetMovieId = movieId || this.currentMovieId || undefined;
+        if (!targetMovieId) return this.currentMetadata;
+        if (
+            this.currentMetadata !== undefined &&
+            this.currentMovieId === targetMovieId
+        ) {
+            return this.currentMetadata;
         }
-    }
 
-    private scheduleRetry(movieId?: string): void {
-        if (this.pendingRetryTimer) return;
-        if (this.retryCount >= 10) return;
+        if (this.metadataPollHandle) {
+            this.metadataPollHandle.stop();
+            this.metadataPollHandle = null;
+        }
+        if (this.metadataAbortController) {
+            this.metadataAbortController.abort();
+            this.metadataAbortController = null;
+        }
 
-        this.retryCount++;
-        const delay = Math.min(1000 * Math.pow(1.4, this.retryCount), 5000);
-        this.logger.debug(
-            'Tracker',
-            `Metadata status is undefined (pending). Scheduling retry #${this.retryCount} in ${Math.round(delay)}ms.`,
+        const abortController = new AbortController();
+        this.metadataAbortController = abortController;
+
+        const handle = await startTriStatePoll(
+            () => this.adapter.queryMetadata(targetMovieId),
+            {
+                immediate: true,
+                intervalMs: 1200,
+                maxAttempts: 15,
+                timeoutMs: 60 * 1000,
+                backoffFactor: 1.2,
+                maxIntervalMs: 3000,
+                abortSignal: abortController.signal,
+                onSuccess: (result) => {
+                    if (this.currentMovieId !== targetMovieId) return;
+                    this.currentMetadata = result;
+                    this.logger.info(
+                        'Tracker',
+                        `Metadata resolved via poll: ${result ? result.fullTitle : 'null (standalone video)'}`,
+                    );
+                },
+            },
         );
 
-        this.pendingRetryTimer = setTimeout(() => {
-            this.pendingRetryTimer = null;
-            if (this.isPlaying || this.currentSessionId) {
-                this.resolveMetadata(movieId);
+        this.metadataPollHandle = handle;
+        if (handle.initialResult !== undefined) {
+            if (this.currentMovieId === targetMovieId) {
+                this.currentMetadata = handle.initialResult;
             }
-        }, delay);
+            return handle.initialResult;
+        }
+
+        return undefined;
     }
 
     private onPlay(): void {
         this.isPlaying = true;
         const now = Date.now();
-        const contentTime = this.adapter.getContentTime();
+        const fallbackTime = this.boundVideo?.currentTime || 0;
 
         if (!this.currentSessionId) {
             this.currentSessionId = `ws_${now}_${Math.random().toString(36).slice(2, 7)}`;
             this.sessionStartedAt = now;
-            this.fromContentTime = contentTime;
-            this.lastContentTime = contentTime;
+            this.fromContentTime = fallbackTime;
+            this.lastContentTime = fallbackTime;
             this.effectiveWatchSeconds = 0;
         }
 
         this.lastWallClockTick = now;
+
+        this.adapter.getContentTime().then((ct) => {
+            if (ct !== undefined && ct !== null) {
+                this.fromContentTime = ct;
+                this.lastContentTime = ct;
+            }
+        }).catch(() => {});
 
         // If metadata is still undefined, kick off resolution
         if (this.currentMetadata === undefined) {
@@ -226,11 +253,18 @@ export class WatchHistoryTracker {
     }
 
     private onSeeked(): void {
-        const contentTime = this.adapter.getContentTime();
-        this.fromContentTime = contentTime;
-        this.lastContentTime = contentTime;
+        const fallbackTime = this.boundVideo?.currentTime || 0;
+        this.fromContentTime = fallbackTime;
+        this.lastContentTime = fallbackTime;
         this.effectiveWatchSeconds = 0;
         this.lastWallClockTick = Date.now();
+
+        this.adapter.getContentTime().then((ct) => {
+            if (ct !== undefined && ct !== null) {
+                this.fromContentTime = ct;
+                this.lastContentTime = ct;
+            }
+        }).catch(() => {});
 
         if (this.boundVideo && !this.boundVideo.paused) {
             this.onPlay();
@@ -241,7 +275,7 @@ export class WatchHistoryTracker {
         if (!this.isPlaying) return;
 
         const now = Date.now();
-        const currentContentTime = this.adapter.getContentTime();
+        const currentContentTime = this.boundVideo?.currentTime || 0;
         const wallDelta = (now - this.lastWallClockTick) / 1000;
         this.lastWallClockTick = now;
 
@@ -285,9 +319,24 @@ export class WatchHistoryTracker {
         if (this.currentMetadata === undefined) {
             this.logger.info(
                 'Tracker',
-                `Flush deferred: metadata is undefined (pending). Scheduling active query retry.`,
+                'Flush deferred: metadata is undefined (pending). Scheduling active query retry.',
             );
             this.resolveMetadata();
+            return;
+        }
+
+        // Verify entity consistency: if metadata videoId doesn't match currentMovieId, don't record wrong video!
+        if (
+            this.currentMetadata &&
+            this.currentMovieId &&
+            this.currentMetadata.videoId &&
+            this.currentMetadata.videoId !== this.currentMovieId
+        ) {
+            this.logger.warn(
+                'Tracker',
+                `Consistency violation prevented on flush: metadata ${this.currentMetadata.videoId} !== ${this.currentMovieId}. Invalidation triggered.`,
+            );
+            this.currentMetadata = undefined;
             return;
         }
 
@@ -299,10 +348,9 @@ export class WatchHistoryTracker {
 
         if (meta === null) {
             // Confirmed standalone title
-            videoId = this.adapter.extractVideoId() || 'standalone_video';
+            videoId = this.currentMovieId || this.adapter.extractVideoId() || 'standalone_video';
             showId = videoId;
-            showTitle =
-                this.adapter.getVideoInfo()?.mainTitle || 'Standalone Video';
+            showTitle = 'Standalone Video';
         } else {
             showId = meta.showId || meta.videoId;
             showTitle = meta.fullTitle || meta.mainTitle || 'Unknown Show';
@@ -348,9 +396,13 @@ export class WatchHistoryTracker {
     }
 
     destroy(): void {
-        if (this.pendingRetryTimer) {
-            clearTimeout(this.pendingRetryTimer);
-            this.pendingRetryTimer = null;
+        if (this.metadataPollHandle) {
+            this.metadataPollHandle.stop();
+            this.metadataPollHandle = null;
+        }
+        if (this.metadataAbortController) {
+            this.metadataAbortController.abort();
+            this.metadataAbortController = null;
         }
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
