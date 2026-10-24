@@ -1,6 +1,6 @@
 import { SubtitleOverlay } from '../presentation/SubtitleOverlay';
 import { IAdDetector } from '../domain/adapters/IAdDetector';
-import { ExtensionSettings, PipelineConfig } from '@shared/utils/constants';
+import { ExtensionSettings } from '@shared/utils/constants';
 import {
     IStreamingAdapter,
     VideoMetadata,
@@ -8,16 +8,14 @@ import {
 import { ContentMessageService } from './services/ContentMessageService';
 import { BrowserPlatformFactory } from '@shared/infrastructure/platform/BrowserPlatformFactory';
 import { IBrowserPlatform } from '@shared/infrastructure/platform/IBrowserPlatform';
-import { PrecedingContextItem } from '@shared/types/Messages';
 import { Context } from '@shared/domain/entities/Context';
-import { TranslationStatus } from '@shared/domain/entities/Translation';
 import { Language } from '@shared/domain/value-objects/Language';
 import { SubtitleCue } from '@shared/domain/entities/Subtitle';
 import { Logger } from '@shared/utils/logger';
 import { SubtitleLearningManager } from './learning/SubtitleLearningManager';
 import { WatchHistoryTracker } from './history/WatchHistoryTracker';
 
-import { SubtitleStore, TranslationItem } from './store/SubtitleStore';
+import { SubtitleStore } from './store/SubtitleStore';
 import { AsrStreamMerger } from './pipeline/AsrStreamMerger';
 import { SubtitlePlaybackSyncer } from './playback/SubtitlePlaybackSyncer';
 import { EpisodeContextManager } from './context/EpisodeContextManager';
@@ -50,6 +48,10 @@ export class SubtitleManager {
     readonly pipeline: SubtitlePipelineCoordinator;
 
     currentRawLanguage = '';
+    private warmupTimer: ReturnType<typeof setTimeout> | null = null;
+    private unsubscribeGlossary?: () => void;
+    private unsubscribeCuesStale?: () => void;
+
     private readonly messageService: ContentMessageService;
     private readonly logger = new Logger('SubtitleManager');
 
@@ -66,7 +68,7 @@ export class SubtitleManager {
         this.messageService = ContentMessageService.getInstance();
         this.platform = BrowserPlatformFactory.getPlatform();
 
-        if (this.adapter && this.overlay) {
+        if (this.adapter) {
             this.overlay.bindContainerResolver(
                 () => this.adapter?.getPlayerContainer?.() || null,
             );
@@ -79,6 +81,7 @@ export class SubtitleManager {
             this.historyTracker = new WatchHistoryTracker(
                 this.adapter,
                 this.messageService,
+                () => Boolean(this.adDetector?.isAdPlaying),
             );
         }
 
@@ -88,91 +91,29 @@ export class SubtitleManager {
         this.contextManager = this.createContextManager();
         this.pipeline = this.createPipelineCoordinator();
 
-        this.bindDelegates();
         this.subscribeMessageService();
     }
 
     get video(): HTMLVideoElement | null {
         return this.syncer.video;
     }
+
     get cues(): SubtitleCue[] {
         return this.store.cues;
     }
-    set cues(val: SubtitleCue[]) {
-        this.store.cues = val;
-    }
-    get translationMap(): Map<number, TranslationItem> {
-        return this.store.translationMap;
-    }
-    get cueStateMap(): Map<number, TranslationStatus> {
-        return this.store.cueStateMap;
-    }
-    get canonicalReviewIndex(): number {
-        return this.store.canonicalReviewIndex;
-    }
-    set canonicalReviewIndex(val: number) {
-        this.store.canonicalReviewIndex = val;
-    }
+
     get currentMovieId(): string | null {
         return this.contextManager.currentMovieId;
     }
-    set currentMovieId(val: string | null) {
-        this.contextManager.currentMovieId = val;
-    }
+
     get currentShowId(): string | null {
         return this.contextManager.currentShowId;
     }
-    set currentShowId(val: string | null) {
-        this.contextManager.currentShowId = val;
-    }
+
     get currentTrackHash(): string {
         return this.store.currentTrackHash;
     }
-    set currentTrackHash(val: string) {
-        this.store.currentTrackHash = val;
-    }
-    get currentContext(): Context {
-        return this.contextManager.currentContext;
-    }
-    set currentContext(val: Context) {
-        this.contextManager.currentContext = val;
-    }
-    get activeCueId(): number | null {
-        return this.syncer.activeCueId;
-    }
-    get cadmiumOffset(): number {
-        return this.syncer.cadmiumOffset;
-    }
-    set cadmiumOffset(val: number) {
-        this.syncer.cadmiumOffset = val;
-    }
-    get domOffset(): number {
-        return this.syncer.domOffset;
-    }
-    set domOffset(val: number) {
-        this.syncer.domOffset = val;
-    }
-    get manualOffset(): number {
-        return this.syncer.manualOffset;
-    }
-    set manualOffset(val: number) {
-        this.syncer.manualOffset = val;
-    }
-    get sessionEpoch(): number {
-        return this.store.sessionEpoch;
-    }
-    set sessionEpoch(val: number) {
-        this.store.sessionEpoch = val;
-    }
-    get isTranslating(): boolean {
-        return this.pipeline.isTranslating;
-    }
-    get isReviewing(): boolean {
-        return this.pipeline.isReviewing;
-    }
-    get isPreReviewing(): boolean {
-        return this.pipeline.isPreReviewing;
-    }
+
     get videoInfo(): VideoMetadata | null {
         return this.contextManager.videoInfo;
     }
@@ -206,6 +147,7 @@ export class SubtitleManager {
                     ),
                 onPipelineTick: (t) => this.checkPipeline(t),
                 onSeeked: (t) => this.handleSeeked(t),
+                getCurrentMovieId: () => this.contextManager.currentMovieId,
                 onVideoAttached: (v) => this.historyTracker?.attachVideo(v),
                 onVideoDetached: () => this.historyTracker?.detachVideo(),
             },
@@ -222,7 +164,7 @@ export class SubtitleManager {
                 getCurrentRawLanguage: () => this.currentRawLanguage,
                 onGlossaryUpdated: () => this.checkStaleCues(),
                 onEpisodeReset: () => {
-                    this.store.cues = [];
+                    this.store.clearCues();
                 },
                 onEpisodeRetained: () => {},
             },
@@ -246,6 +188,7 @@ export class SubtitleManager {
                 findCueIndexAtTime: (t) => this.syncer.findCueIndexAtTime(t),
                 findActiveCues: (t) => this.syncer.findActiveCues(t),
                 onTick: () => this.onTick(),
+                invalidateCueSig: () => this.syncer.invalidateCueSig(),
                 checkAsrMerge: (t) => this.checkAsrMergePipeline(t),
                 getCurrentMovieId: () => this.contextManager.currentMovieId,
                 getCurrentShowId: () => this.contextManager.currentShowId,
@@ -264,15 +207,8 @@ export class SubtitleManager {
         );
     }
 
-    private bindDelegates(): void {
-        this.bindVideoEvents = this.bindVideoEvents.bind(this);
-        this.onTick = this.onTick.bind(this);
-        this.onSeeked = this.onSeeked.bind(this);
-        this.onSeeking = this.onSeeking.bind(this);
-    }
-
     private subscribeMessageService(): void {
-        this.messageService.onGlossaryChanged((context) => {
+        this.unsubscribeGlossary = this.messageService.onGlossaryChanged((context) => {
             if (!context) return;
             this.contextManager.currentContext = Context.fromDTO(context);
             this.checkStaleCues();
@@ -284,31 +220,33 @@ export class SubtitleManager {
             }
         });
 
-        this.messageService.onCuesStale((payload) =>
+        this.unsubscribeCuesStale = this.messageService.onCuesStale((payload) =>
             this.handleCuesStale(payload),
         );
     }
 
     private handleCuesStale(payload?: CuesStalePayload): void {
         if (!payload) return;
-        const currentMid = String(this.contextManager.currentMovieId || '');
+        const currentMid = this.contextManager.currentMovieId;
         const matchesMid = Boolean(
-            payload.movieId && String(payload.movieId) === currentMid,
+            payload.movieId && currentMid && String(payload.movieId) === String(currentMid),
         );
         const matchesMidList = Boolean(
+            currentMid &&
             Array.isArray(payload.movieIds) &&
-            payload.movieIds.some((id) => String(id) === currentMid),
+            payload.movieIds.some((id) => String(id) === String(currentMid)),
         );
         const matchesTrack = Boolean(
             payload.trackHash &&
+            this.store.currentTrackHash &&
             payload.trackHash === this.store.currentTrackHash,
         );
         const matchesShowId = Boolean(
             payload.showId &&
-            (String(payload.showId) ===
-                String(this.contextManager.currentShowId) ||
-                String(payload.showId) ===
-                    String(this.contextManager.currentContext?.showId)),
+            ((this.contextManager.currentShowId &&
+                String(payload.showId) === String(this.contextManager.currentShowId)) ||
+                (this.contextManager.currentContext?.showId &&
+                    String(payload.showId) === String(this.contextManager.currentContext.showId))),
         );
 
         if (matchesMid || matchesMidList || matchesTrack || matchesShowId) {
@@ -317,7 +255,7 @@ export class SubtitleManager {
                 `Cues invalidated (${payload.invalidatedCount || 0}). Resetting translations.`,
             );
             this.store.clearTranslations();
-            this.syncer.lastCueSig = '';
+            this.syncer.invalidateCueSig();
             this.onTick();
             if (this.syncer.video) {
                 this.pipeline.checkPipeline(this.getEffectiveTime());
@@ -329,7 +267,20 @@ export class SubtitleManager {
         return this.platform.isContextValid();
     }
 
-    isSameSubtitle(newCues: CueItem[], isAsr = false): boolean {
+    isSameSubtitle(
+        newCues: CueItem[],
+        isAsr = false,
+        movieId?: string | number | null,
+    ): boolean {
+        // Entity consistency check: if movieId is provided and does not match current, it cannot be identical
+        if (
+            movieId &&
+            this.contextManager.currentMovieId &&
+            String(movieId) !== String(this.contextManager.currentMovieId)
+        ) {
+            return false;
+        }
+
         const targetCues =
             isAsr &&
             this.asrMerger.isAsrTrack &&
@@ -355,25 +306,6 @@ export class SubtitleManager {
         );
     }
 
-    getCueStatus(cueId: number): TranslationStatus {
-        return this.store.getCueStatus(cueId);
-    }
-
-    isCueTranslated(cueId: number): boolean {
-        return this.store.isCueTranslated(cueId);
-    }
-
-    isCueReviewed(cueId: number): boolean {
-        return this.store.isCueReviewed(cueId);
-    }
-
-    checkCueStaleness(cueId: number): boolean {
-        return this.store.checkCueStaleness(
-            cueId,
-            this.contextManager.currentContext,
-        );
-    }
-
     checkStaleCues(): void {
         const hasInvalidated = this.store.checkStaleCues(
             this.getEffectiveTime(),
@@ -381,7 +313,7 @@ export class SubtitleManager {
             (t) => this.syncer.findCueIndexAtTime(t),
         );
         if (hasInvalidated) {
-            this.syncer.lastCueSig = '';
+            this.syncer.invalidateCueSig();
             this.onTick();
             if (this.syncer.video) {
                 this.checkPipeline(this.getEffectiveTime());
@@ -397,12 +329,21 @@ export class SubtitleManager {
     ): void {
         if (!cues || cues.length === 0) return;
         if (language) this.currentRawLanguage = language;
-        if (this.isSameSubtitle(cues, isAsr)) return;
 
-        if (movieId) {
-            this.contextManager.currentMovieId = String(movieId);
+        const incomingMovieId = movieId ? String(movieId) : null;
+        const currentMovieId = this.contextManager.currentMovieId;
+
+        // If a new valid movieId arrives that differs from current, trigger episode change first
+        if (
+            incomingMovieId &&
+            currentMovieId &&
+            incomingMovieId !== currentMovieId
+        ) {
+            this.onEpisodeChange(incomingMovieId);
+        } else if (incomingMovieId && !currentMovieId) {
+            this.contextManager.currentMovieId = incomingMovieId;
             this.learningManager?.onShowContext(
-                this.contextManager.currentMovieId,
+                incomingMovieId,
                 this.contextManager.latestMetadata?.fullTitle ||
                     this.contextManager.latestMetadata?.mainTitle ||
                     this.contextManager.currentContext?.mainTitle,
@@ -411,27 +352,29 @@ export class SubtitleManager {
             );
         }
 
+        // Entity-guarded subtitle comparison
+        if (this.isSameSubtitle(cues, isAsr, incomingMovieId)) return;
+
         if (this.isContextValid()) {
             this.messageService.clearQueues().catch(() => {});
         }
 
+        if (this.warmupTimer) {
+            clearTimeout(this.warmupTimer);
+            this.warmupTimer = null;
+        }
+
         const epoch = Date.now();
-        this.store.sessionEpoch = epoch;
-        this.store.lastCuesLoadedAt = epoch;
-        this.store.clearTranslations();
-        this.pipeline.isTranslating = false;
-        this.pipeline.isReviewing = false;
-        this.pipeline.isPreReviewing = false;
         this.syncer.hasLoggedEndOfCues = false;
 
         const shouldMergeAsr =
             isAsr && this.settings.enableAutomaticAsrMerging !== false;
         if (shouldMergeAsr) {
             this.asrMerger.loadRawAsrCues(cues);
-            this.store.cues = [];
+            this.store.loadCues([], epoch);
         } else {
             this.asrMerger.reset();
-            this.store.cues = cues;
+            this.store.loadCues(cues, epoch);
             this.pipeline.loadSubtitlesForCurrentTrack(cues, epoch);
         }
         this.postLoadCues(epoch, shouldMergeAsr);
@@ -463,14 +406,22 @@ export class SubtitleManager {
                 this.syncer.startRafLoop();
             }
         }
-        setTimeout(() => {
-            if (this.store.sessionEpoch === epoch) {
+        if (this.warmupTimer) {
+            clearTimeout(this.warmupTimer);
+        }
+        this.warmupTimer = setTimeout(() => {
+            this.warmupTimer = null;
+            if (this.isContextValid() && this.store.sessionEpoch === epoch) {
                 this.contextManager.warmupShowContext();
             }
         }, 2500);
     }
 
     clearCues(): void {
+        if (this.warmupTimer) {
+            clearTimeout(this.warmupTimer);
+            this.warmupTimer = null;
+        }
         this.pipeline.stopNativePollingInterval();
         if (this.isContextValid()) {
             this.messageService.clearQueues().catch(() => {});
@@ -480,41 +431,35 @@ export class SubtitleManager {
         this.pipeline.isTranslating = false;
         this.pipeline.isReviewing = false;
         this.pipeline.isPreReviewing = false;
-        this.syncer.activeCueId = null;
-        this.syncer.lastCueSig = '';
-        this.syncer.hasLoggedEndOfCues = false;
-        this.overlay.hide(true);
+        this.syncer.stopRafLoop();
+        this.syncer.reset();
+        this.currentRawLanguage = '';
         this.logger.info(
             'SubtitleManager',
-            'Cleared subtitle cues and hid overlay.',
+            'Cleared subtitle cues and reset syncer.',
         );
     }
 
     onEpisodeChange(newMovieId: string | number | null): void {
         const newIdStr = newMovieId ? String(newMovieId) : null;
+        if (this.warmupTimer) {
+            clearTimeout(this.warmupTimer);
+            this.warmupTimer = null;
+        }
         if (this.historyTracker) {
             this.historyTracker.onEpisodeChange(newIdStr);
         }
         this.pipeline.stopNativePollingInterval();
         this.contextManager.onEpisodeChange(newMovieId);
-        this.store.clearTranslations();
+        this.store.clearCues();
+        this.asrMerger.reset();
         this.pipeline.isTranslating = false;
         this.pipeline.isReviewing = false;
         this.pipeline.isPreReviewing = false;
-        this.syncer.activeCueId = null;
-        this.syncer.lastCueSig = '';
-        this.syncer.lastContentTime = null;
-        this.syncer.emptyCueSince = null;
-        this.syncer.cadmiumOffset = 0;
-        this.syncer.domOffset = 0;
-        this.syncer.lastNativeCalibAt = 0;
-        this.syncer.hasLoggedEndOfCues = false;
-        this.overlay.hide(true);
+        this.syncer.reset();
         this.adDetector?.reset?.();
 
-        const isKnown = this.contextManager.isEpisodeOfCurrentShow(
-            newMovieId ? String(newMovieId) : null,
-        );
+        const isKnown = this.contextManager.isEpisodeOfCurrentShow(newIdStr);
         if (
             this.settings.enabled !== false &&
             this.store.cues.length > 0 &&
@@ -542,34 +487,12 @@ export class SubtitleManager {
         this.contextManager.warmupShowContext(force, metadataOverride);
     }
 
-    getPrecedingContextItems(
-        targetCueIndex: number,
-        maxContext = 3,
-    ): PrecedingContextItem[] {
-        return this.pipeline.getPrecedingContextItems(
-            targetCueIndex,
-            maxContext,
-        );
-    }
-
     attachVideo(videoEl: HTMLVideoElement): void {
         this.syncer.attachVideo(videoEl);
     }
 
     detachVideo(): void {
         this.syncer.detachVideo();
-    }
-
-    bindVideoEvents(): void {
-        this.syncer.bindVideoEvents();
-    }
-
-    startRafLoop(): void {
-        this.syncer.startRafLoop();
-    }
-
-    stopRafLoop(): void {
-        this.syncer.stopRafLoop();
     }
 
     getContentTime(): number {
@@ -580,20 +503,12 @@ export class SubtitleManager {
         return this.syncer.getEffectiveTime();
     }
 
-    setCadmiumOffset(offset: number): void {
+    setPlaybackOffset(offset: number): void {
         this.syncer.setCadmiumOffset(offset);
     }
 
-    setAdOffset(offset: number): void {
-        this.syncer.setAdOffset(offset);
-    }
-
-    calibrateOffsetFromNativeSubtitles(): void {
-        this.syncer.calibrateOffsetFromNativeSubtitles();
-    }
-
-    onSeeking(): void {
-        this.syncer.onSeeking();
+    setCadmiumOffset(offset: number): void {
+        this.syncer.setCadmiumOffset(offset);
     }
 
     onSeeked(): void {
@@ -604,7 +519,6 @@ export class SubtitleManager {
         if (this.asrMerger.isAsrTrack) {
             this.checkAsrMergePipeline(effectiveTime);
         }
-        this.onTick();
         this.checkPipeline(effectiveTime);
     }
 
@@ -612,38 +526,8 @@ export class SubtitleManager {
         this.syncer.onTick();
     }
 
-    findActiveCues(time: number): CueItem[] {
-        return this.syncer.findActiveCues(time);
-    }
-
-    findActiveCue(time: number): CueItem | null {
-        return this.syncer.findActiveCue(time);
-    }
-
-    findCueIndexAtTime(time: number): number {
-        return this.syncer.findCueIndexAtTime(time);
-    }
-
     private addMergedAsrCues(newCues: SubtitleCue[]): void {
-        const existingIds = new Set(this.store.cues.map((c) => c.id));
-        const toAdd = newCues.filter((c) => !existingIds.has(c.id));
-        this.store.cues.push(...toAdd);
-        this.store.cues.sort((a, b) => a.startTime - b.startTime);
-
-        for (let i = 0; i < this.store.cues.length - 1; i++) {
-            const curr = this.store.cues[i];
-            const nxt = this.store.cues[i + 1];
-            if (
-                curr.endTime > nxt.startTime &&
-                nxt.startTime > curr.startTime
-            ) {
-                curr.endTime = nxt.startTime;
-            }
-            const gap = nxt.startTime - curr.endTime;
-            if (gap > 0 && gap <= 3.5) {
-                curr.endTime = nxt.startTime;
-            }
-        }
+        this.store.addMergedCues(newCues);
     }
 
     private onMergedAsrCuesAdded(epoch: number): void {
@@ -669,10 +553,6 @@ export class SubtitleManager {
 
     checkPipeline(currentTime: number): void {
         this.pipeline.checkPipeline(currentTime);
-    }
-
-    processSupervisorReviewQueue(pipelineConfig?: PipelineConfig): void {
-        this.pipeline.processSupervisorReviewQueue(pipelineConfig);
     }
 
     updateSettings(newSettings: Partial<ExtensionSettings>): void {
@@ -705,10 +585,14 @@ export class SubtitleManager {
 
         if (this.settings.enabled === false) {
             this.handleSettingsDisabled();
-        } else if (providerChanged || langChanged || preferChanged) {
-            this.handleTranslationSettingsChanged();
-        } else if (!wasEnabled && this.settings.enabled) {
-            this.handleSettingsEnabled();
+        } else {
+            const becameEnabled = !wasEnabled;
+            if (becameEnabled) {
+                this.handleSettingsEnabled();
+            }
+            if (providerChanged || langChanged || preferChanged) {
+                this.handleTranslationSettingsChanged();
+            }
         }
     }
 
@@ -728,9 +612,15 @@ export class SubtitleManager {
     }
 
     private handleSettingsDisabled(): void {
+        if (this.warmupTimer) {
+            clearTimeout(this.warmupTimer);
+            this.warmupTimer = null;
+        }
         this.pipeline.stopNativePollingInterval();
+        this.syncer.stopRafLoop();
         this.overlay.hide(true);
         this.syncer.activeCueId = null;
+        this.syncer.invalidateCueSig();
         this.pipeline.isTranslating = false;
         this.pipeline.isReviewing = false;
         this.pipeline.isPreReviewing = false;
@@ -745,6 +635,7 @@ export class SubtitleManager {
         this.store.clearTranslations();
         this.overlay.hide(true);
         this.syncer.activeCueId = null;
+        this.syncer.invalidateCueSig();
         this.pipeline.isTranslating = false;
         this.pipeline.isReviewing = false;
         this.pipeline.isPreReviewing = false;
@@ -780,8 +671,25 @@ export class SubtitleManager {
             );
             if (!this.syncer.video.paused) this.syncer.startRafLoop();
         } else if (this.store.cues.length === 0 && this.adapter) {
-            // Subtitle loading is managed by fetchSubttile and content polling orchestrator
+            // Subtitle loading is managed by fetchSubtitle and content polling orchestrator
         }
+    }
+
+    destroy(): void {
+        if (this.warmupTimer) {
+            clearTimeout(this.warmupTimer);
+            this.warmupTimer = null;
+        }
+        this.unsubscribeGlossary?.();
+        this.unsubscribeCuesStale?.();
+        this.syncer.detachVideo();
+        this.historyTracker?.destroy();
+        this.pipeline.stopNativePollingInterval();
+        this.clearCues();
+        this.logger.info(
+            'SubtitleManager',
+            'SubtitleManager successfully destroyed.',
+        );
     }
 }
 

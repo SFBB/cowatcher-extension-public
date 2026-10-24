@@ -31,6 +31,7 @@ export interface SubtitlePipelineDelegate {
     findCueIndexAtTime(time: number): number;
     findActiveCues(time: number): SubtitleCue[];
     onTick(): void;
+    invalidateCueSig?(): void;
     checkAsrMerge(currentTime: number): void;
     getCurrentMovieId(): string | null;
     getCurrentShowId(): string | null;
@@ -330,9 +331,14 @@ export class SubtitlePipelineCoordinator {
             this.delegate.getEffectiveTime(),
         );
         if (activeCues.some((c) => cues.some((pr) => pr.id === c.id))) {
-            this.store.lastCueSig = '';
-            this.delegate.onTick();
+            this.invalidateCueCacheAndTick();
         }
+    }
+
+    private invalidateCueCacheAndTick(): void {
+        this.store.lastCueSig = '';
+        this.delegate.invalidateCueSig?.();
+        this.delegate.onTick();
     }
 
     private resetPreReviewCues(cues: SubtitleCue[]): void {
@@ -533,8 +539,7 @@ export class SubtitlePipelineCoordinator {
         });
 
         if (hasActiveNewlyTranslated) {
-            this.store.lastCueSig = '';
-            this.delegate.onTick();
+            this.invalidateCueCacheAndTick();
         }
     }
 
@@ -695,8 +700,7 @@ export class SubtitlePipelineCoordinator {
         });
 
         if (hasRealChange) {
-            this.store.lastCueSig = '';
-            this.delegate.onTick();
+            this.invalidateCueCacheAndTick();
         }
     }
 
@@ -778,8 +782,7 @@ export class SubtitlePipelineCoordinator {
             this.delegate.getEffectiveTime(),
         );
         if (activeCues.some((c) => this.store.translationMap.has(c.id))) {
-            this.store.lastCueSig = '';
-            this.delegate.onTick();
+            this.invalidateCueCacheAndTick();
         }
         return hitCount >= cues.length * 0.7;
     }
@@ -942,8 +945,7 @@ export class SubtitlePipelineCoordinator {
                 });
         });
 
-        this.store.lastCueSig = '';
-        this.delegate.onTick();
+        this.invalidateCueCacheAndTick();
         this.persistNativeSubtitles(resultsMap, targetLang, trackHash, pairs);
     }
 

@@ -11,6 +11,7 @@ import { WatchHistoryTracker } from '../history/WatchHistoryTracker';
 import { SubtitleCue } from '@shared/domain/entities/Subtitle';
 import { Logger } from '@shared/utils/logger';
 import { startTriStatePoll, PollHandle } from '../utils/pollHelper';
+import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPayload';
 
 export interface EpisodeContextDelegate {
     isContextValid(): boolean;
@@ -107,6 +108,7 @@ export class EpisodeContextManager {
     private clearDOMDatasetAttributes(): void {
         if (typeof document === 'undefined' || !document.documentElement)
             return;
+        PlaybackDatasetHelper.clear(document.documentElement);
         delete document.documentElement.dataset.ncwSegmentAtomic;
         delete document.documentElement.dataset.ncwSegmentTime;
         delete document.documentElement.dataset.ncwSegmentSyncAt;

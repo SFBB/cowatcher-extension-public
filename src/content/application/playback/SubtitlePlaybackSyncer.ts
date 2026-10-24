@@ -3,6 +3,7 @@ import { SubtitleOverlay } from '../../presentation/SubtitleOverlay';
 import { Logger } from '@shared/utils/logger';
 import { ExtensionSettings } from '@shared/utils/constants';
 import { TranslationItem } from '../store/SubtitleStore';
+import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPayload';
 
 export interface SubtitlePlaybackDelegate {
     isContextValid(): boolean;
@@ -14,6 +15,7 @@ export interface SubtitlePlaybackDelegate {
     checkCueStaleness(cueId: number): void;
     onPipelineTick(effectiveTime: number): void;
     onSeeked(effectiveTime: number): void;
+    getCurrentMovieId?(): string | null;
     onVideoAttached?(video: HTMLVideoElement): void;
     onVideoDetached?(): void;
 }
@@ -111,6 +113,36 @@ export class SubtitlePlaybackSyncer {
         }
     }
 
+    private readDatasetSyncFromDOM(): DatasetTiming | null {
+        if (typeof document === 'undefined' || !document.documentElement)
+            return null;
+        const currentMid = this.delegate.getCurrentMovieId?.();
+        const payload = PlaybackDatasetHelper.read(
+            currentMid,
+            document.documentElement,
+        );
+        if (!payload) return null;
+
+        if (
+            typeof payload.offset === 'number' &&
+            !isNaN(payload.offset) &&
+            Math.abs(payload.offset) <= 180
+        ) {
+            this.cadmiumOffset = payload.offset;
+        }
+
+        const baseTime = payload.currentTime;
+        if (isNaN(baseTime) || !isFinite(baseTime)) return null;
+
+        const syncAt = payload.syncAt;
+        const fallbackPaused = Boolean(this.video && this.video.paused);
+        const isPaused = payload.isPaused || fallbackPaused;
+        const rate =
+            payload.playbackRate || this.video?.playbackRate || 1.0;
+
+        return { baseTime, syncAt, isPaused, rate };
+    }
+
     private readAtomicSyncFromDOM(): DatasetTiming | null {
         if (typeof document === 'undefined' || !document.documentElement)
             return null;
@@ -172,7 +204,9 @@ export class SubtitlePlaybackSyncer {
     getContentTime(): number {
         if (!this.video) return 0;
         const timing =
-            this.readAtomicSyncFromDOM() || this.readLegacySyncFromDOM();
+            this.readDatasetSyncFromDOM() ||
+            this.readAtomicSyncFromDOM() ||
+            this.readLegacySyncFromDOM();
 
         if (timing && timing.baseTime >= 0) {
             if (timing.isPaused) {
@@ -250,6 +284,22 @@ export class SubtitlePlaybackSyncer {
         if (typeof offset === 'number' && !isNaN(offset)) {
             this.cadmiumOffset = -offset;
         }
+    }
+
+    invalidateCueSig(): void {
+        this.lastCueSig = '';
+    }
+
+    reset(): void {
+        this.activeCueId = null;
+        this.lastCueSig = '';
+        this.lastContentTime = null;
+        this.emptyCueSince = null;
+        this.cadmiumOffset = 0;
+        this.domOffset = 0;
+        this.lastNativeCalibAt = 0;
+        this.hasLoggedEndOfCues = false;
+        this.overlay.hide(true);
     }
 
     private findMatchingCueForNative(

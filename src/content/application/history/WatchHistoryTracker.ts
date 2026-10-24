@@ -6,10 +6,12 @@ import { ContentMessageService } from '../services/ContentMessageService';
 import { WatchSession } from '@shared/domain/entities/WatchHistory';
 import { Logger } from '@shared/utils/logger';
 import { startTriStatePoll, PollHandle } from '../utils/pollHelper';
+import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPayload';
 
 export class WatchHistoryTracker {
     private readonly adapter: IStreamingAdapter;
     private readonly messageService: ContentMessageService;
+    private readonly isAdPlaying?: () => boolean;
     private readonly logger: Logger = new Logger('WatchHistoryTracker');
 
     // Tri-state metadata:
@@ -28,16 +30,19 @@ export class WatchHistoryTracker {
     private effectiveWatchSeconds: number = 0;
     private lastWallClockTick: number = 0;
     private isPlaying: boolean = false;
+    private hasPendingFlush: boolean = false;
 
-    private heartbeatInterval: any = null;
+    private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
     private boundVideo: HTMLVideoElement | null = null;
 
     constructor(
         adapter: IStreamingAdapter,
         messageService: ContentMessageService,
+        isAdPlaying?: () => boolean,
     ) {
         this.adapter = adapter;
         this.messageService = messageService;
+        this.isAdPlaying = isAdPlaying;
 
         this.onPlay = this.onPlay.bind(this);
         this.onPause = this.onPause.bind(this);
@@ -45,15 +50,18 @@ export class WatchHistoryTracker {
         this.onSeeking = this.onSeeking.bind(this);
         this.onSeeked = this.onSeeked.bind(this);
         this.onPageUnload = this.onPageUnload.bind(this);
+        this.onVisibilityChange = this.onVisibilityChange.bind(this);
 
         // Listen for tab/window unload to safely flush final watch duration
         if (typeof window !== 'undefined') {
             window.addEventListener('beforeunload', this.onPageUnload);
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden' && this.isPlaying) {
-                    this.flushSession(true);
-                }
-            });
+            window.addEventListener('pagehide', this.onPageUnload);
+        }
+        if (typeof document !== 'undefined') {
+            document.addEventListener(
+                'visibilitychange',
+                this.onVisibilityChange,
+            );
         }
 
         // Periodic heartbeat (every 30s) to persist long sessions safely against crashes
@@ -62,6 +70,16 @@ export class WatchHistoryTracker {
                 this.flushSession(true);
             }
         }, 30000);
+    }
+
+    private onVisibilityChange(): void {
+        if (
+            typeof document !== 'undefined' &&
+            document.visibilityState === 'hidden' &&
+            this.isPlaying
+        ) {
+            this.flushSession(true);
+        }
     }
 
     attachVideo(video: HTMLVideoElement): void {
@@ -83,6 +101,7 @@ export class WatchHistoryTracker {
 
     detachVideo(): void {
         if (!this.boundVideo) return;
+        this.isPlaying = false;
         this.flushSession(false);
 
         this.boundVideo.removeEventListener('play', this.onPlay);
@@ -101,14 +120,18 @@ export class WatchHistoryTracker {
             `Episode change detected (${newIdStr || 'new'}).`,
         );
 
-        // Flush previous session if it has watch time
-        if (this.currentSessionId && this.effectiveWatchSeconds >= 3) {
+        // Flush previous session if it exists
+        if (this.currentSessionId) {
             this.flushSession(false);
         }
         this.currentMovieId = newIdStr;
         this.currentSessionId = null;
         this.effectiveWatchSeconds = 0;
+        this.fromContentTime = 0;
+        this.lastContentTime = 0;
+        this.hasPendingFlush = false;
         this.currentMetadata = undefined; // reset to pending
+
         if (this.metadataPollHandle) {
             this.metadataPollHandle.stop();
             this.metadataPollHandle = null;
@@ -139,6 +162,10 @@ export class WatchHistoryTracker {
             return;
         }
 
+        if (!this.currentMovieId && meta.videoId) {
+            this.currentMovieId = meta.videoId;
+        }
+
         // If metadata does not contain videoId, bound to currentMovieId
         if (!meta.videoId && this.currentMovieId) {
             meta = { ...meta, videoId: this.currentMovieId };
@@ -154,6 +181,12 @@ export class WatchHistoryTracker {
         }
 
         this.currentMetadata = meta;
+
+        // Automatically resume any deferred flush once metadata has been confirmed
+        if (this.hasPendingFlush || (this.currentSessionId && !this.isPlaying)) {
+            this.hasPendingFlush = false;
+            this.flushSession(false);
+        }
     }
 
     async resolveMetadata(
@@ -197,6 +230,13 @@ export class WatchHistoryTracker {
                         'Tracker',
                         `Metadata resolved via poll: ${result ? result.fullTitle : 'null (standalone video)'}`,
                     );
+                    if (
+                        this.hasPendingFlush ||
+                        (this.currentSessionId && !this.isPlaying)
+                    ) {
+                        this.hasPendingFlush = false;
+                        this.flushSession(false);
+                    }
                 },
             },
         );
@@ -205,6 +245,13 @@ export class WatchHistoryTracker {
         if (handle.initialResult !== undefined) {
             if (this.currentMovieId === targetMovieId) {
                 this.currentMetadata = handle.initialResult;
+                if (
+                    this.hasPendingFlush ||
+                    (this.currentSessionId && !this.isPlaying)
+                ) {
+                    this.hasPendingFlush = false;
+                    this.flushSession(false);
+                }
             }
             return handle.initialResult;
         }
@@ -212,27 +259,56 @@ export class WatchHistoryTracker {
         return undefined;
     }
 
+    private getAccurateContentTime(): number {
+        if (typeof document !== 'undefined' && document.documentElement) {
+            const payload = PlaybackDatasetHelper.read(
+                this.currentMovieId,
+                document.documentElement,
+            );
+            if (
+                payload &&
+                typeof payload.currentTime === 'number' &&
+                !isNaN(payload.currentTime) &&
+                payload.currentTime >= 0
+            ) {
+                return payload.currentTime;
+            }
+        }
+        return this.boundVideo?.currentTime || 0;
+    }
+
     private onPlay(): void {
         this.isPlaying = true;
         const now = Date.now();
-        const fallbackTime = this.boundVideo?.currentTime || 0;
+        const accurateTime = this.getAccurateContentTime();
 
         if (!this.currentSessionId) {
             this.currentSessionId = `ws_${now}_${Math.random().toString(36).slice(2, 7)}`;
             this.sessionStartedAt = now;
-            this.fromContentTime = fallbackTime;
-            this.lastContentTime = fallbackTime;
+            this.fromContentTime = accurateTime;
+            this.lastContentTime = accurateTime;
             this.effectiveWatchSeconds = 0;
         }
 
         this.lastWallClockTick = now;
 
-        this.adapter.getContentTime().then((ct) => {
-            if (ct !== undefined && ct !== null) {
-                this.fromContentTime = ct;
-                this.lastContentTime = ct;
-            }
-        }).catch(() => {});
+        const sessionId = this.currentSessionId;
+        const movieId = this.currentMovieId;
+        this.adapter
+            .getContentTime()
+            .then((ct) => {
+                if (
+                    this.currentSessionId === sessionId &&
+                    this.currentMovieId === movieId &&
+                    typeof ct === 'number' &&
+                    !isNaN(ct) &&
+                    ct >= 0
+                ) {
+                    this.fromContentTime = ct;
+                    this.lastContentTime = ct;
+                }
+            })
+            .catch(() => {});
 
         // If metadata is still undefined, kick off resolution
         if (this.currentMetadata === undefined) {
@@ -247,24 +323,35 @@ export class WatchHistoryTracker {
 
     private onSeeking(): void {
         // If user is scrubbing/seeking, flush current segment before jump
-        if (this.effectiveWatchSeconds >= 3) {
+        if (this.currentSessionId) {
             this.flushSession(false);
         }
     }
 
     private onSeeked(): void {
-        const fallbackTime = this.boundVideo?.currentTime || 0;
-        this.fromContentTime = fallbackTime;
-        this.lastContentTime = fallbackTime;
+        const accurateTime = this.getAccurateContentTime();
+        this.fromContentTime = accurateTime;
+        this.lastContentTime = accurateTime;
         this.effectiveWatchSeconds = 0;
         this.lastWallClockTick = Date.now();
 
-        this.adapter.getContentTime().then((ct) => {
-            if (ct !== undefined && ct !== null) {
-                this.fromContentTime = ct;
-                this.lastContentTime = ct;
-            }
-        }).catch(() => {});
+        const sessionId = this.currentSessionId;
+        const movieId = this.currentMovieId;
+        this.adapter
+            .getContentTime()
+            .then((ct) => {
+                if (
+                    this.currentSessionId === sessionId &&
+                    this.currentMovieId === movieId &&
+                    typeof ct === 'number' &&
+                    !isNaN(ct) &&
+                    ct >= 0
+                ) {
+                    this.fromContentTime = ct;
+                    this.lastContentTime = ct;
+                }
+            })
+            .catch(() => {});
 
         if (this.boundVideo && !this.boundVideo.paused) {
             this.onPlay();
@@ -273,9 +360,10 @@ export class WatchHistoryTracker {
 
     private onTick(): void {
         if (!this.isPlaying) return;
+        if (this.isAdPlaying && this.isAdPlaying()) return;
 
         const now = Date.now();
-        const currentContentTime = this.boundVideo?.currentTime || 0;
+        const currentContentTime = this.getAccurateContentTime();
         const wallDelta = (now - this.lastWallClockTick) / 1000;
         this.lastWallClockTick = now;
 
@@ -309,6 +397,7 @@ export class WatchHistoryTracker {
             if (!isOngoing) {
                 this.currentSessionId = null;
                 this.effectiveWatchSeconds = 0;
+                this.hasPendingFlush = false;
             }
             return;
         }
@@ -321,6 +410,7 @@ export class WatchHistoryTracker {
                 'Tracker',
                 'Flush deferred: metadata is undefined (pending). Scheduling active query retry.',
             );
+            this.hasPendingFlush = true;
             this.resolveMetadata();
             return;
         }
@@ -337,18 +427,22 @@ export class WatchHistoryTracker {
                 `Consistency violation prevented on flush: metadata ${this.currentMetadata.videoId} !== ${this.currentMovieId}. Invalidation triggered.`,
             );
             this.currentMetadata = undefined;
+            this.hasPendingFlush = true;
             return;
         }
 
-        // Determine showId, showTitle, videoId based on concrete data or null (standalone)
-        let meta = this.currentMetadata;
+        this.hasPendingFlush = false;
+        const meta = this.currentMetadata;
         let showId: string;
         let showTitle: string;
         let videoId: string;
 
         if (meta === null) {
             // Confirmed standalone title
-            videoId = this.currentMovieId || this.adapter.extractVideoId() || 'standalone_video';
+            videoId =
+                this.currentMovieId ||
+                this.adapter.extractVideoId() ||
+                'standalone_video';
             showId = videoId;
             showTitle = 'Standalone Video';
         } else {
@@ -357,10 +451,17 @@ export class WatchHistoryTracker {
             videoId = meta.videoId || showId;
         }
 
-        const duration =
+        const rawDuration =
             this.boundVideo?.duration ||
             this.adapter.getVideoElement()?.duration ||
             0;
+        const duration =
+            typeof rawDuration === 'number' &&
+            !isNaN(rawDuration) &&
+            isFinite(rawDuration) &&
+            rawDuration > 0
+                ? Math.round(rawDuration)
+                : 0;
 
         const session: WatchSession = {
             id: this.currentSessionId,
@@ -373,10 +474,16 @@ export class WatchHistoryTracker {
             videoId,
             startedAt: this.sessionStartedAt,
             endedAt: Date.now(),
-            fromContentTime: Math.max(0, Math.round(this.fromContentTime)),
-            toContentTime: Math.max(0, Math.round(this.lastContentTime)),
-            videoDuration: Math.round(duration),
-            effectiveWatchSeconds: Math.round(this.effectiveWatchSeconds),
+            fromContentTime: Number.isFinite(this.fromContentTime)
+                ? Math.max(0, Math.round(this.fromContentTime))
+                : 0,
+            toContentTime: Number.isFinite(this.lastContentTime)
+                ? Math.max(0, Math.round(this.lastContentTime))
+                : 0,
+            videoDuration: duration,
+            effectiveWatchSeconds: Number.isFinite(this.effectiveWatchSeconds)
+                ? Math.max(0, Math.round(this.effectiveWatchSeconds))
+                : 0,
         };
 
         this.messageService.recordWatchSession(session).catch((err) => {
@@ -390,7 +497,7 @@ export class WatchHistoryTracker {
     }
 
     private onPageUnload(): void {
-        if (this.isPlaying) {
+        if (this.currentSessionId && this.effectiveWatchSeconds >= 3) {
             this.flushSession(false);
         }
     }
@@ -410,7 +517,17 @@ export class WatchHistoryTracker {
         }
         if (typeof window !== 'undefined') {
             window.removeEventListener('beforeunload', this.onPageUnload);
+            window.removeEventListener('pagehide', this.onPageUnload);
+        }
+        if (typeof document !== 'undefined') {
+            document.removeEventListener(
+                'visibilitychange',
+                this.onVisibilityChange,
+            );
         }
         this.detachVideo();
+        this.isPlaying = false;
+        this.hasPendingFlush = false;
+        this.logger.info('WatchHistoryTracker', 'WatchHistoryTracker destroyed.');
     }
 }
