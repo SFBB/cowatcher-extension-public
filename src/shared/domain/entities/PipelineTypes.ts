@@ -32,16 +32,16 @@ export type SubtitleCueCacheMap = Record<string | number, CachedCueEntry>;
  * OpenRouter Account Key Information.
  */
 export interface OpenRouterKeyInfo {
-  label?: string;
-  usage?: number;
-  limit?: number | null;
-  isFreeTier?: boolean;
+    label?: string;
+    usage?: number;
+    limit?: number | null;
+    isFreeTier?: boolean;
 }
 
 /**
  * Result of OpenRouter connection verification.
  */
 export interface OpenRouterCheckResult {
-  keyInfo: OpenRouterKeyInfo;
-  models: OpenRouterModelItem[];
+    keyInfo: OpenRouterKeyInfo;
+    models: OpenRouterModelItem[];
 }

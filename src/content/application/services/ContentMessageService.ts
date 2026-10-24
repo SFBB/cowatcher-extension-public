@@ -1,357 +1,363 @@
-import { ContentBackgroundBus } from "@shared/infrastructure/bus/ContentBackgroundBus";
-import { AiSubState } from "@shared/domain/entities/AiSubState";
-import { ContextDTO } from "@shared/domain/entities/Context";
-import { ExtensionSettings } from "@shared/domain/constants/SettingsDefaults";
+import { ContentBackgroundBus } from '@shared/infrastructure/bus/ContentBackgroundBus';
+import { AiSubState } from '@shared/domain/entities/AiSubState';
+import { ContextDTO } from '@shared/domain/entities/Context';
+import { ExtensionSettings } from '@shared/domain/constants/SettingsDefaults';
 import {
-  TranslateCueItem,
-  ReviewCueItem,
-  PrecedingContextItem,
-} from "@shared/types/Messages";
-import { MergeAsrCueItem } from "@shared/domain/entities/Subtitle";
-import { LanguageInfo } from "@shared/domain/value-objects/Language";
-import { StreamingPlatformId } from "@shared/domain/constants/StreamingPlatforms";
-import NCW_CONSTANTS from "@shared/utils/constants";
+    TranslateCueItem,
+    ReviewCueItem,
+    PrecedingContextItem,
+} from '@shared/types/Messages';
+import { MergeAsrCueItem } from '@shared/domain/entities/Subtitle';
+import { LanguageInfo } from '@shared/domain/value-objects/Language';
+import { StreamingPlatformId } from '@shared/domain/constants/StreamingPlatforms';
+import NCW_CONSTANTS from '@shared/utils/constants';
 
 export class ContentMessageService {
-  private static instance: ContentMessageService | null = null;
+    private static instance: ContentMessageService | null = null;
 
-  static getInstance(): ContentMessageService {
-    if (!ContentMessageService.instance) {
-      ContentMessageService.instance = new ContentMessageService();
+    static getInstance(): ContentMessageService {
+        if (!ContentMessageService.instance) {
+            ContentMessageService.instance = new ContentMessageService();
+        }
+        return ContentMessageService.instance;
     }
-    return ContentMessageService.instance;
-  }
 
-  // --- AI Sub State Operations ---
+    // --- AI Sub State Operations ---
 
-  async fetchAiSubState(): Promise<AiSubState | null> {
-    const res = await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.GET_AI_SUB_STATE,
-      undefined,
-    );
-    return res.success && res.state ? new AiSubState(res.state) : null;
-  }
-
-  async setAiSubEnabled(
-    enabled: boolean,
-    platform?: StreamingPlatformId,
-  ): Promise<AiSubState | null> {
-    const res = await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.SET_AI_SUB_ENABLED,
-      {
-        enabled,
-        platform,
-      },
-    );
-    return res.success && res.state ? new AiSubState(res.state) : null;
-  }
-
-  onAiSubStateChanged(callback: (state: AiSubState) => void): () => void {
-    return ContentBackgroundBus.onMessage(
-      NCW_CONSTANTS.MESSAGE_TYPES.PUSH_AI_SUB_STATE_CHANGED,
-      (payload) => {
-        if (payload && payload.state) {
-          callback(new AiSubState(payload.state));
-        }
-      },
-    );
-  }
-
-  // --- Glossary Operations ---
-
-  async fetchGlossary(
-    params: {
-      videoId?: string;
-      mainTitle?: string;
-      showId?: string;
-    } = {},
-  ): Promise<ContextDTO | null> {
-    const res = await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT,
-      params,
-    );
-    return res.success ? res.context : null;
-  }
-
-  async getGlossaryContext(params: {
-    videoId?: string;
-    mainTitle?: string;
-    showId?: string;
-  }): Promise<{ success: boolean; context: ContextDTO | null }> {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT,
-      params,
-    );
-  }
-
-  onGlossaryChanged(callback: (context: ContextDTO) => void): () => void {
-    return ContentBackgroundBus.onMessage(
-      NCW_CONSTANTS.MESSAGE_TYPES.PUSH_GLOSSARY_CHANGED,
-      (payload) => {
-        if (payload && payload.context) {
-          callback(payload.context);
-        }
-      },
-    );
-  }
-
-  onCuesStale(callback: (payload: any) => void): () => void {
-    return ContentBackgroundBus.onMessage(
-      NCW_CONSTANTS.MESSAGE_TYPES.PUSH_CUES_STALE,
-      (payload) => {
-        if (payload) {
-          callback(payload);
-        }
-      },
-    );
-  }
-
-  async warmupGlossaryContext(params: {
-    title: string;
-    mainTitle: string;
-    sampleDialogues: string;
-    videoId: string;
-    showId?: string;
-    seasonId?: string;
-    showSummary?: string;
-    episodeSummary?: string;
-  }): Promise<{ success: boolean; context: ContextDTO | null }> {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.WARMUP_CONTEXT,
-      params,
-    );
-  }
-
-  // --- Translation Pipeline Operations ---
-
-  async mergeAsrBatch(params: { items: MergeAsrCueItem[] }): Promise<{
-    success: boolean;
-    mergedCues?: MergeAsrCueItem[];
-    error?: string;
-  }> {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.MERGE_ASR_BATCH,
-      params,
-    );
-  }
-
-  async translateBatch(params: {
-    items: TranslateCueItem[];
-    contextItems?: PrecedingContextItem[];
-    trackHash?: string;
-    showId?: string;
-    movieId?: string;
-    mainTitle?: string;
-    urgent?: boolean;
-  }): Promise<{
-    success: boolean;
-    results?: Record<number, string>;
-    error?: string;
-  }> {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.TRANSLATE_BATCH,
-      params,
-    );
-  }
-
-  async reviewBatch(params: {
-    items: ReviewCueItem[];
-    contextItems?: PrecedingContextItem[];
-    trackHash?: string;
-    showId?: string;
-    movieId?: string;
-    mainTitle?: string;
-    status?: "reviewed" | "pre_reviewed";
-  }): Promise<{
-    success: boolean;
-    corrections?: Record<number, string>;
-    usedTermsMap?: Record<number, Record<string, number>>;
-    updatedContext?: ContextDTO;
-    error?: string;
-  }> {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.SUPERVISOR_REVIEW,
-      params,
-    );
-  }
-
-  async getSubtitleCache(params: {
-    trackHash: string;
-    movieId?: string;
-    targetLanguage?: string;
-  }) {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.GET_SUBTITLE_CACHE,
-      params,
-    );
-  }
-
-  async saveSubtitleCache(params: {
-    trackHash: string;
-    movieId: string;
-    showTitle?: string;
-    targetLanguage: string;
-    provider?: string;
-    translationModel?: string;
-    supervisorModel?: string;
-    results: Record<string | number, string>;
-  }) {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.SAVE_SUBTITLE_CACHE,
-      params,
-    );
-  }
-
-  async extractTermsFromNativeBilingualCues(params: {
-    showId: string;
-    targetLanguage: LanguageInfo;
-    pairs: Array<{ originalText: string; translatedText: string }>;
-  }) {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.EXTRACT_NATIVE_TERMS,
-      params,
-    );
-  }
-
-  async clearQueues(): Promise<void> {
-    await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.CLEAR_QUEUES,
-      undefined,
-    );
-  }
-
-  async sendHeartbeat(params: {
-    showId?: string | null;
-    videoId?: string | null;
-    targetLanguage?: LanguageInfo;
-  }): Promise<boolean> {
-    try {
-      const res = await ContentBackgroundBus.send(
-        NCW_CONSTANTS.MESSAGE_TYPES.HEARTBEAT,
-        params,
-      );
-      return Boolean(res?.success);
-    } catch {
-      return false;
+    async fetchAiSubState(): Promise<AiSubState | null> {
+        const res = await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.GET_AI_SUB_STATE,
+            undefined,
+        );
+        return res.success && res.state ? new AiSubState(res.state) : null;
     }
-  }
 
-  async unloadContext(
-    showId: string,
-    targetLanguage: LanguageInfo,
-  ): Promise<void> {
-    await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.UNLOAD_CONTEXT,
-      {
-        showId,
-        targetLanguage,
-      },
-    );
-  }
+    async setAiSubEnabled(
+        enabled: boolean,
+        platform?: StreamingPlatformId,
+    ): Promise<AiSubState | null> {
+        const res = await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.SET_AI_SUB_ENABLED,
+            {
+                enabled,
+                platform,
+            },
+        );
+        return res.success && res.state ? new AiSubState(res.state) : null;
+    }
 
-  async notifyEpisodeChanged(
-    showId: string,
-    targetLanguage: LanguageInfo,
-    title?: string,
-    mainTitle?: string,
-    showSynopsis?: string,
-    episodeSynopsis?: string,
-    episodeId?: string,
-    episodeNumber?: string,
-    seasonId?: string,
-  ): Promise<void> {
-    await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.EPISODE_CHANGED,
-      {
-        showId,
-        targetLanguage,
-        title,
-        mainTitle,
-        showSynopsis,
-        episodeSynopsis,
-        episodeId,
-        episodeNumber,
-        seasonId,
-      },
-    );
-  }
+    onAiSubStateChanged(callback: (state: AiSubState) => void): () => void {
+        return ContentBackgroundBus.onMessage(
+            NCW_CONSTANTS.MESSAGE_TYPES.PUSH_AI_SUB_STATE_CHANGED,
+            (payload) => {
+                if (payload && payload.state) {
+                    callback(new AiSubState(payload.state));
+                }
+            },
+        );
+    }
 
-  async feedVocabCues(params: {
-    movieId: string;
-    cues: TranslateCueItem[];
-    showTitle: string;
-    sourceLanguage?: LanguageInfo | "auto";
-    trackHash?: string;
-  }): Promise<void> {
-    await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.FEED_VOCAB_CUES,
-      params,
-    );
-  }
+    // --- Glossary Operations ---
 
-  async saveUserVocabWord(params: {
-    movieId: string;
-    showTitle?: string;
-    wordItem: import("@shared/domain/entities/Vocabulary").VocabWordItem;
-  }) {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.SAVE_USER_VOCAB_WORD,
-      params,
-    );
-  }
+    async fetchGlossary(
+        params: {
+            videoId?: string;
+            mainTitle?: string;
+            showId?: string;
+        } = {},
+    ): Promise<ContextDTO | null> {
+        const res = await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT,
+            params,
+        );
+        return res.success ? res.context : null;
+    }
 
-  async deleteUserVocabWord(params: { movieId: string; word: string }) {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.DELETE_USER_VOCAB_WORD,
-      params,
-    );
-  }
+    async getGlossaryContext(params: {
+        videoId?: string;
+        mainTitle?: string;
+        showId?: string;
+    }): Promise<{ success: boolean; context: ContextDTO | null }> {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.GET_CONTEXT,
+            params,
+        );
+    }
 
-  async lookupWordDefinition(req: import("@shared/domain/entities/SubtitleLearning").WordLookupRequest) {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.LOOKUP_WORD_DEFINITION,
-      req,
-    );
-  }
+    onGlossaryChanged(callback: (context: ContextDTO) => void): () => void {
+        return ContentBackgroundBus.onMessage(
+            NCW_CONSTANTS.MESSAGE_TYPES.PUSH_GLOSSARY_CHANGED,
+            (payload) => {
+                if (payload && payload.context) {
+                    callback(payload.context);
+                }
+            },
+        );
+    }
 
-  async getVocabData(movieId?: string) {
-    const res = await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.GET_VOCAB_DATA,
-      { movieId },
-    );
-    return res?.data || null;
-  }
+    onCuesStale(callback: (payload: any) => void): () => void {
+        return ContentBackgroundBus.onMessage(
+            NCW_CONSTANTS.MESSAGE_TYPES.PUSH_CUES_STALE,
+            (payload) => {
+                if (payload) {
+                    callback(payload);
+                }
+            },
+        );
+    }
 
-  onVocabChanged(
-    callback: (data: import("@shared/domain/entities/Vocabulary").EpisodeVocabData) => void,
-  ): () => void {
-    return ContentBackgroundBus.onMessage(
-      NCW_CONSTANTS.MESSAGE_TYPES.PUSH_VOCAB_CHANGED,
-      (payload) => {
-        if (payload && payload.data) {
-          callback(payload.data);
+    async warmupGlossaryContext(params: {
+        title: string;
+        mainTitle: string;
+        sampleDialogues: string;
+        videoId: string;
+        showId?: string;
+        seasonId?: string;
+        showSummary?: string;
+        episodeSummary?: string;
+    }): Promise<{ success: boolean; context: ContextDTO | null }> {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.WARMUP_CONTEXT,
+            params,
+        );
+    }
+
+    // --- Translation Pipeline Operations ---
+
+    async mergeAsrBatch(params: { items: MergeAsrCueItem[] }): Promise<{
+        success: boolean;
+        mergedCues?: MergeAsrCueItem[];
+        error?: string;
+    }> {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.MERGE_ASR_BATCH,
+            params,
+        );
+    }
+
+    async translateBatch(params: {
+        items: TranslateCueItem[];
+        contextItems?: PrecedingContextItem[];
+        trackHash?: string;
+        showId?: string;
+        movieId?: string;
+        mainTitle?: string;
+        urgent?: boolean;
+    }): Promise<{
+        success: boolean;
+        results?: Record<number, string>;
+        error?: string;
+    }> {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.TRANSLATE_BATCH,
+            params,
+        );
+    }
+
+    async reviewBatch(params: {
+        items: ReviewCueItem[];
+        contextItems?: PrecedingContextItem[];
+        trackHash?: string;
+        showId?: string;
+        movieId?: string;
+        mainTitle?: string;
+        status?: 'reviewed' | 'pre_reviewed';
+    }): Promise<{
+        success: boolean;
+        corrections?: Record<number, string>;
+        usedTermsMap?: Record<number, Record<string, number>>;
+        updatedContext?: ContextDTO;
+        error?: string;
+    }> {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.SUPERVISOR_REVIEW,
+            params,
+        );
+    }
+
+    async getSubtitleCache(params: {
+        trackHash: string;
+        movieId?: string;
+        targetLanguage?: string;
+    }) {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.GET_SUBTITLE_CACHE,
+            params,
+        );
+    }
+
+    async saveSubtitleCache(params: {
+        trackHash: string;
+        movieId: string;
+        showTitle?: string;
+        targetLanguage: string;
+        provider?: string;
+        translationModel?: string;
+        supervisorModel?: string;
+        results: Record<string | number, string>;
+    }) {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.SAVE_SUBTITLE_CACHE,
+            params,
+        );
+    }
+
+    async extractTermsFromNativeBilingualCues(params: {
+        showId: string;
+        targetLanguage: LanguageInfo;
+        pairs: Array<{ originalText: string; translatedText: string }>;
+    }) {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.EXTRACT_NATIVE_TERMS,
+            params,
+        );
+    }
+
+    async clearQueues(): Promise<void> {
+        await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.CLEAR_QUEUES,
+            undefined,
+        );
+    }
+
+    async sendHeartbeat(params: {
+        showId?: string | null;
+        videoId?: string | null;
+        targetLanguage?: LanguageInfo;
+    }): Promise<boolean> {
+        try {
+            const res = await ContentBackgroundBus.send(
+                NCW_CONSTANTS.MESSAGE_TYPES.HEARTBEAT,
+                params,
+            );
+            return Boolean(res?.success);
+        } catch {
+            return false;
         }
-      },
-    );
-  }
+    }
 
-  async recordWatchSession(session: import("@shared/domain/entities/WatchHistory").WatchSession) {
-    return await ContentBackgroundBus.send(
-      NCW_CONSTANTS.MESSAGE_TYPES.RECORD_WATCH_SESSION,
-      { session },
-    );
-  }
+    async unloadContext(
+        showId: string,
+        targetLanguage: LanguageInfo,
+    ): Promise<void> {
+        await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.UNLOAD_CONTEXT,
+            {
+                showId,
+                targetLanguage,
+            },
+        );
+    }
 
-  onSettingsChanged(
-    callback: (settings: ExtensionSettings) => void,
-  ): () => void {
-    return ContentBackgroundBus.onMessage(
-      NCW_CONSTANTS.MESSAGE_TYPES.PUSH_SETTINGS_CHANGED,
-      (payload) => {
-        if (payload && payload.settings) {
-          callback(payload.settings);
-        }
-      },
-    );
-  }
+    async notifyEpisodeChanged(
+        showId: string,
+        targetLanguage: LanguageInfo,
+        title?: string,
+        mainTitle?: string,
+        showSynopsis?: string,
+        episodeSynopsis?: string,
+        episodeId?: string,
+        episodeNumber?: string,
+        seasonId?: string,
+    ): Promise<void> {
+        await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.EPISODE_CHANGED,
+            {
+                showId,
+                targetLanguage,
+                title,
+                mainTitle,
+                showSynopsis,
+                episodeSynopsis,
+                episodeId,
+                episodeNumber,
+                seasonId,
+            },
+        );
+    }
+
+    async feedVocabCues(params: {
+        movieId: string;
+        cues: TranslateCueItem[];
+        showTitle: string;
+        sourceLanguage?: LanguageInfo | 'auto';
+        trackHash?: string;
+    }): Promise<void> {
+        await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.FEED_VOCAB_CUES,
+            params,
+        );
+    }
+
+    async saveUserVocabWord(params: {
+        movieId: string;
+        showTitle?: string;
+        wordItem: import('@shared/domain/entities/Vocabulary').VocabWordItem;
+    }) {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.SAVE_USER_VOCAB_WORD,
+            params,
+        );
+    }
+
+    async deleteUserVocabWord(params: { movieId: string; word: string }) {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.DELETE_USER_VOCAB_WORD,
+            params,
+        );
+    }
+
+    async lookupWordDefinition(
+        req: import('@shared/domain/entities/SubtitleLearning').WordLookupRequest,
+    ) {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.LOOKUP_WORD_DEFINITION,
+            req,
+        );
+    }
+
+    async getVocabData(movieId?: string) {
+        const res = await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.GET_VOCAB_DATA,
+            { movieId },
+        );
+        return res?.data || null;
+    }
+
+    onVocabChanged(
+        callback: (
+            data: import('@shared/domain/entities/Vocabulary').EpisodeVocabData,
+        ) => void,
+    ): () => void {
+        return ContentBackgroundBus.onMessage(
+            NCW_CONSTANTS.MESSAGE_TYPES.PUSH_VOCAB_CHANGED,
+            (payload) => {
+                if (payload && payload.data) {
+                    callback(payload.data);
+                }
+            },
+        );
+    }
+
+    async recordWatchSession(
+        session: import('@shared/domain/entities/WatchHistory').WatchSession,
+    ) {
+        return await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.RECORD_WATCH_SESSION,
+            { session },
+        );
+    }
+
+    onSettingsChanged(
+        callback: (settings: ExtensionSettings) => void,
+    ): () => void {
+        return ContentBackgroundBus.onMessage(
+            NCW_CONSTANTS.MESSAGE_TYPES.PUSH_SETTINGS_CHANGED,
+            (payload) => {
+                if (payload && payload.settings) {
+                    callback(payload.settings);
+                }
+            },
+        );
+    }
 }

@@ -1,253 +1,276 @@
 import { WordLookupResult } from '@shared/domain/entities/SubtitleLearning';
 
 export interface PopoverOpenParams {
-  word: string;
-  sourceLang?: string;
-  targetLang?: string;
-  tokenEl: HTMLElement;
-  container: HTMLElement;
-  isMarked: boolean;
-  contextSentence?: string;
-  contextTranslation?: string;
-  onToggleMark: () => void;
-  onClose: () => void;
+    word: string;
+    sourceLang?: string;
+    targetLang?: string;
+    tokenEl: HTMLElement;
+    container: HTMLElement;
+    isMarked: boolean;
+    contextSentence?: string;
+    contextTranslation?: string;
+    onToggleMark: () => void;
+    onClose: () => void;
 }
 
 export class SubtitleLearningPopover {
-  private element: HTMLElement | null = null;
-  private currentParams: PopoverOpenParams | null = null;
-  private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
-  private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+    private element: HTMLElement | null = null;
+    private currentParams: PopoverOpenParams | null = null;
+    private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
+    private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 
-  get isVisible(): boolean {
-    return this.element !== null && this.element.isConnected;
-  }
-
-  show(params: PopoverOpenParams): void {
-    this.hide();
-    this.currentParams = params;
-
-    const el = document.createElement('div');
-    el.className = 'ncw-learning-popover';
-
-    const header = document.createElement('div');
-    header.className = 'ncw-pop-header';
-
-    const titleArea = document.createElement('div');
-    titleArea.className = 'ncw-pop-title-area';
-
-    const wordEl = document.createElement('span');
-    wordEl.className = 'ncw-pop-word';
-    wordEl.textContent = params.word;
-    titleArea.appendChild(wordEl);
-
-    const phoneticEl = document.createElement('span');
-    phoneticEl.className = 'ncw-pop-phonetic';
-    phoneticEl.textContent = '...';
-    titleArea.appendChild(phoneticEl);
-
-    const posEl = document.createElement('span');
-    posEl.className = 'ncw-pop-pos';
-    posEl.style.display = 'none';
-    titleArea.appendChild(posEl);
-
-    header.appendChild(titleArea);
-
-    const actions = document.createElement('div');
-    actions.className = 'ncw-pop-actions';
-
-    // TTS Speak button
-    const ttsBtn = document.createElement('button');
-    ttsBtn.className = 'ncw-pop-btn-icon';
-    ttsBtn.title = 'Speak pronunciation';
-    ttsBtn.innerHTML = '🔊';
-    ttsBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.speak(params.word, params.sourceLang);
-    };
-    actions.appendChild(ttsBtn);
-
-    // Star / Mark word button
-    const starBtn = document.createElement('button');
-    starBtn.className = `ncw-pop-btn-icon ncw-pop-star ${params.isMarked ? 'is-marked' : ''}`;
-    starBtn.title = params.isMarked ? 'Remove from vocabulary' : 'Save to vocabulary';
-    starBtn.innerHTML = params.isMarked ? '★' : '☆';
-    starBtn.onclick = (e) => {
-      e.stopPropagation();
-      params.onToggleMark();
-      params.isMarked = !params.isMarked;
-      starBtn.innerHTML = params.isMarked ? '★' : '☆';
-      starBtn.classList.toggle('is-marked', params.isMarked);
-      starBtn.title = params.isMarked ? 'Remove from vocabulary' : 'Save to vocabulary';
-    };
-    actions.appendChild(starBtn);
-
-    // Close button
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'ncw-pop-btn-icon';
-    closeBtn.title = 'Close (Esc)';
-    closeBtn.innerHTML = '✕';
-    closeBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.hide();
-    };
-    actions.appendChild(closeBtn);
-
-    header.appendChild(actions);
-    el.appendChild(header);
-
-    // Meaning & Grammar Body
-    const body = document.createElement('div');
-    body.className = 'ncw-pop-body';
-
-    const meaningEl = document.createElement('div');
-    meaningEl.className = 'ncw-pop-meaning';
-    meaningEl.textContent = 'Loading definition...';
-    body.appendChild(meaningEl);
-
-    const grammarEl = document.createElement('div');
-    grammarEl.className = 'ncw-pop-grammar';
-    grammarEl.style.display = 'none';
-    body.appendChild(grammarEl);
-
-    // Example Sentence
-    if (params.contextSentence) {
-      const exampleBox = document.createElement('div');
-      exampleBox.className = 'ncw-pop-example';
-
-      const origEx = document.createElement('div');
-      origEx.className = 'ncw-pop-ex-orig';
-      origEx.textContent = params.contextSentence;
-      exampleBox.appendChild(origEx);
-
-      if (params.contextTranslation) {
-        const transEx = document.createElement('div');
-        transEx.className = 'ncw-pop-ex-trans';
-        transEx.textContent = params.contextTranslation;
-        exampleBox.appendChild(transEx);
-      }
-      body.appendChild(exampleBox);
+    get isVisible(): boolean {
+        return this.element !== null && this.element.isConnected;
     }
 
-    el.appendChild(body);
-
-    params.container.appendChild(el);
-    this.element = el;
-
-    // Position relative to token element
-    this.positionPopover(params.tokenEl, params.container, el);
-
-    // Listeners for outside click and Esc key
-    this.outsideClickHandler = (e: MouseEvent) => {
-      if (this.element && !this.element.contains(e.target as Node) && !params.tokenEl.contains(e.target as Node)) {
+    show(params: PopoverOpenParams): void {
         this.hide();
-      }
-    };
-    setTimeout(() => {
-      if (this.outsideClickHandler) {
-        document.addEventListener('mousedown', this.outsideClickHandler);
-      }
-    }, 10);
+        this.currentParams = params;
 
-    this.keydownHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        this.hide();
-      }
-    };
-    document.addEventListener('keydown', this.keydownHandler);
-  }
+        const el = document.createElement('div');
+        el.className = 'ncw-learning-popover';
 
-  updateDefinition(result: WordLookupResult): void {
-    if (!this.element) return;
+        const header = document.createElement('div');
+        header.className = 'ncw-pop-header';
 
-    if (result.reading) {
-      const phoneticEl = this.element.querySelector('.ncw-pop-phonetic');
-      if (phoneticEl) {
-        phoneticEl.textContent = `[${result.reading}]`;
-      }
-    } else {
-      const phoneticEl = this.element.querySelector('.ncw-pop-phonetic');
-      if (phoneticEl) phoneticEl.textContent = '';
+        const titleArea = document.createElement('div');
+        titleArea.className = 'ncw-pop-title-area';
+
+        const wordEl = document.createElement('span');
+        wordEl.className = 'ncw-pop-word';
+        wordEl.textContent = params.word;
+        titleArea.appendChild(wordEl);
+
+        const phoneticEl = document.createElement('span');
+        phoneticEl.className = 'ncw-pop-phonetic';
+        phoneticEl.textContent = '...';
+        titleArea.appendChild(phoneticEl);
+
+        const posEl = document.createElement('span');
+        posEl.className = 'ncw-pop-pos';
+        posEl.style.display = 'none';
+        titleArea.appendChild(posEl);
+
+        header.appendChild(titleArea);
+
+        const actions = document.createElement('div');
+        actions.className = 'ncw-pop-actions';
+
+        // TTS Speak button
+        const ttsBtn = document.createElement('button');
+        ttsBtn.className = 'ncw-pop-btn-icon';
+        ttsBtn.title = 'Speak pronunciation';
+        ttsBtn.innerHTML = '🔊';
+        ttsBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.speak(params.word, params.sourceLang);
+        };
+        actions.appendChild(ttsBtn);
+
+        // Star / Mark word button
+        const starBtn = document.createElement('button');
+        starBtn.className = `ncw-pop-btn-icon ncw-pop-star ${params.isMarked ? 'is-marked' : ''}`;
+        starBtn.title = params.isMarked
+            ? 'Remove from vocabulary'
+            : 'Save to vocabulary';
+        starBtn.innerHTML = params.isMarked ? '★' : '☆';
+        starBtn.onclick = (e) => {
+            e.stopPropagation();
+            params.onToggleMark();
+            params.isMarked = !params.isMarked;
+            starBtn.innerHTML = params.isMarked ? '★' : '☆';
+            starBtn.classList.toggle('is-marked', params.isMarked);
+            starBtn.title = params.isMarked
+                ? 'Remove from vocabulary'
+                : 'Save to vocabulary';
+        };
+        actions.appendChild(starBtn);
+
+        // Close button
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'ncw-pop-btn-icon';
+        closeBtn.title = 'Close (Esc)';
+        closeBtn.innerHTML = '✕';
+        closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.hide();
+        };
+        actions.appendChild(closeBtn);
+
+        header.appendChild(actions);
+        el.appendChild(header);
+
+        // Meaning & Grammar Body
+        const body = document.createElement('div');
+        body.className = 'ncw-pop-body';
+
+        const meaningEl = document.createElement('div');
+        meaningEl.className = 'ncw-pop-meaning';
+        meaningEl.textContent = 'Loading definition...';
+        body.appendChild(meaningEl);
+
+        const grammarEl = document.createElement('div');
+        grammarEl.className = 'ncw-pop-grammar';
+        grammarEl.style.display = 'none';
+        body.appendChild(grammarEl);
+
+        // Example Sentence
+        if (params.contextSentence) {
+            const exampleBox = document.createElement('div');
+            exampleBox.className = 'ncw-pop-example';
+
+            const origEx = document.createElement('div');
+            origEx.className = 'ncw-pop-ex-orig';
+            origEx.textContent = params.contextSentence;
+            exampleBox.appendChild(origEx);
+
+            if (params.contextTranslation) {
+                const transEx = document.createElement('div');
+                transEx.className = 'ncw-pop-ex-trans';
+                transEx.textContent = params.contextTranslation;
+                exampleBox.appendChild(transEx);
+            }
+            body.appendChild(exampleBox);
+        }
+
+        el.appendChild(body);
+
+        params.container.appendChild(el);
+        this.element = el;
+
+        // Position relative to token element
+        this.positionPopover(params.tokenEl, params.container, el);
+
+        // Listeners for outside click and Esc key
+        this.outsideClickHandler = (e: MouseEvent) => {
+            if (
+                this.element &&
+                !this.element.contains(e.target as Node) &&
+                !params.tokenEl.contains(e.target as Node)
+            ) {
+                this.hide();
+            }
+        };
+        setTimeout(() => {
+            if (this.outsideClickHandler) {
+                document.addEventListener(
+                    'mousedown',
+                    this.outsideClickHandler,
+                );
+            }
+        }, 10);
+
+        this.keydownHandler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                this.hide();
+            }
+        };
+        document.addEventListener('keydown', this.keydownHandler);
     }
 
-    if (result.pos) {
-      const posEl = this.element.querySelector('.ncw-pop-pos') as HTMLElement;
-      if (posEl) {
-        posEl.textContent = result.pos;
-        posEl.style.display = 'inline-block';
-      }
+    updateDefinition(result: WordLookupResult): void {
+        if (!this.element) return;
+
+        if (result.reading) {
+            const phoneticEl = this.element.querySelector('.ncw-pop-phonetic');
+            if (phoneticEl) {
+                phoneticEl.textContent = `[${result.reading}]`;
+            }
+        } else {
+            const phoneticEl = this.element.querySelector('.ncw-pop-phonetic');
+            if (phoneticEl) phoneticEl.textContent = '';
+        }
+
+        if (result.pos) {
+            const posEl = this.element.querySelector(
+                '.ncw-pop-pos',
+            ) as HTMLElement;
+            if (posEl) {
+                posEl.textContent = result.pos;
+                posEl.style.display = 'inline-block';
+            }
+        }
+
+        const meaningEl = this.element.querySelector('.ncw-pop-meaning');
+        if (meaningEl) {
+            meaningEl.textContent = result.meaning;
+        }
+
+        if (result.grammarNotes) {
+            const grammarEl = this.element.querySelector(
+                '.ncw-pop-grammar',
+            ) as HTMLElement;
+            if (grammarEl) {
+                grammarEl.textContent = `💡 ${result.grammarNotes}`;
+                grammarEl.style.display = 'block';
+            }
+        }
     }
 
-    const meaningEl = this.element.querySelector('.ncw-pop-meaning');
-    if (meaningEl) {
-      meaningEl.textContent = result.meaning;
+    hide(): void {
+        if (this.outsideClickHandler) {
+            document.removeEventListener('mousedown', this.outsideClickHandler);
+            this.outsideClickHandler = null;
+        }
+        if (this.keydownHandler) {
+            document.removeEventListener('keydown', this.keydownHandler);
+            this.keydownHandler = null;
+        }
+        if (this.element && this.element.parentElement) {
+            this.element.parentElement.removeChild(this.element);
+        }
+        this.element = null;
+        if (this.currentParams) {
+            const params = this.currentParams;
+            this.currentParams = null;
+            params.onClose();
+        }
     }
 
-    if (result.grammarNotes) {
-      const grammarEl = this.element.querySelector('.ncw-pop-grammar') as HTMLElement;
-      if (grammarEl) {
-        grammarEl.textContent = `💡 ${result.grammarNotes}`;
-        grammarEl.style.display = 'block';
-      }
-    }
-  }
+    private positionPopover(
+        tokenEl: HTMLElement,
+        container: HTMLElement,
+        popover: HTMLElement,
+    ): void {
+        const tokenRect = tokenEl.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
 
-  hide(): void {
-    if (this.outsideClickHandler) {
-      document.removeEventListener('mousedown', this.outsideClickHandler);
-      this.outsideClickHandler = null;
-    }
-    if (this.keydownHandler) {
-      document.removeEventListener('keydown', this.keydownHandler);
-      this.keydownHandler = null;
-    }
-    if (this.element && this.element.parentElement) {
-      this.element.parentElement.removeChild(this.element);
-    }
-    this.element = null;
-    if (this.currentParams) {
-      const params = this.currentParams;
-      this.currentParams = null;
-      params.onClose();
-    }
-  }
+        const tokenLeft = tokenRect.left - containerRect.left;
+        const tokenTop = tokenRect.top - containerRect.top;
 
-  private positionPopover(tokenEl: HTMLElement, container: HTMLElement, popover: HTMLElement): void {
-    const tokenRect = tokenEl.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
+        const popWidth = 280;
+        const popHeight = 160;
 
-    const tokenLeft = tokenRect.left - containerRect.left;
-    const tokenTop = tokenRect.top - containerRect.top;
+        let left = tokenLeft + tokenRect.width / 2 - popWidth / 2;
+        let top = tokenTop - popHeight - 12; // Above token by default
 
-    const popWidth = 280;
-    const popHeight = 160;
+        // If clipping at top, place below token
+        if (top < 10) {
+            top = tokenTop + tokenRect.height + 12;
+        }
 
-    let left = tokenLeft + tokenRect.width / 2 - popWidth / 2;
-    let top = tokenTop - popHeight - 12; // Above token by default
+        // Keep horizontally within container
+        left = Math.max(
+            10,
+            Math.min(left, containerRect.width - popWidth - 10),
+        );
 
-    // If clipping at top, place below token
-    if (top < 10) {
-      top = tokenTop + tokenRect.height + 12;
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
     }
 
-    // Keep horizontally within container
-    left = Math.max(10, Math.min(left, containerRect.width - popWidth - 10));
-
-    popover.style.left = `${left}px`;
-    popover.style.top = `${top}px`;
-  }
-
-  private speak(word: string, lang?: string): void {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(word);
-      if (lang) {
-        utterance.lang = lang;
-      }
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      // Ignore speech synthesis errors
+    private speak(word: string, lang?: string): void {
+        if (typeof window === 'undefined' || !('speechSynthesis' in window))
+            return;
+        try {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(word);
+            if (lang) {
+                utterance.lang = lang;
+            }
+            window.speechSynthesis.speak(utterance);
+        } catch {
+            // Ignore speech synthesis errors
+        }
     }
-  }
 }

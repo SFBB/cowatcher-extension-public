@@ -11,507 +11,530 @@ body.ncw-hide-native-subs .vjs-text-track-cue,
 body.ncw-hide-native-subs .vjs-text-track-window,
 body.ncw-hide-native-subs .ytp-caption-window-container,
 body.ncw-hide-native-subs .caption-window {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }
 
 /* Master subtitle viewport overlay */
 .ncw-subtitle-master-container,
 #ncw-subtitle-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 99999;
-  overflow: hidden;
-  --ncw-font-size: 26px;
-  --ncw-font-size-orig: 19px;
-  --ncw-bg-opacity: 0;
-  --ncw-bottom-offset: 80px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 99999;
+    overflow: hidden;
+    --ncw-font-size: 26px;
+    --ncw-font-size-orig: 19px;
+    --ncw-bg-opacity: 0;
+    --ncw-bottom-offset: 80px;
 }
 
 /* Individual Slot Containers */
 .ncw-slot {
-  position: absolute;
-  pointer-events: none;
-  user-select: none;
-  transition: none;
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+    transition: none;
 }
 
 /* Optional transition animation when user explicitly enables it */
 .ncw-subtitle-master-container.ncw-enable-anim .ncw-slot {
-  transition:
-    opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: opacity, transform;
+    transition:
+        opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
 }
 
 /* 1. Bottom slot (Default dialogue) */
 .ncw-slot-bottom {
-  left: 50%;
-  bottom: var(--ncw-bottom-offset, 80px);
-  transform: translate(-50%, 0);
-  max-width: 85%;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+    left: 50%;
+    bottom: var(--ncw-bottom-offset, 80px);
+    transform: translate(-50%, 0);
+    max-width: 85%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
 }
 
 /* 2. Top slot (Annotations, speaker at top) */
 .ncw-slot-top {
-  left: 50%;
-  top: 50px;
-  transform: translate(-50%, 0);
-  max-width: 85%;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+    left: 50%;
+    top: 50px;
+    transform: translate(-50%, 0);
+    max-width: 85%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
 }
 
 /* 3. Right Vertical slot (Japanese/Asian vertical subtitles) */
 .ncw-slot-right-vertical {
-  right: 50px;
-  top: 15%;
-  max-height: 70%;
-  display: flex;
-  flex-direction: row-reverse;
-  align-items: flex-start;
-  gap: 10px;
-  writing-mode: vertical-rl;
-  -webkit-writing-mode: vertical-rl;
-  text-orientation: upright;
-  -webkit-text-orientation: upright;
+    right: 50px;
+    top: 15%;
+    max-height: 70%;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: flex-start;
+    gap: 10px;
+    writing-mode: vertical-rl;
+    -webkit-writing-mode: vertical-rl;
+    text-orientation: upright;
+    -webkit-text-orientation: upright;
 }
 
 /* 4. Left Vertical slot */
 .ncw-slot-left-vertical {
-  left: 50px;
-  top: 15%;
-  max-height: 70%;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
-  writing-mode: vertical-lr;
-  -webkit-writing-mode: vertical-lr;
-  text-orientation: upright;
-  -webkit-text-orientation: upright;
+    left: 50px;
+    top: 15%;
+    max-height: 70%;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    writing-mode: vertical-lr;
+    -webkit-writing-mode: vertical-lr;
+    text-orientation: upright;
+    -webkit-text-orientation: upright;
 }
 
 .ncw-subtitle-wrapper {
-  display: inline-block;
-  background-color: rgba(0, 0, 0, var(--ncw-bg-opacity, 0));
-  border-radius: 6px;
-  padding: 4px 10px;
-  border: none;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+    display: inline-block;
+    background-color: rgba(0, 0, 0, var(--ncw-bg-opacity, 0));
+    border-radius: 6px;
+    padding: 4px 10px;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 /* Optional glass effect when user explicitly enables it */
 .ncw-subtitle-master-container.ncw-glass-effect .ncw-subtitle-wrapper {
-  border-radius: 8px;
-  padding: 8px 18px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+    border-radius: 8px;
+    padding: 8px 18px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 /* Vertical slot adjustments */
 .ncw-slot-right-vertical .ncw-subtitle-wrapper,
 .ncw-slot-left-vertical .ncw-subtitle-wrapper {
-  padding: 18px 8px;
+    padding: 18px 8px;
 }
 
 .ncw-sub-line {
-  line-height: 1.35;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei',
-    'Noto Sans', sans-serif;
-  text-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.95),
-    0 0 8px rgba(0, 0, 0, 0.8);
-  word-break: break-word;
+    line-height: 1.35;
+    font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+        'Microsoft YaHei', 'Noto Sans', sans-serif;
+    text-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.95),
+        0 0 8px rgba(0, 0, 0, 0.8);
+    word-break: break-word;
 }
 
 .ncw-translated-text {
-  color: #ffffff;
-  font-weight: 600;
-  font-size: var(--ncw-font-size, 26px);
-  letter-spacing: 0.5px;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: var(--ncw-font-size, 26px);
+    letter-spacing: 0.5px;
 }
 
 .ncw-original-text {
-  color: #ffeb3b; /* Gentle subtitle gold/yellow for bilingual contrast */
-  font-weight: 400;
-  font-size: var(--ncw-font-size-orig, 19px);
-  margin-top: 4px;
-  opacity: 0.92;
+    color: #ffeb3b; /* Gentle subtitle gold/yellow for bilingual contrast */
+    font-weight: 400;
+    font-size: var(--ncw-font-size-orig, 19px);
+    margin-top: 4px;
+    opacity: 0.92;
 }
 
 .ncw-slot-right-vertical .ncw-original-text,
 .ncw-slot-left-vertical .ncw-original-text {
-  margin-top: 0;
-  margin-right: 6px;
+    margin-top: 0;
+    margin-right: 6px;
 }
 
 /* Swapped Subtitles Mode (Original dialogue on top, Translated on bottom) */
 .ncw-subtitle-master-container.ncw-swapped-subs .ncw-original-text {
-  margin-top: 0;
-  margin-bottom: 4px;
-  font-size: var(--ncw-font-size, 26px);
-  font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 4px;
+    font-size: var(--ncw-font-size, 26px);
+    font-weight: 600;
 }
 
 .ncw-subtitle-master-container.ncw-swapped-subs .ncw-translated-text {
-  margin-top: 0;
-  font-size: var(--ncw-font-size-orig, 19px);
-  font-weight: 400;
-  opacity: 0.92;
+    margin-top: 0;
+    font-size: var(--ncw-font-size-orig, 19px);
+    font-weight: 400;
+    opacity: 0.92;
 }
 
-.ncw-subtitle-master-container.ncw-swapped-subs .ncw-slot-right-vertical .ncw-original-text,
-.ncw-subtitle-master-container.ncw-swapped-subs .ncw-slot-left-vertical .ncw-original-text {
-  margin-bottom: 0;
-  margin-right: 0;
-  margin-left: 6px;
+.ncw-subtitle-master-container.ncw-swapped-subs
+    .ncw-slot-right-vertical
+    .ncw-original-text,
+.ncw-subtitle-master-container.ncw-swapped-subs
+    .ncw-slot-left-vertical
+    .ncw-original-text {
+    margin-bottom: 0;
+    margin-right: 0;
+    margin-left: 6px;
 }
 
 .ncw-translating {
-  display: inline-block;
-  color: #aaa;
-  font-size: 0.8em;
-  font-style: italic;
+    display: inline-block;
+    color: #aaa;
+    font-size: 0.8em;
+    font-style: italic;
 }
 
 /* Floating in-player AI Subtitle Toggle Pill */
 .ncw-player-toggle-btn {
-  position: absolute;
-  top: 24px;
-  right: 28px;
-  z-index: 99999;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(18, 18, 18, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 20px;
-  color: #fff;
-  cursor: pointer;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 5px 14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition:
-    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-    background 0.2s ease,
-    border-color 0.2s ease,
-    visibility 0.3s;
-  user-select: none;
-  pointer-events: auto;
-  opacity: 0.85;
-  visibility: visible;
-  outline: none;
+    position: absolute;
+    top: 24px;
+    right: 28px;
+    z-index: 99999;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(18, 18, 18, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 20px;
+    color: #fff;
+    cursor: pointer;
+    font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+        'Microsoft YaHei', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 5px 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition:
+        opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.2s ease,
+        border-color 0.2s ease,
+        visibility 0.3s;
+    user-select: none;
+    pointer-events: auto;
+    opacity: 0.85;
+    visibility: visible;
+    outline: none;
 }
 
 .ncw-player-toggle-btn:hover {
-  opacity: 1;
-  background: rgba(30, 30, 30, 0.92);
-  border-color: rgba(255, 255, 255, 0.6);
-  transform: scale(1.04);
+    opacity: 1;
+    background: rgba(30, 30, 30, 0.92);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: scale(1.04);
 }
 
 .ncw-player-toggle-btn:active {
-  transform: scale(0.96);
+    transform: scale(0.96);
 }
 
 /* Position adjustment for YouTube player root to avoid native top-right cards/info icons */
 #movie_player .ncw-player-toggle-btn {
-  top: 18px;
-  right: 70px;
+    top: 18px;
+    right: 70px;
 }
 
 .ncw-player-toggle-btn .ncw-badge-icon {
-  display: inline-block;
-  background: #e50914; /* Netflix Red */
-  color: #fff;
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 11px;
-  font-weight: 800;
-  margin-right: 6px;
-  letter-spacing: 0.5px;
-  box-shadow: 0 0 6px rgba(229, 9, 20, 0.6);
+    display: inline-block;
+    background: #e50914; /* Netflix Red */
+    color: #fff;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-weight: 800;
+    margin-right: 6px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 6px rgba(229, 9, 20, 0.6);
 }
 
 .ncw-player-toggle-btn.ncw-inactive {
-  opacity: 0.65;
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(10, 10, 10, 0.6);
+    opacity: 0.65;
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(10, 10, 10, 0.6);
 }
 
 .ncw-player-toggle-btn.ncw-inactive:hover {
-  opacity: 0.95;
+    opacity: 0.95;
 }
 
 .ncw-player-toggle-btn.ncw-inactive .ncw-badge-icon {
-  background: #555;
-  box-shadow: none;
-  color: #bbb;
+    background: #555;
+    box-shadow: none;
+    color: #bbb;
 }
 
 .ncw-player-toggle-btn.ncw-inactive .ncw-btn-text {
-  color: #888;
+    color: #888;
 }
 
 /* Auto fade-out when mouse is idle */
 .ncw-player-toggle-btn.ncw-faded {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  visibility: hidden;
-  transition:
-    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    visibility 0.5s,
-    transform 0.3s ease;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden;
+    transition:
+        opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        visibility 0.5s,
+        transform 0.3s ease;
 }
 
 /* Toast Notification */
 .ncw-toast {
-  position: absolute;
-  top: 15%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.92);
-  background: rgba(0, 0, 0, 0.85);
-  color: #ffffff;
-  padding: 10px 22px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 100000;
-  pointer-events: none;
-  opacity: 0;
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
+    position: absolute;
+    top: 15%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.92);
+    background: rgba(0, 0, 0, 0.85);
+    color: #ffffff;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 100000;
+    pointer-events: none;
+    opacity: 0;
+    transition:
+        opacity 0.22s ease,
+        transform 0.22s ease;
+    font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+        'Microsoft YaHei', sans-serif;
 }
 
 .ncw-toast.ncw-toast-show {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
 }
 
 /* Interactive Tokenized Subtitles */
 .ncw-token {
-  display: inline;
-  pointer-events: auto;
-  cursor: pointer;
-  border-radius: 3px;
-  padding: 1px 2px;
-  margin: 0 1px;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  user-select: text;
+    display: inline;
+    pointer-events: auto;
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 1px 2px;
+    margin: 0 1px;
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease;
+    user-select: text;
 }
 
 .ncw-token:hover {
-  background-color: rgba(255, 235, 59, 0.35);
-  color: #fff;
-  text-decoration: underline;
+    background-color: rgba(255, 235, 59, 0.35);
+    color: #fff;
+    text-decoration: underline;
 }
 
 .ncw-token.is-user-marked {
-  color: #ffd700;
-  border-bottom: 2px solid #ffd700;
-  font-weight: 600;
+    color: #ffd700;
+    border-bottom: 2px solid #ffd700;
+    font-weight: 600;
 }
 
 .ncw-token.is-user-marked::after {
-  content: '★';
-  font-size: 0.65em;
-  vertical-align: super;
-  margin-left: 2px;
-  color: #ffd700;
+    content: '★';
+    font-size: 0.65em;
+    vertical-align: super;
+    margin-left: 2px;
+    color: #ffd700;
 }
 
 /* Subtitle Learning Popover */
 .ncw-learning-popover {
-  position: absolute;
-  z-index: 1000000;
-  width: 300px;
-  max-width: 90vw;
-  background: rgba(24, 24, 28, 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  padding: 14px 16px;
-  color: #f0f0f0;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  pointer-events: auto;
-  user-select: text;
-  text-align: left;
-  line-height: 1.4;
-  animation: ncw-pop-fade 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+    position: absolute;
+    z-index: 1000000;
+    width: 300px;
+    max-width: 90vw;
+    background: rgba(24, 24, 28, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    padding: 14px 16px;
+    color: #f0f0f0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+    font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+        'Microsoft YaHei', sans-serif;
+    pointer-events: auto;
+    user-select: text;
+    text-align: left;
+    line-height: 1.4;
+    animation: ncw-pop-fade 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes ncw-pop-fade {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .ncw-pop-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 8px;
-  margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
+    margin-bottom: 10px;
 }
 
 .ncw-pop-title-area {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .ncw-pop-word {
-  font-size: 18px;
-  font-weight: 700;
-  color: #ffd700;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffd700;
 }
 
 .ncw-pop-phonetic {
-  font-size: 13px;
-  color: #a0a0b0;
-  font-family: monospace;
+    font-size: 13px;
+    color: #a0a0b0;
+    font-family: monospace;
 }
 
 .ncw-pop-pos {
-  font-size: 11px;
-  padding: 1px 6px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  color: #81c784;
-  text-transform: uppercase;
+    font-size: 11px;
+    padding: 1px 6px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    color: #81c784;
+    text-transform: uppercase;
 }
 
 .ncw-pop-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .ncw-pop-btn-icon {
-  background: transparent;
-  border: none;
-  color: #e0e0e0;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s ease, transform 0.1s ease;
+    background: transparent;
+    border: none;
+    color: #e0e0e0;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+        background 0.15s ease,
+        transform 0.1s ease;
 }
 
 .ncw-pop-btn-icon:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.1);
 }
 
 .ncw-pop-star.is-marked {
-  color: #ffd700;
+    color: #ffd700;
 }
 
 .ncw-pop-body {
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .ncw-pop-meaning {
-  font-size: 14px;
-  font-weight: 500;
-  color: #ffffff;
-  line-height: 1.45;
+    font-size: 14px;
+    font-weight: 500;
+    color: #ffffff;
+    line-height: 1.45;
 }
 
 .ncw-pop-grammar {
-  font-size: 12px;
-  color: #b0bec5;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 4px 8px;
-  border-radius: 4px;
+    font-size: 12px;
+    color: #b0bec5;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 8px;
+    border-radius: 4px;
 }
 
 .ncw-pop-example {
-  margin-top: 4px;
-  border-left: 2px solid #ffd700;
-  padding-left: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+    margin-top: 4px;
+    border-left: 2px solid #ffd700;
+    padding-left: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
 }
 
 .ncw-pop-ex-orig {
-  font-size: 12px;
-  color: #e0e0e0;
-  font-style: italic;
+    font-size: 12px;
+    color: #e0e0e0;
+    font-style: italic;
 }
 
 .ncw-pop-ex-trans {
-  font-size: 12px;
-  color: #90a4ae;
+    font-size: 12px;
+    color: #90a4ae;
 }
 
 /* Learning Toast */
 .ncw-learning-toast {
-  position: fixed;
-  bottom: 120px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000001;
-  background: rgba(18, 18, 22, 0.95);
-  color: #ffffff;
-  padding: 8px 18px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 215, 0, 0.5);
-  pointer-events: none;
-  animation: ncw-toast-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    position: fixed;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000001;
+    background: rgba(18, 18, 22, 0.95);
+    color: #ffffff;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 215, 0, 0.5);
+    pointer-events: none;
+    animation: ncw-toast-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 @keyframes ncw-toast-in {
-  from { opacity: 0; transform: translate(-50%, 12px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+    from {
+        opacity: 0;
+        transform: translate(-50%, 12px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
 }

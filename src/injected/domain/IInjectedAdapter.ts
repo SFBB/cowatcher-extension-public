@@ -6,110 +6,111 @@ import NCW_CONSTANTS from '@shared/utils/constants';
  * to Content Script (ISOLATED world) via window.postMessage.
  */
 export interface InjectedSubtitleRawDataPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.SUBTITLE_RAW_DATA;
-  movieId: string | null;
-  url: string;
-  pageUrl?: string;
-  rawText: string;
-  bcp47?: string | null;
-  timestamp: number;
-  isReplay?: boolean;
-  isAsr?: boolean;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.SUBTITLE_RAW_DATA;
+    movieId: string | null;
+    url: string;
+    pageUrl?: string;
+    rawText: string;
+    bcp47?: string | null;
+    timestamp: number;
+    isReplay?: boolean;
+    isAsr?: boolean;
 }
 
 export interface InjectedSubtitlePreloadStagedPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.SUBTITLE_PRELOAD_STAGED;
-  movieId: string | null;
-  url: string;
-  rawText: string;
-  bcp47?: string | null;
-  timestamp: number;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.SUBTITLE_PRELOAD_STAGED;
+    movieId: string | null;
+    url: string;
+    rawText: string;
+    bcp47?: string | null;
+    timestamp: number;
 }
 
 export interface InjectedSubtitleOffPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.SUBTITLE_OFF;
-  movieId?: string | null;
-  timestamp: number;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.SUBTITLE_OFF;
+    movieId?: string | null;
+    timestamp: number;
 }
 
 export interface InjectedTimeSyncPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.TIME_SYNC;
-  cadmiumOffset?: number;
-  adOffset?: number;
-  [key: string]: any;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.TIME_SYNC;
+    cadmiumOffset?: number;
+    adOffset?: number;
+    [key: string]: any;
 }
 
 export interface InjectedEpisodeChangedPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.EPISODE_CHANGED;
-  movieId: string | number;
-  sessionId?: string;
-  url?: string;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.EPISODE_CHANGED;
+    movieId: string | number;
+    sessionId?: string;
+    url?: string;
 }
 
 export interface InjectedUrlChangedPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.URL_CHANGED;
-  url: string;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.URL_CHANGED;
+    url: string;
 }
 
 export interface InjectedMetadataLoadedPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.METADATA_LOADED;
-  showId: string;
-  showTitle: string;
-  showSynopsis?: string;
-  seasonId?: string;
-  seasonTitle?: string;
-  seasonSeq?: number;
-  currentEpisode?: {
-    episodeId: string;
-    episodeTitle: string;
-    episodeSeq?: number;
-    episodeSynopsis?: string;
-  };
-  rawMetadata?: any;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.METADATA_LOADED;
+    showId: string;
+    showTitle: string;
+    showSynopsis?: string;
+    seasonId?: string;
+    seasonTitle?: string;
+    seasonSeq?: number;
+    currentEpisode?: {
+        episodeId: string;
+        episodeTitle: string;
+        episodeSeq?: number;
+        episodeSynopsis?: string;
+    };
+    rawMetadata?: any;
 }
 
 export interface InjectedAdStateChangedPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.AD_STATE_CHANGED;
-  isAd: boolean;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.AD_STATE_CHANGED;
+    isAd: boolean;
 }
 
 export interface InjectedNativeTrackDataPayload {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.NATIVE_TRACK_DATA;
-  movieId: string;
-  found: boolean;
-  bcp47?: string;
-  rawText?: string;
-  targetLangCode?: string;
-  error?: string;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.NATIVE_TRACK_DATA;
+    movieId: string;
+    found: boolean;
+    bcp47?: string;
+    rawText?: string;
+    targetLangCode?: string;
+    error?: string;
 }
 
 /**
  * All outgoing events that an IInjectedAdapter can post to window.
  */
 export type InjectedOutgoingEvent =
-  | InjectedSubtitleRawDataPayload
-  | InjectedSubtitlePreloadStagedPayload
-  | InjectedMetadataLoadedPayload
-  | InjectedTimeSyncPayload
-  | InjectedEpisodeChangedPayload
-  | InjectedUrlChangedPayload
-  | InjectedAdStateChangedPayload
-  | InjectedNativeTrackDataPayload;
+    | InjectedSubtitleRawDataPayload
+    | InjectedSubtitlePreloadStagedPayload
+    | InjectedMetadataLoadedPayload
+    | InjectedTimeSyncPayload
+    | InjectedEpisodeChangedPayload
+    | InjectedUrlChangedPayload
+    | InjectedAdStateChangedPayload
+    | InjectedNativeTrackDataPayload;
 
 /**
  * Incoming event sent from Content Script to Injected Script.
  */
 export interface InjectedSubtitleRetryEvent {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.REQUEST_SUBTITLE_RETRY;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.REQUEST_SUBTITLE_RETRY;
 }
 
 export interface InjectedQueryNativeTrackEvent {
-  type: typeof NCW_CONSTANTS.MESSAGE_TYPES.QUERY_NATIVE_TRACK;
-  movieId: string;
-  targetLangCode: string;
+    type: typeof NCW_CONSTANTS.MESSAGE_TYPES.QUERY_NATIVE_TRACK;
+    movieId: string;
+    targetLangCode: string;
 }
 
-export type InjectedIncomingEvent = InjectedSubtitleRetryEvent | InjectedQueryNativeTrackEvent;
+export type InjectedIncomingEvent =
+    InjectedSubtitleRetryEvent | InjectedQueryNativeTrackEvent;
 
 /**
  * Domain interface for Platform Injected Adapters.
@@ -133,29 +134,29 @@ export type InjectedIncomingEvent = InjectedSubtitleRetryEvent | InjectedQueryNa
  * - [Optional] `NCW_SUBTITLE_PRELOAD_STAGED`: Emits preloaded next-episode subtitle files.
  */
 export interface IInjectedAdapter {
-  /**
-   * Unique identifier of the streaming platform (e.g. 'netflix', 'youtube', 'disney')
-   */
-  readonly platformId: StreamingPlatformId;
+    /**
+     * Unique identifier of the streaming platform (e.g. 'netflix', 'youtube', 'disney')
+     */
+    readonly platformId: StreamingPlatformId;
 
-  /**
-   * Check if the current page URL matches this streaming platform.
-   * @param url The current window.location.href
-   */
-  matches(url: string): boolean;
+    /**
+     * Check if the current page URL matches this streaming platform.
+     * @param url The current window.location.href
+     */
+    matches(url: string): boolean;
 
-  /**
-   * Initialize interceptors, hooks, and player listeners in the page context.
-   * This is where:
-   * - Network hooks (fetch / XMLHttpRequest) are registered.
-   * - Route/history monitoring is attached.
-   * - Player internal bridges or window globals are hooked.
-   * - Window message listeners for retry requests (`NCW_REQUEST_SUBTITLE_RETRY`) are established.
-   */
-  initialize(): void;
+    /**
+     * Initialize interceptors, hooks, and player listeners in the page context.
+     * This is where:
+     * - Network hooks (fetch / XMLHttpRequest) are registered.
+     * - Route/history monitoring is attached.
+     * - Player internal bridges or window globals are hooked.
+     * - Window message listeners for retry requests (`NCW_REQUEST_SUBTITLE_RETRY`) are established.
+     */
+    initialize(): void;
 
-  /**
-   * Optional cleanup when navigating away or unmounting.
-   */
-  destroy?(): void;
+    /**
+     * Optional cleanup when navigating away or unmounting.
+     */
+    destroy?(): void;
 }

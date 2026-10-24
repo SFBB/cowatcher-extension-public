@@ -1,14 +1,14 @@
 export type TranslationStatus =
-  | 'untranslated'
-  | 'translating'
-  | 'raw'
-  | 'translated'
-  | 'pre_reviewing'
-  | 'pre_reviewed'
-  | 'reviewing'
-  | 'reviewed'
-  | 'revised'
-  | 'stale';
+    | 'untranslated'
+    | 'translating'
+    | 'raw'
+    | 'translated'
+    | 'pre_reviewing'
+    | 'pre_reviewed'
+    | 'reviewing'
+    | 'reviewed'
+    | 'revised'
+    | 'stale';
 
 /**
  * Character glossary entry.
@@ -17,7 +17,7 @@ export type TranslationStatus =
  * and unified in Context.termVersions (indexed by lowercased character/term name).
  */
 export interface CharacterItem {
-  canonical: string;
-  aliases: string[];
-  setByUser?: boolean;
+    canonical: string;
+    aliases: string[];
+    setByUser?: boolean;
 }

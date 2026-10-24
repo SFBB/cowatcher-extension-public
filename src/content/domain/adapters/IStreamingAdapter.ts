@@ -1,28 +1,34 @@
 export interface SubtitleCueData {
-  id: number;
-  start: number; // in seconds
-  end: number; // in seconds
-  text: string;
-  position?: "bottom" | "top" | "left-vertical" | "right-vertical";
+    id: number;
+    start: number; // in seconds
+    end: number; // in seconds
+    text: string;
+    position?: 'bottom' | 'top' | 'left-vertical' | 'right-vertical';
 }
 
 export interface VideoMetadata {
-  mainTitle: string;
-  episodeTitle: string;
-  fullTitle: string;
-  videoId: string;
-  showId?: string;
-  seasonId?: string;
-  showSummary?: string;
-  episodeSummary?: string;
-  seasonNum?: number;
-  episodeNum?: number;
+    mainTitle: string;
+    episodeTitle: string;
+    fullTitle: string;
+    videoId: string;
+    showId?: string;
+    seasonId?: string;
+    showSummary?: string;
+    episodeSummary?: string;
+    seasonNum?: number;
+    episodeNum?: number;
 }
 
-import { StreamingPlatformId } from "@shared/domain/constants/StreamingPlatforms";
-import { IAdDetector, AdDetectorOptions } from "./IAdDetector";
+import { StreamingPlatformId } from '@shared/domain/constants/StreamingPlatforms';
+import { IAdDetector, AdDetectorOptions } from './IAdDetector';
+import {
+    PlaybackDatasetPayload,
+    NCW_DATASET_SYNC_KEY,
+    PlaybackDatasetHelper,
+} from '@shared/domain/entities/PlaybackDatasetPayload';
 
-export type { IAdDetector, AdDetectorOptions };
+export type { IAdDetector, AdDetectorOptions, PlaybackDatasetPayload };
+export { NCW_DATASET_SYNC_KEY, PlaybackDatasetHelper };
 
 /**
  * Domain interface for Streaming Platform Content Adapters.
@@ -81,167 +87,151 @@ export type { IAdDetector, AdDetectorOptions };
  * Step 5: Add matching URL patterns to `manifest.json` under `content_scripts` and `web_accessible_resources`.
  */
 export interface IStreamingAdapter {
-  readonly platformName: StreamingPlatformId;
+    readonly platformName: StreamingPlatformId;
 
-  /**
-   * Check if current webpage matches this streaming platform
-   */
-  matches(url: string): boolean;
+    /**
+     * Check if current webpage matches this streaming platform
+     */
+    matches(url: string): boolean;
 
-  /**
-   * Extract video / episode ID from current page or URL
-   */
-  extractVideoId(url?: string): string | null;
+    /**
+     * Extract video / episode ID from current page or URL
+     */
+    extractVideoId(url?: string): string | null;
 
-  /**
-   * Check if current page or URL is an active video playback / watch page for this platform
-   */
-  isPlaybackPage(url?: string): boolean;
+    /**
+     * Check if current page or URL is an active video playback / watch page for this platform
+     */
+    isPlaybackPage(url?: string): boolean;
 
-  /**
-   * Extract video metadata (title, episode, videoId) from page
-   */
-  getVideoInfo(): VideoMetadata;
+    /**
+     * Find video playback HTMLMediaElement
+     */
+    getVideoElement(): HTMLVideoElement | null;
 
-  /**
-   * Find video playback HTMLMediaElement
-   */
-  getVideoElement(): HTMLVideoElement | null;
+    /**
+     * Get the presentation mounting container for custom subtitle overlays
+     */
+    getPlayerContainer(): HTMLElement | null;
 
-  /**
-   * Get the presentation mounting container for custom subtitle overlays
-   */
-  getPlayerContainer(): HTMLElement | null;
+    /**
+     * Check if commercial advertisements are currently active
+     */
+    isAdActive(): boolean;
 
-  /**
-   * Query authoritative content time (e.g. Kadmium segment time or fallback video currentTime)
-   */
-  getContentTime(): number;
+    /**
+     * Platform-adapted playback pause control (uses platform player API if available, fallback to video element)
+     */
+    pausePlayback(): void;
 
-  /**
-   * Check if commercial advertisements are currently active
-   */
-  isAdActive(): boolean;
+    /**
+     * Platform-adapted playback resume control (uses platform player API if available, fallback to video element)
+     */
+    resumePlayback(): void;
 
-  /**
-   * Platform-adapted playback pause control (uses platform player API if available, fallback to video element)
-   */
-  pausePlayback(): void;
+    /**
+     * Check if video playback is currently paused
+     */
+    isPlaybackPaused(): boolean;
 
-  /**
-   * Platform-adapted playback resume control (uses platform player API if available, fallback to video element)
-   */
-  resumePlayback(): void;
+    /**
+     * Parse platform-specific raw subtitle text into standardized SubtitleCueData[]
+     */
+    parseSubtitle(rawText: string): SubtitleCueData[];
 
-  /**
-   * Check if video playback is currently paused
-   */
-  isPlaybackPaused(): boolean;
+    /**
+     * Create platform-specific ad detector
+     */
+    createAdDetector?(options?: AdDetectorOptions): IAdDetector;
 
-  /**
-   * Listen for episode change events
-   */
-  onEpisodeChange(callback: (newEpisodeId: string) => void): () => void;
+    /**
+     * Query authoritative content time (e.g. Kadmium segment time or fallback video currentTime)
+     */
+    getContentTime(): Promise<number | null | undefined>;
 
-  /**
-   * Listen for URL changes detected by the platform player
-   */
-  onUrlChange(callback: (url: string) => void): () => void;
+    /**
+     * This is used to fetch subtitle.
+     * null means confirmed no subttile to fetch.
+     * undefined means we don't know if there is a subtitle to fetch.
+     */
+    fetchSubttile(
+        movieId: string,
+    ): Promise<{ rawText: string; bcp: string } | null | undefined>;
 
-  /**
-   * Listen for player time synchronization offset events
-   */
-  onTimeSync(
-    callback: (offsets: { cadmiumOffset?: number; adOffset?: number }) => void,
-  ): () => void;
+    /**
+     * Actively query authoritative metadata for the current video from injected player/platform state.
+     * Returns tri-state result:
+     * - VideoMetadata: Confirmed metadata found
+     * - null: Confirmed no episodic metadata exists (standalone video)
+     * - undefined: Unknown / pending (in transition or loading, caller should schedule retry)
+     */
+    queryMetadata(movieId?: string): Promise<VideoMetadata | null | undefined>;
 
-  /**
-   * Listen for metadata loaded events (show synopsis, show title, episode synopsis)
-   */
-  onMetadataLoaded?(callback: (metadata: VideoMetadata) => void): () => void;
+    /**
+     * Query and fetch native official subtitle track matching target language if available
+     */
+    fetchNativeTargetTrack?(
+        targetLang: import('@shared/domain/value-objects/Language').LanguageInfo,
+        movieId?: string,
+    ): Promise<SubtitleCueData[] | null | undefined>;
 
-  /**
-   * Listen for preloaded / staged subtitle tracks for upcoming episodes
-   */
-  onSubtitlePreload(
-    callback: (data: {
-      movieId?: string;
-      rawText: string;
-      bcp47?: string | null;
-      timestamp?: number;
-    }) => void,
-  ): () => void;
+    /**
+     * Listen for episode change events
+     */
+    onEpisodeChange(callback: (newEpisodeId: string) => void): () => void;
 
-  /**
-   * Listen for raw subtitle track data intercepted from platform
-   */
-  onSubtitleData(
-    callback: (data: {
-      cues: SubtitleCueData[];
-      language: string;
-      movieId?: string;
-      isAsr?: boolean;
-    }) => void,
-  ): () => void;
+    /**
+     * Listen for URL changes detected by the platform player
+     */
+    onUrlChange(callback: (url: string) => void): () => void;
 
-  /**
-   * Parse platform-specific raw subtitle text into standardized SubtitleCueData[]
-   */
-  parseSubtitle(rawText: string): SubtitleCueData[];
+    /**
+     * Listen for player time synchronization offset events
+     */
+    onTimeSync(
+        callback: (offsets: {
+            movieId: string;
+            cadmiumOffset?: number;
+            adOffset?: number;
+        }) => void,
+    ): () => void;
 
-  /**
-   * Listen for subtitle track being turned OFF / disabled on the streaming platform
-   */
-  onSubtitleOff?(callback: () => void): () => void;
+    /**
+     * Listen for metadata loaded events (show synopsis, show title, episode synopsis)
+     */
+    onMetadataLoaded?(callback: (metadata: VideoMetadata) => void): () => void;
 
-  /**
-   * This is used to fetch subtitle.
-   * null means confirmed no subttile to fetch.
-   * undefined means we don't know if there is a subtitle to fetch.
-   */
-  fetchSubttile(
-    movieId: string,
-  ): Promise<{ rawText: string; bcp: string } | null | undefined>;
+    /**
+     * Listen for preloaded / staged subtitle tracks for upcoming episodes
+     */
+    onSubtitlePreload(
+        callback: (data: {
+            movieId?: string;
+            rawText: string;
+            bcp47?: string | null;
+            timestamp?: number;
+        }) => void,
+    ): () => void;
 
-  /**
-   * Request platform API to retry or fetch active subtitle track if not captured automatically
-   */
-  requestSubtitleRetry(): void;
+    /**
+     * Listen for raw subtitle track data intercepted from platform
+     */
+    onSubtitleData(
+        callback: (data: {
+            movieId?: string;
+            cues: SubtitleCueData[];
+            language: string;
+            isAsr?: boolean;
+        }) => void,
+    ): () => void;
 
-  /**
-   * Request platform or injected script to actively extract or fetch metadata for the given episode/movie ID
-   */
-  requestMetadata?(movieId?: string): void;
+    /**
+     * Listen for subtitle track being turned OFF / disabled on the streaming platform
+     */
+    onSubtitleOff?(callback: (movieId: string) => void): () => void;
 
-  /**
-   * Actively query authoritative metadata for the current video from injected player/platform state.
-   * Returns tri-state result:
-   * - VideoMetadata: Confirmed metadata found
-   * - null: Confirmed no episodic metadata exists (standalone video)
-   * - undefined: Unknown / pending (in transition or loading, caller should schedule retry)
-   */
-  queryMetadata(movieId?: string): Promise<VideoMetadata | null | undefined>;
-
-  /**
-   * Clear any cached metadata on episode or show transitions
-   */
-  clearMetadata?(): void;
-
-  /**
-   * Query and fetch native official subtitle track matching target language if available
-   */
-  fetchNativeTargetTrack?(
-    targetLang: import("@shared/domain/value-objects/Language").LanguageInfo,
-    movieId?: string,
-  ): Promise<SubtitleCueData[] | null | undefined>;
-
-  /**
-   * Create platform-specific ad detector
-   */
-  createAdDetector?(options?: AdDetectorOptions): IAdDetector;
-
-  /**
-   * Cleanup observers and event hooks
-   */
-  dispose(): void;
+    /**
+     * Cleanup observers and event hooks
+     */
+    dispose(): void;
 }

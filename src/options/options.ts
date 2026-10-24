@@ -6,12 +6,12 @@ import { NCW_CONSTANTS, ExtensionSettings } from '@shared/utils/constants';
 import { TrackCacheRepositoryFactory } from '../background/infrastructure/cache/TrackCacheRepositoryFactory';
 import { OptionsMessageService } from './application/OptionsMessageService';
 import {
-  TrackCacheRecord,
-  EpisodeVocabData,
-  WatchSession,
-  ShowWatchSummary,
-  WatchHistoryStats,
-  DailyWatchStat,
+    TrackCacheRecord,
+    EpisodeVocabData,
+    WatchSession,
+    ShowWatchSummary,
+    WatchHistoryStats,
+    DailyWatchStat,
 } from '@shared/types/Messages';
 import { ContextDTO } from '@shared/domain/entities/Context';
 import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
@@ -24,344 +24,408 @@ import { TranslationProvider } from '@shared/domain/entities/PipelineTypes';
 const logger = new Logger('options');
 
 interface CachedContextItem extends ContextDTO {
-  storageKey: string;
+    storageKey: string;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const messageService = OptionsMessageService.getInstance();
-  const storage = BrowserStorageFactory.getStorage();
-  const cacheRepository = TrackCacheRepositoryFactory.getRepository();
+    const messageService = OptionsMessageService.getInstance();
+    const storage = BrowserStorageFactory.getStorage();
+    const cacheRepository = TrackCacheRepositoryFactory.getRepository();
 
-  let cachedTracks: TrackCacheRecord[] = [];
-  let cachedVocabList: EpisodeVocabData[] = [];
-  let cachedContextList: CachedContextItem[] = [];
-  let currentSettings: ExtensionSettings = { ...NCW_CONSTANTS.DEFAULT_SETTINGS };
-  let activeModalVocab: EpisodeVocabData | null = null;
+    let cachedTracks: TrackCacheRecord[] = [];
+    let cachedVocabList: EpisodeVocabData[] = [];
+    let cachedContextList: CachedContextItem[] = [];
+    let currentSettings: ExtensionSettings = {
+        ...NCW_CONSTANTS.DEFAULT_SETTINGS,
+    };
+    let activeModalVocab: EpisodeVocabData | null = null;
 
-  // Accordion and batch selection state
-  const expandedCacheGroups = new Set<string>();
-  const expandedVocabGroups = new Set<string>();
-  const selectedVocabEpisodeIds = new Set<string>();
+    // Accordion and batch selection state
+    const expandedCacheGroups = new Set<string>();
+    const expandedVocabGroups = new Set<string>();
+    const selectedVocabEpisodeIds = new Set<string>();
 
-  // DOM Elements - Navigation
-  const navTabs = document.querySelectorAll<HTMLButtonElement>('.nav-tab-btn');
-  const tabPanes = document.querySelectorAll<HTMLElement>('.tab-pane');
-  const navCacheCount = document.getElementById('nav-cache-count');
-  const navVocabCount = document.getElementById('nav-vocab-count');
-  const navContextCount = document.getElementById('nav-context-count');
-  const uiLanguageSelect = document.getElementById(
-    'options-ui-language'
-  ) as HTMLSelectElement | null;
+    // DOM Elements - Navigation
+    const navTabs =
+        document.querySelectorAll<HTMLButtonElement>('.nav-tab-btn');
+    const tabPanes = document.querySelectorAll<HTMLElement>('.tab-pane');
+    const navCacheCount = document.getElementById('nav-cache-count');
+    const navVocabCount = document.getElementById('nav-vocab-count');
+    const navContextCount = document.getElementById('nav-context-count');
+    const uiLanguageSelect = document.getElementById(
+        'options-ui-language',
+    ) as HTMLSelectElement | null;
 
-  // DOM Elements - Subtitle Cache Pane
-  const btnRefreshCache = document.getElementById('btn-refresh-cache');
-  const btnClearAllCache = document.getElementById('btn-clear-all-cache');
-  const cacheSearchInput = document.getElementById('cache-search') as HTMLInputElement | null;
-  const cacheTableBody = document.getElementById('cache-table-body');
-  const statCacheTracks = document.getElementById('stat-cache-tracks');
-  const statCacheCues = document.getElementById('stat-cache-cues');
-  const statCacheReviewedRaw = document.getElementById('stat-cache-reviewed-raw');
-  const cacheListCount = document.getElementById('cache-list-count');
+    // DOM Elements - Subtitle Cache Pane
+    const btnRefreshCache = document.getElementById('btn-refresh-cache');
+    const btnClearAllCache = document.getElementById('btn-clear-all-cache');
+    const cacheSearchInput = document.getElementById(
+        'cache-search',
+    ) as HTMLInputElement | null;
+    const cacheTableBody = document.getElementById('cache-table-body');
+    const statCacheTracks = document.getElementById('stat-cache-tracks');
+    const statCacheCues = document.getElementById('stat-cache-cues');
+    const statCacheReviewedRaw = document.getElementById(
+        'stat-cache-reviewed-raw',
+    );
+    const cacheListCount = document.getElementById('cache-list-count');
 
-  // DOM Elements - Vocabulary Pane
-  const btnRefreshVocab = document.getElementById('btn-refresh-vocab');
-  const btnClearAllVocab = document.getElementById('btn-clear-all-vocab');
-  const vocabSearchInput = document.getElementById('vocab-search') as HTMLInputElement | null;
-  const vocabCardsGrid = document.getElementById('vocab-cards-grid');
-  const vocabSelectAllCheckbox = document.getElementById(
-    'vocab-select-all'
-  ) as HTMLInputElement | null;
-  const btnExportSelectedVocab = document.getElementById(
-    'btn-export-selected-vocab'
-  ) as HTMLButtonElement | null;
-  const vocabSourceFilter = document.getElementById(
-    'vocab-source-filter'
-  ) as HTMLSelectElement | null;
-  const btnExportUserVocab = document.getElementById('btn-export-user-vocab');
-  const statVocabEpisodes = document.getElementById('stat-vocab-episodes');
-  const statVocabWords = document.getElementById('stat-vocab-words');
-  const vocabListCount = document.getElementById('vocab-list-count');
+    // DOM Elements - Vocabulary Pane
+    const btnRefreshVocab = document.getElementById('btn-refresh-vocab');
+    const btnClearAllVocab = document.getElementById('btn-clear-all-vocab');
+    const vocabSearchInput = document.getElementById(
+        'vocab-search',
+    ) as HTMLInputElement | null;
+    const vocabCardsGrid = document.getElementById('vocab-cards-grid');
+    const vocabSelectAllCheckbox = document.getElementById(
+        'vocab-select-all',
+    ) as HTMLInputElement | null;
+    const btnExportSelectedVocab = document.getElementById(
+        'btn-export-selected-vocab',
+    ) as HTMLButtonElement | null;
+    const vocabSourceFilter = document.getElementById(
+        'vocab-source-filter',
+    ) as HTMLSelectElement | null;
+    const btnExportUserVocab = document.getElementById('btn-export-user-vocab');
+    const statVocabEpisodes = document.getElementById('stat-vocab-episodes');
+    const statVocabWords = document.getElementById('stat-vocab-words');
+    const vocabListCount = document.getElementById('vocab-list-count');
 
-  // DOM Elements - Show Context Pane
-  const btnRefreshContext = document.getElementById('btn-refresh-context');
-  const btnClearAllContext = document.getElementById('btn-clear-all-context');
-  const contextSearchInput = document.getElementById('context-search') as HTMLInputElement | null;
-  const contextCardsGrid = document.getElementById('context-cards-grid');
-  const statContextShows = document.getElementById('stat-context-shows');
-  const statContextChars = document.getElementById('stat-context-chars');
-  const statContextTerms = document.getElementById('stat-context-terms');
-  const contextListCount = document.getElementById('context-list-count');
+    // DOM Elements - Show Context Pane
+    const btnRefreshContext = document.getElementById('btn-refresh-context');
+    const btnClearAllContext = document.getElementById('btn-clear-all-context');
+    const contextSearchInput = document.getElementById(
+        'context-search',
+    ) as HTMLInputElement | null;
+    const contextCardsGrid = document.getElementById('context-cards-grid');
+    const statContextShows = document.getElementById('stat-context-shows');
+    const statContextChars = document.getElementById('stat-context-chars');
+    const statContextTerms = document.getElementById('stat-context-terms');
+    const contextListCount = document.getElementById('context-list-count');
 
-  // DOM Elements - Watch History Pane
-  const btnRefreshHistory = document.getElementById('btn-refresh-history');
-  const btnExportHistoryCsv = document.getElementById('btn-export-history-csv');
-  const btnClearAllHistory = document.getElementById('btn-clear-all-history');
-  const statHistoryTime = document.getElementById('stat-history-time');
-  const statHistoryShows = document.getElementById('stat-history-shows');
-  const statHistoryEpisodes = document.getElementById('stat-history-episodes');
-  const statHistorySessions = document.getElementById('stat-history-sessions');
-  const historyHeatmapContainer = document.getElementById('history-heatmap-container');
-  const heatmapTooltip = document.getElementById('heatmap-tooltip');
-  const historyTrendCanvas = document.getElementById(
-    'history-trend-canvas'
-  ) as HTMLCanvasElement | null;
-  const historySearchInput = document.getElementById('history-search') as HTMLInputElement | null;
-  const historyPlatformFilter = document.getElementById(
-    'history-platform-filter'
-  ) as HTMLSelectElement | null;
-  const historyListCount = document.getElementById('history-list-count');
-  const historyCardsGrid = document.getElementById('history-cards-grid');
-  const navHistoryCount = document.getElementById('nav-history-count');
+    // DOM Elements - Watch History Pane
+    const btnRefreshHistory = document.getElementById('btn-refresh-history');
+    const btnExportHistoryCsv = document.getElementById(
+        'btn-export-history-csv',
+    );
+    const btnClearAllHistory = document.getElementById('btn-clear-all-history');
+    const statHistoryTime = document.getElementById('stat-history-time');
+    const statHistoryShows = document.getElementById('stat-history-shows');
+    const statHistoryEpisodes = document.getElementById(
+        'stat-history-episodes',
+    );
+    const statHistorySessions = document.getElementById(
+        'stat-history-sessions',
+    );
+    const historyHeatmapContainer = document.getElementById(
+        'history-heatmap-container',
+    );
+    const heatmapTooltip = document.getElementById('heatmap-tooltip');
+    const historyTrendCanvas = document.getElementById(
+        'history-trend-canvas',
+    ) as HTMLCanvasElement | null;
+    const historySearchInput = document.getElementById(
+        'history-search',
+    ) as HTMLInputElement | null;
+    const historyPlatformFilter = document.getElementById(
+        'history-platform-filter',
+    ) as HTMLSelectElement | null;
+    const historyListCount = document.getElementById('history-list-count');
+    const historyCardsGrid = document.getElementById('history-cards-grid');
+    const navHistoryCount = document.getElementById('nav-history-count');
 
-  // DOM Elements - Settings Pane
-  const btnSaveSettings = document.getElementById('btn-save-settings');
-  const cfgAiProvider = document.getElementById('cfg-ai-provider') as HTMLSelectElement | null;
-  const cfgOllamaSection = document.getElementById('cfg-ollama-section');
-  const cfgOpenrouterSection = document.getElementById('cfg-openrouter-section');
-  const cfgOllamaHost = document.getElementById('cfg-ollama-host') as HTMLInputElement | null;
-  const cfgTranslationModel = document.getElementById(
-    'cfg-translation-model'
-  ) as HTMLInputElement | null;
-  const cfgSupervisorModel = document.getElementById(
-    'cfg-supervisor-model'
-  ) as HTMLInputElement | null;
-  const cfgOpenrouterKey = document.getElementById('cfg-openrouter-key') as HTMLInputElement | null;
-  const cfgOpenrouterTransModel = document.getElementById(
-    'cfg-openrouter-trans-model'
-  ) as HTMLSelectElement | null;
-  const cfgOpenrouterSupModel = document.getElementById(
-    'cfg-openrouter-sup-model'
-  ) as HTMLSelectElement | null;
-  const cfgEnableSupervisor = document.getElementById(
-    'cfg-enable-supervisor'
-  ) as HTMLInputElement | null;
-  const cfgTargetLang = document.getElementById('cfg-target-lang') as HTMLInputElement | null;
-  const cfgDisplayMode = document.getElementById('cfg-display-mode') as HTMLSelectElement | null;
-  const cfgPreferNativeSubtitles = document.getElementById(
-    'cfg-prefer-native-subtitles'
-  ) as HTMLInputElement | null;
-  const cfgExtractNativeTerms = document.getElementById(
-    'cfg-extract-native-terms'
-  ) as HTMLInputElement | null;
-  const cfgHideNative = document.getElementById('cfg-hide-native') as HTMLInputElement | null;
-  const cfgEnableDomSync = document.getElementById(
-    'cfg-enable-dom-sync'
-  ) as HTMLInputElement | null;
-  const cfgEnableLearning = document.getElementById(
-    'cfg-enable-learning'
-  ) as HTMLInputElement | null;
-  const cfgAutoPauseLearning = document.getElementById(
-    'cfg-auto-pause-learning'
-  ) as HTMLInputElement | null;
-  const cfgVocabEnabled = document.getElementById('cfg-vocab-enabled') as HTMLInputElement | null;
-  const cfgVocabProvider = document.getElementById(
-    'cfg-vocab-provider'
-  ) as HTMLSelectElement | null;
-  const cfgVocabDifficulty = document.getElementById(
-    'cfg-vocab-difficulty'
-  ) as HTMLSelectElement | null;
-  const cfgVocabSourceLang = document.getElementById(
-    'cfg-vocab-source-lang'
-  ) as HTMLInputElement | null;
-  const cfgVocabCustomPrompt = document.getElementById(
-    'cfg-vocab-custom-prompt'
-  ) as HTMLTextAreaElement | null;
+    // DOM Elements - Settings Pane
+    const btnSaveSettings = document.getElementById('btn-save-settings');
+    const cfgAiProvider = document.getElementById(
+        'cfg-ai-provider',
+    ) as HTMLSelectElement | null;
+    const cfgOllamaSection = document.getElementById('cfg-ollama-section');
+    const cfgOpenrouterSection = document.getElementById(
+        'cfg-openrouter-section',
+    );
+    const cfgOllamaHost = document.getElementById(
+        'cfg-ollama-host',
+    ) as HTMLInputElement | null;
+    const cfgTranslationModel = document.getElementById(
+        'cfg-translation-model',
+    ) as HTMLInputElement | null;
+    const cfgSupervisorModel = document.getElementById(
+        'cfg-supervisor-model',
+    ) as HTMLInputElement | null;
+    const cfgOpenrouterKey = document.getElementById(
+        'cfg-openrouter-key',
+    ) as HTMLInputElement | null;
+    const cfgOpenrouterTransModel = document.getElementById(
+        'cfg-openrouter-trans-model',
+    ) as HTMLSelectElement | null;
+    const cfgOpenrouterSupModel = document.getElementById(
+        'cfg-openrouter-sup-model',
+    ) as HTMLSelectElement | null;
+    const cfgEnableSupervisor = document.getElementById(
+        'cfg-enable-supervisor',
+    ) as HTMLInputElement | null;
+    const cfgTargetLang = document.getElementById(
+        'cfg-target-lang',
+    ) as HTMLInputElement | null;
+    const cfgDisplayMode = document.getElementById(
+        'cfg-display-mode',
+    ) as HTMLSelectElement | null;
+    const cfgPreferNativeSubtitles = document.getElementById(
+        'cfg-prefer-native-subtitles',
+    ) as HTMLInputElement | null;
+    const cfgExtractNativeTerms = document.getElementById(
+        'cfg-extract-native-terms',
+    ) as HTMLInputElement | null;
+    const cfgHideNative = document.getElementById(
+        'cfg-hide-native',
+    ) as HTMLInputElement | null;
+    const cfgEnableDomSync = document.getElementById(
+        'cfg-enable-dom-sync',
+    ) as HTMLInputElement | null;
+    const cfgEnableLearning = document.getElementById(
+        'cfg-enable-learning',
+    ) as HTMLInputElement | null;
+    const cfgAutoPauseLearning = document.getElementById(
+        'cfg-auto-pause-learning',
+    ) as HTMLInputElement | null;
+    const cfgVocabEnabled = document.getElementById(
+        'cfg-vocab-enabled',
+    ) as HTMLInputElement | null;
+    const cfgVocabProvider = document.getElementById(
+        'cfg-vocab-provider',
+    ) as HTMLSelectElement | null;
+    const cfgVocabDifficulty = document.getElementById(
+        'cfg-vocab-difficulty',
+    ) as HTMLSelectElement | null;
+    const cfgVocabSourceLang = document.getElementById(
+        'cfg-vocab-source-lang',
+    ) as HTMLInputElement | null;
+    const cfgVocabCustomPrompt = document.getElementById(
+        'cfg-vocab-custom-prompt',
+    ) as HTMLTextAreaElement | null;
 
-  // DOM Elements - Modal & Toast
-  const vocabPreviewModal = document.getElementById('vocab-preview-modal');
-  const modalEpisodeTitle = document.getElementById('modal-episode-title');
-  const modalWordsList = document.getElementById('modal-words-list');
-  const modalWordCount = document.getElementById('modal-word-count');
-  const modalDownloadBtn = document.getElementById('modal-download-btn');
-  const btnModalClose = document.getElementById('btn-modal-close');
-  const toastNotify = document.getElementById('toast-notify');
+    // DOM Elements - Modal & Toast
+    const vocabPreviewModal = document.getElementById('vocab-preview-modal');
+    const modalEpisodeTitle = document.getElementById('modal-episode-title');
+    const modalWordsList = document.getElementById('modal-words-list');
+    const modalWordCount = document.getElementById('modal-word-count');
+    const modalDownloadBtn = document.getElementById('modal-download-btn');
+    const btnModalClose = document.getElementById('btn-modal-close');
+    const toastNotify = document.getElementById('toast-notify');
 
-  // DOM Elements - Range Invalidate Modal
-  const cacheRangeModal = document.getElementById('cache-range-modal');
-  const rangeModalShowTitle = document.getElementById('range-modal-show-title');
-  const rangeModalTrackHash = document.getElementById('range-modal-track-hash');
-  const rangeStartText = document.getElementById('range-start-text') as HTMLInputElement | null;
-  const rangeEndText = document.getElementById('range-end-text') as HTMLInputElement | null;
-  const rangeSliderStart = document.getElementById('range-slider-start') as HTMLInputElement | null;
-  const rangeSliderEnd = document.getElementById('range-slider-end') as HTMLInputElement | null;
-  const rangeSliderStartVal = document.getElementById('range-slider-start-val');
-  const rangeSliderEndVal = document.getElementById('range-slider-end-val');
-  const rangeSliderMaxLabel = document.getElementById('range-slider-max-label');
-  const rangePreviewCount = document.getElementById('range-preview-count');
-  const btnRangeModalClose = document.getElementById('btn-range-modal-close');
-  const btnRangeModalCancel = document.getElementById('btn-range-modal-cancel');
-  const btnRangeModalConfirm = document.getElementById('btn-range-modal-confirm');
+    // DOM Elements - Range Invalidate Modal
+    const cacheRangeModal = document.getElementById('cache-range-modal');
+    const rangeModalShowTitle = document.getElementById(
+        'range-modal-show-title',
+    );
+    const rangeModalTrackHash = document.getElementById(
+        'range-modal-track-hash',
+    );
+    const rangeStartText = document.getElementById(
+        'range-start-text',
+    ) as HTMLInputElement | null;
+    const rangeEndText = document.getElementById(
+        'range-end-text',
+    ) as HTMLInputElement | null;
+    const rangeSliderStart = document.getElementById(
+        'range-slider-start',
+    ) as HTMLInputElement | null;
+    const rangeSliderEnd = document.getElementById(
+        'range-slider-end',
+    ) as HTMLInputElement | null;
+    const rangeSliderStartVal = document.getElementById(
+        'range-slider-start-val',
+    );
+    const rangeSliderEndVal = document.getElementById('range-slider-end-val');
+    const rangeSliderMaxLabel = document.getElementById(
+        'range-slider-max-label',
+    );
+    const rangePreviewCount = document.getElementById('range-preview-count');
+    const btnRangeModalClose = document.getElementById('btn-range-modal-close');
+    const btnRangeModalCancel = document.getElementById(
+        'btn-range-modal-cancel',
+    );
+    const btnRangeModalConfirm = document.getElementById(
+        'btn-range-modal-confirm',
+    );
 
-  let activeRangeTrack: TrackCacheRecord | null = null;
+    let activeRangeTrack: TrackCacheRecord | null = null;
 
-  // 1. Tab Switching
-  function switchTab(tabId?: string): void {
-    if (!tabId) return;
+    // 1. Tab Switching
+    function switchTab(tabId?: string): void {
+        if (!tabId) return;
+        navTabs.forEach((btn) => {
+            btn.classList.toggle('active', btn.dataset.tab === tabId);
+        });
+        tabPanes.forEach((pane) => {
+            pane.classList.toggle('active', pane.id === `pane-${tabId}`);
+        });
+        sessionStorage.setItem('ncw_options_active_tab', tabId);
+
+        if (tabId === 'history') {
+            loadWatchHistory();
+        }
+    }
+
     navTabs.forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.tab === tabId);
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
-    tabPanes.forEach((pane) => {
-      pane.classList.toggle('active', pane.id === `pane-${tabId}`);
-    });
-    sessionStorage.setItem('ncw_options_active_tab', tabId);
 
-    if (tabId === 'history') {
-      loadWatchHistory();
+    const savedTab = sessionStorage.getItem('ncw_options_active_tab');
+    if (savedTab) {
+        switchTab(savedTab);
     }
-  }
 
-  navTabs.forEach((btn) => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-  });
-
-  const savedTab = sessionStorage.getItem('ncw_options_active_tab');
-  if (savedTab) {
-    switchTab(savedTab);
-  }
-
-  // Toast Helper
-  let toastTimer: ReturnType<typeof setTimeout> | null = null;
-  function showToast(message: string): void {
-    if (!toastNotify) return;
-    toastNotify.textContent = message;
-    toastNotify.classList.add('show');
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      toastNotify.classList.remove('show');
-    }, 2400);
-  }
-
-  function escapeHtml(str: string): string {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  function formatRelativeTime(ts?: number): string {
-    if (!ts) return 'Never';
-    const diff = Date.now() - ts;
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  }
-
-  // ==========================================
-  // TAB 1: SUBTITLE CACHE CONTROLLER
-  // ==========================================
-  async function loadSubtitleCaches(): Promise<void> {
-    try {
-      const records = await cacheRepository.getAllTrackCaches();
-      cachedTracks = records || [];
-      renderSubtitleCaches();
-    } catch (e) {
-      logger.warn('options', 'Failed loading caches:', e);
+    // Toast Helper
+    let toastTimer: ReturnType<typeof setTimeout> | null = null;
+    function showToast(message: string): void {
+        if (!toastNotify) return;
+        toastNotify.textContent = message;
+        toastNotify.classList.add('show');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+            toastNotify.classList.remove('show');
+        }, 2400);
     }
-  }
 
-  function renderSubtitleCaches(): void {
-    const query = (cacheSearchInput?.value || '').trim().toLowerCase();
-    const filtered = cachedTracks.filter((t) => {
-      if (!query) return true;
-      return (
-        (t.showTitle && t.showTitle.toLowerCase().includes(query)) ||
-        (t.movieId && t.movieId.toLowerCase().includes(query)) ||
-        (t.trackHash && t.trackHash.toLowerCase().includes(query)) ||
-        (t.translationModel && t.translationModel.toLowerCase().includes(query)) ||
-        (t.targetLanguage && t.targetLanguage.toLowerCase().includes(query))
-      );
-    });
+    function escapeHtml(str: string): string {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
 
-    const totalTracks = cachedTracks.length;
-    let totalCues = 0;
-    let totalReviewed = 0;
-    let totalRaw = 0;
+    function formatRelativeTime(ts?: number): string {
+        if (!ts) return 'Never';
+        const diff = Date.now() - ts;
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
+    }
 
-    cachedTracks.forEach((t) => {
-      const cuesCount = Object.keys(t.cues || {}).length;
-      totalCues += cuesCount;
-      const rev = t.reviewedCount || 0;
-      totalReviewed += rev;
-      totalRaw += Math.max(0, cuesCount - rev);
-    });
+    // ==========================================
+    // TAB 1: SUBTITLE CACHE CONTROLLER
+    // ==========================================
+    async function loadSubtitleCaches(): Promise<void> {
+        try {
+            const records = await cacheRepository.getAllTrackCaches();
+            cachedTracks = records || [];
+            renderSubtitleCaches();
+        } catch (e) {
+            logger.warn('options', 'Failed loading caches:', e);
+        }
+    }
 
-    if (statCacheTracks) statCacheTracks.textContent = String(totalTracks);
-    if (statCacheCues) statCacheCues.textContent = String(totalCues);
-    if (statCacheReviewedRaw) statCacheReviewedRaw.textContent = `${totalReviewed} / ${totalRaw}`;
-    if (navCacheCount) navCacheCount.textContent = String(totalTracks);
-    if (cacheListCount)
-      cacheListCount.textContent = `Showing ${filtered.length} of ${totalTracks} tracks`;
+    function renderSubtitleCaches(): void {
+        const query = (cacheSearchInput?.value || '').trim().toLowerCase();
+        const filtered = cachedTracks.filter((t) => {
+            if (!query) return true;
+            return (
+                (t.showTitle && t.showTitle.toLowerCase().includes(query)) ||
+                (t.movieId && t.movieId.toLowerCase().includes(query)) ||
+                (t.trackHash && t.trackHash.toLowerCase().includes(query)) ||
+                (t.translationModel &&
+                    t.translationModel.toLowerCase().includes(query)) ||
+                (t.targetLanguage &&
+                    t.targetLanguage.toLowerCase().includes(query))
+            );
+        });
 
-    if (!cacheTableBody) return;
+        const totalTracks = cachedTracks.length;
+        let totalCues = 0;
+        let totalReviewed = 0;
+        let totalRaw = 0;
 
-    if (filtered.length === 0) {
-      cacheTableBody.innerHTML = `
+        cachedTracks.forEach((t) => {
+            const cuesCount = Object.keys(t.cues || {}).length;
+            totalCues += cuesCount;
+            const rev = t.reviewedCount || 0;
+            totalReviewed += rev;
+            totalRaw += Math.max(0, cuesCount - rev);
+        });
+
+        if (statCacheTracks) statCacheTracks.textContent = String(totalTracks);
+        if (statCacheCues) statCacheCues.textContent = String(totalCues);
+        if (statCacheReviewedRaw)
+            statCacheReviewedRaw.textContent = `${totalReviewed} / ${totalRaw}`;
+        if (navCacheCount) navCacheCount.textContent = String(totalTracks);
+        if (cacheListCount)
+            cacheListCount.textContent = `Showing ${filtered.length} of ${totalTracks} tracks`;
+
+        if (!cacheTableBody) return;
+
+        if (filtered.length === 0) {
+            cacheTableBody.innerHTML = `
         <tr>
           <td colspan="7" class="empty-state" style="text-align: center; padding: 40px; color: #888;">
             ${cachedTracks.length === 0 ? 'No persistent subtitle caches found yet. Watch any video with translation enabled to populate the cache.' : 'No matching subtitle tracks found.'}
           </td>
         </tr>
       `;
-      return;
-    }
+            return;
+        }
 
-    // Group filtered tracks by show title (or movie ID if no title)
-    const groupsMap = new Map<
-      string,
-      {
-        groupId: string;
-        showTitle: string;
-        tracks: TrackCacheRecord[];
-        totalCues: number;
-        reviewedCues: number;
-        rawCues: number;
-        latestUpdated: number;
-      }
-    >();
+        // Group filtered tracks by show title (or movie ID if no title)
+        const groupsMap = new Map<
+            string,
+            {
+                groupId: string;
+                showTitle: string;
+                tracks: TrackCacheRecord[];
+                totalCues: number;
+                reviewedCues: number;
+                rawCues: number;
+                latestUpdated: number;
+            }
+        >();
 
-    filtered.forEach((t) => {
-      const rawTitle = (t.showTitle || '').trim();
-      const groupId = rawTitle ? rawTitle.toLowerCase() : `movie_${t.movieId || 'unknown'}`;
-      const showTitle = rawTitle || `Episode ${t.movieId || 'Unknown'}`;
-      const cuesCount = Object.keys(t.cues || {}).length;
-      const rev = t.reviewedCount || 0;
-      const raw = Math.max(0, cuesCount - rev);
-      const updatedAt = t.updatedAt || 0;
+        filtered.forEach((t) => {
+            const rawTitle = (t.showTitle || '').trim();
+            const groupId = rawTitle
+                ? rawTitle.toLowerCase()
+                : `movie_${t.movieId || 'unknown'}`;
+            const showTitle = rawTitle || `Episode ${t.movieId || 'Unknown'}`;
+            const cuesCount = Object.keys(t.cues || {}).length;
+            const rev = t.reviewedCount || 0;
+            const raw = Math.max(0, cuesCount - rev);
+            const updatedAt = t.updatedAt || 0;
 
-      let group = groupsMap.get(groupId);
-      if (!group) {
-        group = {
-          groupId,
-          showTitle,
-          tracks: [],
-          totalCues: 0,
-          reviewedCues: 0,
-          rawCues: 0,
-          latestUpdated: updatedAt,
-        };
-        groupsMap.set(groupId, group);
-      }
-      group.tracks.push(t);
-      group.totalCues += cuesCount;
-      group.reviewedCues += rev;
-      group.rawCues += raw;
-      if (updatedAt > group.latestUpdated) {
-        group.latestUpdated = updatedAt;
-      }
-    });
+            let group = groupsMap.get(groupId);
+            if (!group) {
+                group = {
+                    groupId,
+                    showTitle,
+                    tracks: [],
+                    totalCues: 0,
+                    reviewedCues: 0,
+                    rawCues: 0,
+                    latestUpdated: updatedAt,
+                };
+                groupsMap.set(groupId, group);
+            }
+            group.tracks.push(t);
+            group.totalCues += cuesCount;
+            group.reviewedCues += rev;
+            group.rawCues += raw;
+            if (updatedAt > group.latestUpdated) {
+                group.latestUpdated = updatedAt;
+            }
+        });
 
-    const groups = Array.from(groupsMap.values()).sort((a, b) => b.latestUpdated - a.latestUpdated);
+        const groups = Array.from(groupsMap.values()).sort(
+            (a, b) => b.latestUpdated - a.latestUpdated,
+        );
 
-    let html = '';
-    groups.forEach((g) => {
-      const isExpanded = expandedCacheGroups.has(g.groupId);
-      html += `
+        let html = '';
+        groups.forEach((g) => {
+            const isExpanded = expandedCacheGroups.has(g.groupId);
+            html += `
         <tr class="cache-group-header-row" data-group-id="${escapeHtml(g.groupId)}">
           <td colspan="7">
             <div class="cache-group-header">
@@ -384,19 +448,23 @@ document.addEventListener('DOMContentLoaded', () => {
         </tr>
       `;
 
-      g.tracks
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .forEach((t) => {
-          const cuesCount = Object.keys(t.cues || {}).length;
-          const reviewed = t.reviewedCount || 0;
-          const raw = Math.max(0, cuesCount - reviewed);
-          const hashDisplay = escapeHtml((t.trackHash || '').slice(0, 10));
-          const modelDisplay = escapeHtml(
-            `${t.provider || 'ollama'} : ${t.translationModel || ''}`
-          );
-          const langDisplay = escapeHtml(t.targetLanguage || 'English');
+            g.tracks
+                .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+                .forEach((t) => {
+                    const cuesCount = Object.keys(t.cues || {}).length;
+                    const reviewed = t.reviewedCount || 0;
+                    const raw = Math.max(0, cuesCount - reviewed);
+                    const hashDisplay = escapeHtml(
+                        (t.trackHash || '').slice(0, 10),
+                    );
+                    const modelDisplay = escapeHtml(
+                        `${t.provider || 'ollama'} : ${t.translationModel || ''}`,
+                    );
+                    const langDisplay = escapeHtml(
+                        t.targetLanguage || 'English',
+                    );
 
-          html += `
+                    html += `
             <tr class="cache-child-row" data-parent-group="${escapeHtml(g.groupId)}" style="${isExpanded ? '' : 'display: none;'}">
               <td>
                 <div style="font-weight: 600; color: #fff;">Episode ID: ${escapeHtml(t.movieId || 'N/A')}</div>
@@ -422,392 +490,423 @@ document.addEventListener('DOMContentLoaded', () => {
               </td>
             </tr>
           `;
+                });
         });
-    });
 
-    cacheTableBody.innerHTML = html;
-  }
-
-  // --- Range Invalidate Modal Handlers ---
-
-  function formatSecondsToTime(sec: number): string {
-    const s = Math.max(0, Math.floor(sec));
-    const m = Math.floor(s / 60);
-    const remainingS = s % 60;
-    const h = Math.floor(m / 60);
-    const remainingM = m % 60;
-    if (h > 0) {
-      return `${String(h).padStart(2, '0')}:${String(remainingM).padStart(2, '0')}:${String(remainingS).padStart(2, '0')}`;
-    }
-    return `${String(remainingM).padStart(2, '0')}:${String(remainingS).padStart(2, '0')}`;
-  }
-
-  function parseTimeToSeconds(str: string): number {
-    const parts = str
-      .trim()
-      .split(':')
-      .map((p) => parseInt(p, 10));
-    if (parts.some((p) => isNaN(p))) return 0;
-    if (parts.length === 3) {
-      return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    } else if (parts.length === 2) {
-      return parts[0] * 60 + parts[1];
-    } else if (parts.length === 1) {
-      return parts[0];
-    }
-    return 0;
-  }
-
-  function updateRangePreview(): void {
-    if (!activeRangeTrack || !rangeSliderStart || !rangeSliderEnd) return;
-    let startSec = parseInt(rangeSliderStart.value, 10) || 0;
-    let endSec = parseInt(rangeSliderEnd.value, 10) || 0;
-
-    if (startSec > endSec) {
-      endSec = startSec;
-      rangeSliderEnd.value = String(endSec);
+        cacheTableBody.innerHTML = html;
     }
 
-    if (rangeSliderStartVal) rangeSliderStartVal.textContent = formatSecondsToTime(startSec);
-    if (rangeSliderEndVal) rangeSliderEndVal.textContent = formatSecondsToTime(endSec);
-    if (rangeStartText && document.activeElement !== rangeStartText) {
-      rangeStartText.value = formatSecondsToTime(startSec);
-    }
-    if (rangeEndText && document.activeElement !== rangeEndText) {
-      rangeEndText.value = formatSecondsToTime(endSec);
-    }
+    // --- Range Invalidate Modal Handlers ---
 
-    const cues = Object.values(activeRangeTrack.cues || {});
-    const count = cues.filter((c) => {
-      const cStart = c.startTime ?? 0;
-      const cEnd = c.endTime ?? cStart + 5;
-      return cStart <= endSec && cEnd >= startSec && c.status !== 'stale';
-    }).length;
-
-    if (rangePreviewCount) {
-      rangePreviewCount.innerHTML = `<strong>${count}</strong> cues match this range (${formatSecondsToTime(startSec)} - ${formatSecondsToTime(endSec)}) and will be marked stale.`;
-    }
-  }
-
-  function openRangeModal(track: TrackCacheRecord): void {
-    activeRangeTrack = track;
-    if (rangeModalShowTitle) {
-      rangeModalShowTitle.textContent = `${track.showTitle || 'Unknown Show'} (${track.movieId || 'N/A'})`;
-    }
-    if (rangeModalTrackHash) {
-      rangeModalTrackHash.textContent = `Track Hash: ${track.trackHash} | Provider: ${track.provider} (${track.translationModel})`;
-    }
-
-    const cues = Object.values(track.cues || {});
-    let maxSec = 3600;
-    cues.forEach((c) => {
-      if (c.endTime && c.endTime > maxSec) maxSec = Math.ceil(c.endTime);
-      else if (c.startTime && c.startTime + 10 > maxSec) maxSec = Math.ceil(c.startTime + 10);
-    });
-
-    if (rangeSliderStart && rangeSliderEnd) {
-      rangeSliderStart.max = String(maxSec);
-      rangeSliderEnd.max = String(maxSec);
-      rangeSliderStart.value = '0';
-      rangeSliderEnd.value = String(Math.min(600, maxSec));
-    }
-    if (rangeSliderMaxLabel) {
-      rangeSliderMaxLabel.textContent = formatSecondsToTime(maxSec);
-    }
-
-    updateRangePreview();
-
-    if (cacheRangeModal) {
-      cacheRangeModal.style.display = 'flex';
-    }
-  }
-
-  function closeRangeModal(): void {
-    activeRangeTrack = null;
-    if (cacheRangeModal) {
-      cacheRangeModal.style.display = 'none';
-    }
-  }
-
-  // Handle Cache Table Actions (Delete, Invalidate Range, & Accordion Toggle)
-  cacheTableBody?.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement | null;
-
-    const groupRow = target?.closest('.cache-group-header-row') as HTMLElement | null;
-    if (groupRow && !target?.closest('button')) {
-      const gid = groupRow.dataset.groupId;
-      if (gid) {
-        if (expandedCacheGroups.has(gid)) {
-          expandedCacheGroups.delete(gid);
-        } else {
-          expandedCacheGroups.add(gid);
+    function formatSecondsToTime(sec: number): string {
+        const s = Math.max(0, Math.floor(sec));
+        const m = Math.floor(s / 60);
+        const remainingS = s % 60;
+        const h = Math.floor(m / 60);
+        const remainingM = m % 60;
+        if (h > 0) {
+            return `${String(h).padStart(2, '0')}:${String(remainingM).padStart(2, '0')}:${String(remainingS).padStart(2, '0')}`;
         }
-        renderSubtitleCaches();
-        return;
-      }
+        return `${String(remainingM).padStart(2, '0')}:${String(remainingS).padStart(2, '0')}`;
     }
 
-    const rangeBtn = target?.closest('.btn-range-stale') as HTMLButtonElement | null;
-    if (rangeBtn) {
-      const cacheKey = rangeBtn.dataset.key;
-      const track = cachedTracks.find((t) => t.cacheKey === cacheKey);
-      if (track) openRangeModal(track);
-      return;
+    function parseTimeToSeconds(str: string): number {
+        const parts = str
+            .trim()
+            .split(':')
+            .map((p) => parseInt(p, 10));
+        if (parts.some((p) => isNaN(p))) return 0;
+        if (parts.length === 3) {
+            return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        } else if (parts.length === 2) {
+            return parts[0] * 60 + parts[1];
+        } else if (parts.length === 1) {
+            return parts[0];
+        }
+        return 0;
     }
 
-    const delBtn = target?.closest('.btn-delete-cache') as HTMLButtonElement | null;
-    if (delBtn) {
-      const cacheKey = delBtn.dataset.key;
-      if (!cacheKey) return;
-      if (confirm('Are you sure you want to delete this cached subtitle track?')) {
-        cacheRepository.deleteTrackCache(cacheKey).then(() => {
-          showToast('Cached subtitle track deleted');
-          loadSubtitleCaches();
+    function updateRangePreview(): void {
+        if (!activeRangeTrack || !rangeSliderStart || !rangeSliderEnd) return;
+        let startSec = parseInt(rangeSliderStart.value, 10) || 0;
+        let endSec = parseInt(rangeSliderEnd.value, 10) || 0;
+
+        if (startSec > endSec) {
+            endSec = startSec;
+            rangeSliderEnd.value = String(endSec);
+        }
+
+        if (rangeSliderStartVal)
+            rangeSliderStartVal.textContent = formatSecondsToTime(startSec);
+        if (rangeSliderEndVal)
+            rangeSliderEndVal.textContent = formatSecondsToTime(endSec);
+        if (rangeStartText && document.activeElement !== rangeStartText) {
+            rangeStartText.value = formatSecondsToTime(startSec);
+        }
+        if (rangeEndText && document.activeElement !== rangeEndText) {
+            rangeEndText.value = formatSecondsToTime(endSec);
+        }
+
+        const cues = Object.values(activeRangeTrack.cues || {});
+        const count = cues.filter((c) => {
+            const cStart = c.startTime ?? 0;
+            const cEnd = c.endTime ?? cStart + 5;
+            return cStart <= endSec && cEnd >= startSec && c.status !== 'stale';
+        }).length;
+
+        if (rangePreviewCount) {
+            rangePreviewCount.innerHTML = `<strong>${count}</strong> cues match this range (${formatSecondsToTime(startSec)} - ${formatSecondsToTime(endSec)}) and will be marked stale.`;
+        }
+    }
+
+    function openRangeModal(track: TrackCacheRecord): void {
+        activeRangeTrack = track;
+        if (rangeModalShowTitle) {
+            rangeModalShowTitle.textContent = `${track.showTitle || 'Unknown Show'} (${track.movieId || 'N/A'})`;
+        }
+        if (rangeModalTrackHash) {
+            rangeModalTrackHash.textContent = `Track Hash: ${track.trackHash} | Provider: ${track.provider} (${track.translationModel})`;
+        }
+
+        const cues = Object.values(track.cues || {});
+        let maxSec = 3600;
+        cues.forEach((c) => {
+            if (c.endTime && c.endTime > maxSec) maxSec = Math.ceil(c.endTime);
+            else if (c.startTime && c.startTime + 10 > maxSec)
+                maxSec = Math.ceil(c.startTime + 10);
         });
-      }
-    }
-  });
 
-  btnRangeModalClose?.addEventListener('click', closeRangeModal);
-  btnRangeModalCancel?.addEventListener('click', closeRangeModal);
-  cacheRangeModal?.addEventListener('click', (e) => {
-    if (e.target === cacheRangeModal) closeRangeModal();
-  });
-
-  rangeSliderStart?.addEventListener('input', () => {
-    if (rangeSliderStart && rangeSliderEnd) {
-      if (parseInt(rangeSliderStart.value, 10) > parseInt(rangeSliderEnd.value, 10)) {
-        rangeSliderEnd.value = rangeSliderStart.value;
-      }
-    }
-    updateRangePreview();
-  });
-
-  rangeSliderEnd?.addEventListener('input', () => {
-    if (rangeSliderStart && rangeSliderEnd) {
-      if (parseInt(rangeSliderEnd.value, 10) < parseInt(rangeSliderStart.value, 10)) {
-        rangeSliderStart.value = rangeSliderEnd.value;
-      }
-    }
-    updateRangePreview();
-  });
-
-  rangeStartText?.addEventListener('change', () => {
-    if (!rangeStartText || !rangeSliderStart) return;
-    const sec = parseTimeToSeconds(rangeStartText.value);
-    rangeSliderStart.value = String(sec);
-    if (rangeSliderEnd && parseInt(rangeSliderEnd.value, 10) < sec) {
-      rangeSliderEnd.value = String(sec);
-    }
-    updateRangePreview();
-  });
-
-  rangeEndText?.addEventListener('change', () => {
-    if (!rangeEndText || !rangeSliderEnd) return;
-    const sec = parseTimeToSeconds(rangeEndText.value);
-    rangeSliderEnd.value = String(sec);
-    if (rangeSliderStart && parseInt(rangeSliderStart.value, 10) > sec) {
-      rangeSliderStart.value = String(sec);
-    }
-    updateRangePreview();
-  });
-
-  btnRangeModalConfirm?.addEventListener('click', async () => {
-    if (!activeRangeTrack || !rangeSliderStart || !rangeSliderEnd) return;
-    const startSec = parseInt(rangeSliderStart.value, 10) || 0;
-    const endSec = parseInt(rangeSliderEnd.value, 10) || 0;
-
-    btnRangeModalConfirm.setAttribute('disabled', 'true');
-    btnRangeModalConfirm.textContent = 'Invalidating...';
-
-    try {
-      const res = await messageService.markCuesStale({
-        cacheKey: activeRangeTrack.cacheKey,
-        trackHash: activeRangeTrack.trackHash,
-        startTime: startSec,
-        endTime: endSec,
-      });
-
-      if (res && res.success) {
-        showToast(
-          `Marked ${res.invalidatedCount} cues as stale [${formatSecondsToTime(startSec)} - ${formatSecondsToTime(endSec)}]`
-        );
-        closeRangeModal();
-        await loadSubtitleCaches();
-      } else {
-        alert(`Failed to invalidate cues: ${res?.error || 'Unknown error'}`);
-      }
-    } catch (err: any) {
-      alert(`Error invalidating cues: ${err?.message || err}`);
-    } finally {
-      btnRangeModalConfirm.removeAttribute('disabled');
-      btnRangeModalConfirm.textContent = '⚠️ Mark Range Stale';
-    }
-  });
-
-  btnClearAllCache?.addEventListener('click', () => {
-    if (confirm('⚠️ Clear ALL indexedDB subtitle translation caches?')) {
-      cacheRepository.clearAllTrackCaches().then(() => {
-        showToast('All subtitle caches cleared');
-        loadSubtitleCaches();
-      });
-    }
-  });
-
-  btnRefreshCache?.addEventListener('click', loadSubtitleCaches);
-  cacheSearchInput?.addEventListener('input', renderSubtitleCaches);
-
-  // ==========================================
-  // TAB 2: VOCABULARY CONTROLLER
-  // ==========================================
-  function loadVocabBank(): void {
-    storage.get<EpisodeVocabData>(null).then((all) => {
-      cachedVocabList = [];
-      if (all) {
-        for (const [key, val] of Object.entries(all)) {
-          if (
-            key.startsWith(NCW_STORAGE_KEYS.VOCAB_PREFIX) &&
-            val &&
-            Array.isArray((val as EpisodeVocabData).words)
-          ) {
-            cachedVocabList.push(val as EpisodeVocabData);
-          }
+        if (rangeSliderStart && rangeSliderEnd) {
+            rangeSliderStart.max = String(maxSec);
+            rangeSliderEnd.max = String(maxSec);
+            rangeSliderStart.value = '0';
+            rangeSliderEnd.value = String(Math.min(600, maxSec));
         }
-      }
-      cachedVocabList.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-      renderVocabBank();
-    });
-  }
+        if (rangeSliderMaxLabel) {
+            rangeSliderMaxLabel.textContent = formatSecondsToTime(maxSec);
+        }
 
-  function renderVocabBank(): void {
-    const query = (vocabSearchInput?.value || '').trim().toLowerCase();
-    const sourceFilter = vocabSourceFilter ? vocabSourceFilter.value : 'all';
+        updateRangePreview();
 
-    const processedList = cachedVocabList.map((v) => {
-      let words = v.words;
-      if (sourceFilter === 'user') {
-        words = words.filter((w) => w.source === 'user');
-      } else if (sourceFilter === 'ai') {
-        words = words.filter((w) => w.source !== 'user');
-      }
-      return { ...v, words };
-    });
-
-    const filtered = processedList.filter((v) => {
-      if (sourceFilter !== 'all' && v.words.length === 0) return false;
-      if (!query) return true;
-      const titleMatch =
-        (v.showTitle && v.showTitle.toLowerCase().includes(query)) ||
-        (v.movieId && v.movieId.toLowerCase().includes(query));
-      if (titleMatch) return true;
-      return v.words.some(
-        (w) =>
-          (w.word && w.word.toLowerCase().includes(query)) ||
-          (w.meaning && w.meaning.toLowerCase().includes(query))
-      );
-    });
-
-    const totalEpisodes = cachedVocabList.length;
-    let totalWords = 0;
-    cachedVocabList.forEach((v) => {
-      totalWords += v.words.length;
-    });
-
-    if (statVocabEpisodes) statVocabEpisodes.textContent = String(totalEpisodes);
-    if (statVocabWords) statVocabWords.textContent = String(totalWords);
-    if (navVocabCount) navVocabCount.textContent = String(totalWords);
-    if (vocabListCount)
-      vocabListCount.textContent = `Showing ${filtered.length} of ${totalEpisodes} episodes`;
-
-    // Update Select All Checkbox and Batch Export Button
-    const allFilteredEpisodeIds = filtered.map((v) => v.movieId);
-    const selectedCountInFiltered = allFilteredEpisodeIds.filter((id) =>
-      selectedVocabEpisodeIds.has(id)
-    ).length;
-
-    if (vocabSelectAllCheckbox) {
-      if (
-        allFilteredEpisodeIds.length > 0 &&
-        selectedCountInFiltered === allFilteredEpisodeIds.length
-      ) {
-        vocabSelectAllCheckbox.checked = true;
-        vocabSelectAllCheckbox.indeterminate = false;
-      } else if (selectedCountInFiltered > 0) {
-        vocabSelectAllCheckbox.checked = false;
-        vocabSelectAllCheckbox.indeterminate = true;
-      } else {
-        vocabSelectAllCheckbox.checked = false;
-        vocabSelectAllCheckbox.indeterminate = false;
-      }
+        if (cacheRangeModal) {
+            cacheRangeModal.style.display = 'flex';
+        }
     }
 
-    if (btnExportSelectedVocab) {
-      const totalSelected = selectedVocabEpisodeIds.size;
-      btnExportSelectedVocab.disabled = totalSelected === 0;
-      btnExportSelectedVocab.textContent = `⬇️ Export Selected (${totalSelected})`;
+    function closeRangeModal(): void {
+        activeRangeTrack = null;
+        if (cacheRangeModal) {
+            cacheRangeModal.style.display = 'none';
+        }
     }
 
-    if (!vocabCardsGrid) return;
+    // Handle Cache Table Actions (Delete, Invalidate Range, & Accordion Toggle)
+    cacheTableBody?.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement | null;
 
-    if (filtered.length === 0) {
-      vocabCardsGrid.innerHTML = `
+        const groupRow = target?.closest(
+            '.cache-group-header-row',
+        ) as HTMLElement | null;
+        if (groupRow && !target?.closest('button')) {
+            const gid = groupRow.dataset.groupId;
+            if (gid) {
+                if (expandedCacheGroups.has(gid)) {
+                    expandedCacheGroups.delete(gid);
+                } else {
+                    expandedCacheGroups.add(gid);
+                }
+                renderSubtitleCaches();
+                return;
+            }
+        }
+
+        const rangeBtn = target?.closest(
+            '.btn-range-stale',
+        ) as HTMLButtonElement | null;
+        if (rangeBtn) {
+            const cacheKey = rangeBtn.dataset.key;
+            const track = cachedTracks.find((t) => t.cacheKey === cacheKey);
+            if (track) openRangeModal(track);
+            return;
+        }
+
+        const delBtn = target?.closest(
+            '.btn-delete-cache',
+        ) as HTMLButtonElement | null;
+        if (delBtn) {
+            const cacheKey = delBtn.dataset.key;
+            if (!cacheKey) return;
+            if (
+                confirm(
+                    'Are you sure you want to delete this cached subtitle track?',
+                )
+            ) {
+                cacheRepository.deleteTrackCache(cacheKey).then(() => {
+                    showToast('Cached subtitle track deleted');
+                    loadSubtitleCaches();
+                });
+            }
+        }
+    });
+
+    btnRangeModalClose?.addEventListener('click', closeRangeModal);
+    btnRangeModalCancel?.addEventListener('click', closeRangeModal);
+    cacheRangeModal?.addEventListener('click', (e) => {
+        if (e.target === cacheRangeModal) closeRangeModal();
+    });
+
+    rangeSliderStart?.addEventListener('input', () => {
+        if (rangeSliderStart && rangeSliderEnd) {
+            if (
+                parseInt(rangeSliderStart.value, 10) >
+                parseInt(rangeSliderEnd.value, 10)
+            ) {
+                rangeSliderEnd.value = rangeSliderStart.value;
+            }
+        }
+        updateRangePreview();
+    });
+
+    rangeSliderEnd?.addEventListener('input', () => {
+        if (rangeSliderStart && rangeSliderEnd) {
+            if (
+                parseInt(rangeSliderEnd.value, 10) <
+                parseInt(rangeSliderStart.value, 10)
+            ) {
+                rangeSliderStart.value = rangeSliderEnd.value;
+            }
+        }
+        updateRangePreview();
+    });
+
+    rangeStartText?.addEventListener('change', () => {
+        if (!rangeStartText || !rangeSliderStart) return;
+        const sec = parseTimeToSeconds(rangeStartText.value);
+        rangeSliderStart.value = String(sec);
+        if (rangeSliderEnd && parseInt(rangeSliderEnd.value, 10) < sec) {
+            rangeSliderEnd.value = String(sec);
+        }
+        updateRangePreview();
+    });
+
+    rangeEndText?.addEventListener('change', () => {
+        if (!rangeEndText || !rangeSliderEnd) return;
+        const sec = parseTimeToSeconds(rangeEndText.value);
+        rangeSliderEnd.value = String(sec);
+        if (rangeSliderStart && parseInt(rangeSliderStart.value, 10) > sec) {
+            rangeSliderStart.value = String(sec);
+        }
+        updateRangePreview();
+    });
+
+    btnRangeModalConfirm?.addEventListener('click', async () => {
+        if (!activeRangeTrack || !rangeSliderStart || !rangeSliderEnd) return;
+        const startSec = parseInt(rangeSliderStart.value, 10) || 0;
+        const endSec = parseInt(rangeSliderEnd.value, 10) || 0;
+
+        btnRangeModalConfirm.setAttribute('disabled', 'true');
+        btnRangeModalConfirm.textContent = 'Invalidating...';
+
+        try {
+            const res = await messageService.markCuesStale({
+                cacheKey: activeRangeTrack.cacheKey,
+                trackHash: activeRangeTrack.trackHash,
+                startTime: startSec,
+                endTime: endSec,
+            });
+
+            if (res && res.success) {
+                showToast(
+                    `Marked ${res.invalidatedCount} cues as stale [${formatSecondsToTime(startSec)} - ${formatSecondsToTime(endSec)}]`,
+                );
+                closeRangeModal();
+                await loadSubtitleCaches();
+            } else {
+                alert(
+                    `Failed to invalidate cues: ${res?.error || 'Unknown error'}`,
+                );
+            }
+        } catch (err: any) {
+            alert(`Error invalidating cues: ${err?.message || err}`);
+        } finally {
+            btnRangeModalConfirm.removeAttribute('disabled');
+            btnRangeModalConfirm.textContent = '⚠️ Mark Range Stale';
+        }
+    });
+
+    btnClearAllCache?.addEventListener('click', () => {
+        if (confirm('⚠️ Clear ALL indexedDB subtitle translation caches?')) {
+            cacheRepository.clearAllTrackCaches().then(() => {
+                showToast('All subtitle caches cleared');
+                loadSubtitleCaches();
+            });
+        }
+    });
+
+    btnRefreshCache?.addEventListener('click', loadSubtitleCaches);
+    cacheSearchInput?.addEventListener('input', renderSubtitleCaches);
+
+    // ==========================================
+    // TAB 2: VOCABULARY CONTROLLER
+    // ==========================================
+    function loadVocabBank(): void {
+        storage.get<EpisodeVocabData>(null).then((all) => {
+            cachedVocabList = [];
+            if (all) {
+                for (const [key, val] of Object.entries(all)) {
+                    if (
+                        key.startsWith(NCW_STORAGE_KEYS.VOCAB_PREFIX) &&
+                        val &&
+                        Array.isArray((val as EpisodeVocabData).words)
+                    ) {
+                        cachedVocabList.push(val as EpisodeVocabData);
+                    }
+                }
+            }
+            cachedVocabList.sort(
+                (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+            );
+            renderVocabBank();
+        });
+    }
+
+    function renderVocabBank(): void {
+        const query = (vocabSearchInput?.value || '').trim().toLowerCase();
+        const sourceFilter = vocabSourceFilter
+            ? vocabSourceFilter.value
+            : 'all';
+
+        const processedList = cachedVocabList.map((v) => {
+            let words = v.words;
+            if (sourceFilter === 'user') {
+                words = words.filter((w) => w.source === 'user');
+            } else if (sourceFilter === 'ai') {
+                words = words.filter((w) => w.source !== 'user');
+            }
+            return { ...v, words };
+        });
+
+        const filtered = processedList.filter((v) => {
+            if (sourceFilter !== 'all' && v.words.length === 0) return false;
+            if (!query) return true;
+            const titleMatch =
+                (v.showTitle && v.showTitle.toLowerCase().includes(query)) ||
+                (v.movieId && v.movieId.toLowerCase().includes(query));
+            if (titleMatch) return true;
+            return v.words.some(
+                (w) =>
+                    (w.word && w.word.toLowerCase().includes(query)) ||
+                    (w.meaning && w.meaning.toLowerCase().includes(query)),
+            );
+        });
+
+        const totalEpisodes = cachedVocabList.length;
+        let totalWords = 0;
+        cachedVocabList.forEach((v) => {
+            totalWords += v.words.length;
+        });
+
+        if (statVocabEpisodes)
+            statVocabEpisodes.textContent = String(totalEpisodes);
+        if (statVocabWords) statVocabWords.textContent = String(totalWords);
+        if (navVocabCount) navVocabCount.textContent = String(totalWords);
+        if (vocabListCount)
+            vocabListCount.textContent = `Showing ${filtered.length} of ${totalEpisodes} episodes`;
+
+        // Update Select All Checkbox and Batch Export Button
+        const allFilteredEpisodeIds = filtered.map((v) => v.movieId);
+        const selectedCountInFiltered = allFilteredEpisodeIds.filter((id) =>
+            selectedVocabEpisodeIds.has(id),
+        ).length;
+
+        if (vocabSelectAllCheckbox) {
+            if (
+                allFilteredEpisodeIds.length > 0 &&
+                selectedCountInFiltered === allFilteredEpisodeIds.length
+            ) {
+                vocabSelectAllCheckbox.checked = true;
+                vocabSelectAllCheckbox.indeterminate = false;
+            } else if (selectedCountInFiltered > 0) {
+                vocabSelectAllCheckbox.checked = false;
+                vocabSelectAllCheckbox.indeterminate = true;
+            } else {
+                vocabSelectAllCheckbox.checked = false;
+                vocabSelectAllCheckbox.indeterminate = false;
+            }
+        }
+
+        if (btnExportSelectedVocab) {
+            const totalSelected = selectedVocabEpisodeIds.size;
+            btnExportSelectedVocab.disabled = totalSelected === 0;
+            btnExportSelectedVocab.textContent = `⬇️ Export Selected (${totalSelected})`;
+        }
+
+        if (!vocabCardsGrid) return;
+
+        if (filtered.length === 0) {
+            vocabCardsGrid.innerHTML = `
         <div class="empty-state" style="text-align: center; padding: 40px; color: #888;">
           ${cachedVocabList.length === 0 ? 'No vocabulary collected yet. Enable AI Vocabulary Extractor in settings to start collecting difficult words while watching.' : 'No matching vocabulary found.'}
         </div>
       `;
-      return;
-    }
+            return;
+        }
 
-    // Group filtered vocabulary by show title (or movie ID if no title)
-    const groupsMap = new Map<
-      string,
-      {
-        groupId: string;
-        showTitle: string;
-        episodes: EpisodeVocabData[];
-        totalWords: number;
-        latestUpdated: number;
-      }
-    >();
+        // Group filtered vocabulary by show title (or movie ID if no title)
+        const groupsMap = new Map<
+            string,
+            {
+                groupId: string;
+                showTitle: string;
+                episodes: EpisodeVocabData[];
+                totalWords: number;
+                latestUpdated: number;
+            }
+        >();
 
-    filtered.forEach((v) => {
-      const rawTitle = (v.showTitle || '').trim();
-      const groupId = rawTitle ? rawTitle.toLowerCase() : `movie_${v.movieId || 'unknown'}`;
-      const showTitle = rawTitle || `Episode ${v.movieId || 'Unknown'}`;
-      const wordCount = v.words.length;
-      const updatedAt = v.updatedAt || 0;
+        filtered.forEach((v) => {
+            const rawTitle = (v.showTitle || '').trim();
+            const groupId = rawTitle
+                ? rawTitle.toLowerCase()
+                : `movie_${v.movieId || 'unknown'}`;
+            const showTitle = rawTitle || `Episode ${v.movieId || 'Unknown'}`;
+            const wordCount = v.words.length;
+            const updatedAt = v.updatedAt || 0;
 
-      let group = groupsMap.get(groupId);
-      if (!group) {
-        group = {
-          groupId,
-          showTitle,
-          episodes: [],
-          totalWords: 0,
-          latestUpdated: updatedAt,
-        };
-        groupsMap.set(groupId, group);
-      }
-      group.episodes.push(v);
-      group.totalWords += wordCount;
-      if (updatedAt > group.latestUpdated) {
-        group.latestUpdated = updatedAt;
-      }
-    });
+            let group = groupsMap.get(groupId);
+            if (!group) {
+                group = {
+                    groupId,
+                    showTitle,
+                    episodes: [],
+                    totalWords: 0,
+                    latestUpdated: updatedAt,
+                };
+                groupsMap.set(groupId, group);
+            }
+            group.episodes.push(v);
+            group.totalWords += wordCount;
+            if (updatedAt > group.latestUpdated) {
+                group.latestUpdated = updatedAt;
+            }
+        });
 
-    const groups = Array.from(groupsMap.values()).sort((a, b) => b.latestUpdated - a.latestUpdated);
+        const groups = Array.from(groupsMap.values()).sort(
+            (a, b) => b.latestUpdated - a.latestUpdated,
+        );
 
-    let html = '';
-    groups.forEach((g) => {
-      const isExpanded = expandedVocabGroups.has(g.groupId);
-      const groupEpisodeIds = g.episodes.map((e) => e.movieId);
-      const allGroupSelected =
-        groupEpisodeIds.length > 0 &&
-        groupEpisodeIds.every((id) => selectedVocabEpisodeIds.has(id));
-      const someGroupSelected =
-        !allGroupSelected && groupEpisodeIds.some((id) => selectedVocabEpisodeIds.has(id));
+        let html = '';
+        groups.forEach((g) => {
+            const isExpanded = expandedVocabGroups.has(g.groupId);
+            const groupEpisodeIds = g.episodes.map((e) => e.movieId);
+            const allGroupSelected =
+                groupEpisodeIds.length > 0 &&
+                groupEpisodeIds.every((id) => selectedVocabEpisodeIds.has(id));
+            const someGroupSelected =
+                !allGroupSelected &&
+                groupEpisodeIds.some((id) => selectedVocabEpisodeIds.has(id));
 
-      html += `
+            html += `
         <div class="vocab-show-group ${isExpanded ? 'expanded' : ''}" data-group-id="${escapeHtml(g.groupId)}">
           <div class="vocab-show-header">
             <div class="vocab-show-info">
@@ -830,19 +929,19 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <div class="vocab-episodes-container" style="${isExpanded ? '' : 'display: none;'}">
             ${g.episodes
-              .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-              .map((v) => {
-                const count = v.words.length;
-                const isEpSelected = selectedVocabEpisodeIds.has(v.movieId);
-                const wordPreview = v.words
-                  .slice(0, 6)
-                  .map((w) => {
-                    const isUser = w.source === 'user';
-                    return `<span class="word-chip ${isUser ? 'word-chip-user' : ''}" style="${isUser ? 'background: rgba(212,175,55,0.18); border-color: rgba(212,175,55,0.6); color: #ffd700;' : ''}">${isUser ? '⭐ ' : ''}${escapeHtml(w.word)}</span>`;
-                  })
-                  .join('');
+                .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+                .map((v) => {
+                    const count = v.words.length;
+                    const isEpSelected = selectedVocabEpisodeIds.has(v.movieId);
+                    const wordPreview = v.words
+                        .slice(0, 6)
+                        .map((w) => {
+                            const isUser = w.source === 'user';
+                            return `<span class="word-chip ${isUser ? 'word-chip-user' : ''}" style="${isUser ? 'background: rgba(212,175,55,0.18); border-color: rgba(212,175,55,0.6); color: #ffd700;' : ''}">${isUser ? '⭐ ' : ''}${escapeHtml(w.word)}</span>`;
+                        })
+                        .join('');
 
-                return `
+                    return `
                   <div class="vocab-episode-card">
                     <div>
                       <div class="vocab-episode-header">
@@ -876,243 +975,275 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                   </div>
                 `;
-              })
-              .join('')}
+                })
+                .join('')}
           </div>
         </div>
       `;
+        });
+
+        vocabCardsGrid.innerHTML = html;
+
+        // Apply indeterminate property to show checkboxes
+        vocabCardsGrid
+            .querySelectorAll<HTMLInputElement>(
+                '.chk-show-select[data-indeterminate="true"]',
+            )
+            .forEach((cb) => {
+                cb.indeterminate = true;
+            });
+    }
+
+    // Handle Vocab Actions
+    vocabCardsGrid?.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement | null;
+
+        // Episode Checkbox Toggle
+        const chkEp = target?.closest(
+            '.chk-episode-select',
+        ) as HTMLInputElement | null;
+        if (chkEp) {
+            const mid = chkEp.dataset.id;
+            if (mid) {
+                if (chkEp.checked) {
+                    selectedVocabEpisodeIds.add(mid);
+                } else {
+                    selectedVocabEpisodeIds.delete(mid);
+                }
+                renderVocabBank();
+            }
+            return;
+        }
+
+        // Show Checkbox Toggle
+        const chkShow = target?.closest(
+            '.chk-show-select',
+        ) as HTMLInputElement | null;
+        if (chkShow) {
+            const gid = chkShow.dataset.groupId;
+            if (gid) {
+                const isChecked = chkShow.checked;
+                const matchingEps = cachedVocabList.filter((v) => {
+                    const rawTitle = (v.showTitle || '').trim();
+                    const g = rawTitle
+                        ? rawTitle.toLowerCase()
+                        : `movie_${v.movieId || 'unknown'}`;
+                    return g === gid;
+                });
+                matchingEps.forEach((v) => {
+                    if (isChecked) {
+                        selectedVocabEpisodeIds.add(v.movieId);
+                    } else {
+                        selectedVocabEpisodeIds.delete(v.movieId);
+                    }
+                });
+                renderVocabBank();
+            }
+            return;
+        }
+
+        // Expand / Collapse Show Group
+        const toggleTarget = target?.closest(
+            '.vocab-show-toggle, .btn-toggle-vocab-group',
+        ) as HTMLElement | null;
+        if (toggleTarget) {
+            const gid =
+                toggleTarget.dataset.groupId || toggleTarget.dataset.toggle;
+            if (gid) {
+                if (expandedVocabGroups.has(gid)) {
+                    expandedVocabGroups.delete(gid);
+                } else {
+                    expandedVocabGroups.add(gid);
+                }
+                renderVocabBank();
+                return;
+            }
+        }
+
+        // Export Entire Show
+        const exportShowBtn = target?.closest(
+            '.btn-export-show',
+        ) as HTMLButtonElement | null;
+        if (exportShowBtn) {
+            const gid = exportShowBtn.dataset.groupId;
+            if (gid) {
+                const matchingEps = cachedVocabList.filter((v) => {
+                    const rawTitle = (v.showTitle || '').trim();
+                    const g = rawTitle
+                        ? rawTitle.toLowerCase()
+                        : `movie_${v.movieId || 'unknown'}`;
+                    return g === gid;
+                });
+                if (matchingEps.length > 0) {
+                    const showTitle = matchingEps[0].showTitle || 'show';
+                    const cleanTitle = showTitle
+                        .replace(
+                            /[^\w\s\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af-]/g,
+                            '',
+                        )
+                        .trim()
+                        .replace(/\s+/g, '_');
+                    exportMergedVocabCsv(
+                        matchingEps,
+                        `${cleanTitle}_full_show_vocab.csv`,
+                    );
+                }
+            }
+            return;
+        }
+
+        // Export Single Episode
+        const exportSingleBtn = target?.closest(
+            '.btn-export-single-vocab',
+        ) as HTMLButtonElement | null;
+        if (exportSingleBtn) {
+            const mid = exportSingleBtn.dataset.id;
+            const found = cachedVocabList.find((v) => v.movieId === mid);
+            if (found) {
+                exportVocabCsv(found);
+            }
+            return;
+        }
+
+        // Preview Vocab Modal
+        const viewBtn = target?.closest(
+            '.btn-preview-vocab',
+        ) as HTMLButtonElement | null;
+        if (viewBtn) {
+            const mid = viewBtn.dataset.id;
+            const found = cachedVocabList.find((v) => v.movieId === mid);
+            if (found) openVocabPreviewModal(found);
+            return;
+        }
+
+        // Delete Episode Vocab
+        const deleteBtn = target?.closest(
+            '.btn-delete-vocab',
+        ) as HTMLButtonElement | null;
+        if (deleteBtn) {
+            const mid = deleteBtn.dataset.id;
+            if (
+                mid &&
+                confirm('Delete collected vocabulary for this episode?')
+            ) {
+                messageService.resetVocabData(mid).then(() => {
+                    selectedVocabEpisodeIds.delete(mid);
+                    showToast('Episode vocabulary deleted');
+                    loadVocabBank();
+                });
+            }
+        }
     });
 
-    vocabCardsGrid.innerHTML = html;
-
-    // Apply indeterminate property to show checkboxes
-    vocabCardsGrid
-      .querySelectorAll<HTMLInputElement>('.chk-show-select[data-indeterminate="true"]')
-      .forEach((cb) => {
-        cb.indeterminate = true;
-      });
-  }
-
-  // Handle Vocab Actions
-  vocabCardsGrid?.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement | null;
-
-    // Episode Checkbox Toggle
-    const chkEp = target?.closest('.chk-episode-select') as HTMLInputElement | null;
-    if (chkEp) {
-      const mid = chkEp.dataset.id;
-      if (mid) {
-        if (chkEp.checked) {
-          selectedVocabEpisodeIds.add(mid);
-        } else {
-          selectedVocabEpisodeIds.delete(mid);
-        }
-        renderVocabBank();
-      }
-      return;
-    }
-
-    // Show Checkbox Toggle
-    const chkShow = target?.closest('.chk-show-select') as HTMLInputElement | null;
-    if (chkShow) {
-      const gid = chkShow.dataset.groupId;
-      if (gid) {
-        const isChecked = chkShow.checked;
-        const matchingEps = cachedVocabList.filter((v) => {
-          const rawTitle = (v.showTitle || '').trim();
-          const g = rawTitle ? rawTitle.toLowerCase() : `movie_${v.movieId || 'unknown'}`;
-          return g === gid;
+    // Select All Checkbox Handler
+    vocabSelectAllCheckbox?.addEventListener('change', () => {
+        const isChecked = vocabSelectAllCheckbox.checked;
+        const query = (vocabSearchInput?.value || '').trim().toLowerCase();
+        const filtered = cachedVocabList.filter((v) => {
+            if (!query) return true;
+            const titleMatch =
+                (v.showTitle && v.showTitle.toLowerCase().includes(query)) ||
+                (v.movieId && v.movieId.toLowerCase().includes(query));
+            if (titleMatch) return true;
+            return v.words.some(
+                (w) =>
+                    (w.word && w.word.toLowerCase().includes(query)) ||
+                    (w.meaning && w.meaning.toLowerCase().includes(query)),
+            );
         });
-        matchingEps.forEach((v) => {
-          if (isChecked) {
-            selectedVocabEpisodeIds.add(v.movieId);
-          } else {
-            selectedVocabEpisodeIds.delete(v.movieId);
-          }
+
+        filtered.forEach((v) => {
+            if (isChecked) {
+                selectedVocabEpisodeIds.add(v.movieId);
+            } else {
+                selectedVocabEpisodeIds.delete(v.movieId);
+            }
         });
         renderVocabBank();
-      }
-      return;
-    }
-
-    // Expand / Collapse Show Group
-    const toggleTarget = target?.closest(
-      '.vocab-show-toggle, .btn-toggle-vocab-group'
-    ) as HTMLElement | null;
-    if (toggleTarget) {
-      const gid = toggleTarget.dataset.groupId || toggleTarget.dataset.toggle;
-      if (gid) {
-        if (expandedVocabGroups.has(gid)) {
-          expandedVocabGroups.delete(gid);
-        } else {
-          expandedVocabGroups.add(gid);
-        }
-        renderVocabBank();
-        return;
-      }
-    }
-
-    // Export Entire Show
-    const exportShowBtn = target?.closest('.btn-export-show') as HTMLButtonElement | null;
-    if (exportShowBtn) {
-      const gid = exportShowBtn.dataset.groupId;
-      if (gid) {
-        const matchingEps = cachedVocabList.filter((v) => {
-          const rawTitle = (v.showTitle || '').trim();
-          const g = rawTitle ? rawTitle.toLowerCase() : `movie_${v.movieId || 'unknown'}`;
-          return g === gid;
-        });
-        if (matchingEps.length > 0) {
-          const showTitle = matchingEps[0].showTitle || 'show';
-          const cleanTitle = showTitle
-            .replace(/[^\w\s\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af-]/g, '')
-            .trim()
-            .replace(/\s+/g, '_');
-          exportMergedVocabCsv(matchingEps, `${cleanTitle}_full_show_vocab.csv`);
-        }
-      }
-      return;
-    }
-
-    // Export Single Episode
-    const exportSingleBtn = target?.closest('.btn-export-single-vocab') as HTMLButtonElement | null;
-    if (exportSingleBtn) {
-      const mid = exportSingleBtn.dataset.id;
-      const found = cachedVocabList.find((v) => v.movieId === mid);
-      if (found) {
-        exportVocabCsv(found);
-      }
-      return;
-    }
-
-    // Preview Vocab Modal
-    const viewBtn = target?.closest('.btn-preview-vocab') as HTMLButtonElement | null;
-    if (viewBtn) {
-      const mid = viewBtn.dataset.id;
-      const found = cachedVocabList.find((v) => v.movieId === mid);
-      if (found) openVocabPreviewModal(found);
-      return;
-    }
-
-    // Delete Episode Vocab
-    const deleteBtn = target?.closest('.btn-delete-vocab') as HTMLButtonElement | null;
-    if (deleteBtn) {
-      const mid = deleteBtn.dataset.id;
-      if (mid && confirm('Delete collected vocabulary for this episode?')) {
-        messageService.resetVocabData(mid).then(() => {
-          selectedVocabEpisodeIds.delete(mid);
-          showToast('Episode vocabulary deleted');
-          loadVocabBank();
-        });
-      }
-    }
-  });
-
-  // Select All Checkbox Handler
-  vocabSelectAllCheckbox?.addEventListener('change', () => {
-    const isChecked = vocabSelectAllCheckbox.checked;
-    const query = (vocabSearchInput?.value || '').trim().toLowerCase();
-    const filtered = cachedVocabList.filter((v) => {
-      if (!query) return true;
-      const titleMatch =
-        (v.showTitle && v.showTitle.toLowerCase().includes(query)) ||
-        (v.movieId && v.movieId.toLowerCase().includes(query));
-      if (titleMatch) return true;
-      return v.words.some(
-        (w) =>
-          (w.word && w.word.toLowerCase().includes(query)) ||
-          (w.meaning && w.meaning.toLowerCase().includes(query))
-      );
     });
 
-    filtered.forEach((v) => {
-      if (isChecked) {
-        selectedVocabEpisodeIds.add(v.movieId);
-      } else {
-        selectedVocabEpisodeIds.delete(v.movieId);
-      }
+    // Export Selected Button Handler
+    btnExportSelectedVocab?.addEventListener('click', () => {
+        const selectedEpisodes = cachedVocabList.filter((v) =>
+            selectedVocabEpisodeIds.has(v.movieId),
+        );
+        if (selectedEpisodes.length === 0) {
+            alert('Please select at least one episode to export.');
+            return;
+        }
+        const filename = `cowatcher_selected_vocab_${selectedEpisodes.length}_episodes.csv`;
+        exportMergedVocabCsv(selectedEpisodes, filename);
     });
-    renderVocabBank();
-  });
 
-  // Export Selected Button Handler
-  btnExportSelectedVocab?.addEventListener('click', () => {
-    const selectedEpisodes = cachedVocabList.filter((v) => selectedVocabEpisodeIds.has(v.movieId));
-    if (selectedEpisodes.length === 0) {
-      alert('Please select at least one episode to export.');
-      return;
-    }
-    const filename = `cowatcher_selected_vocab_${selectedEpisodes.length}_episodes.csv`;
-    exportMergedVocabCsv(selectedEpisodes, filename);
-  });
+    btnExportUserVocab?.addEventListener('click', () => {
+        exportUserMarkedVocabCsv(cachedVocabList);
+    });
 
-  btnExportUserVocab?.addEventListener('click', () => {
-    exportUserMarkedVocabCsv(cachedVocabList);
-  });
+    vocabSourceFilter?.addEventListener('change', () => {
+        renderVocabBank();
+    });
 
-  vocabSourceFilter?.addEventListener('change', () => {
-    renderVocabBank();
-  });
+    btnClearAllVocab?.addEventListener('click', async () => {
+        if (confirm('⚠️ Clear ALL collected vocabulary across all episodes?')) {
+            const all = await storage.get<Record<string, unknown>>(null);
+            const toRemove = Object.keys(all || {}).filter((k) =>
+                k.startsWith('ncw_vocab_'),
+            );
+            if (toRemove.length > 0) {
+                await storage.remove(toRemove);
+                selectedVocabEpisodeIds.clear();
+                showToast('All vocabulary cleared');
+                loadVocabBank();
+            }
+        }
+    });
 
-  btnClearAllVocab?.addEventListener('click', async () => {
-    if (confirm('⚠️ Clear ALL collected vocabulary across all episodes?')) {
-      const all = await storage.get<Record<string, unknown>>(null);
-      const toRemove = Object.keys(all || {}).filter((k) => k.startsWith('ncw_vocab_'));
-      if (toRemove.length > 0) {
-        await storage.remove(toRemove);
-        selectedVocabEpisodeIds.clear();
-        showToast('All vocabulary cleared');
-        loadVocabBank();
-      }
-    }
-  });
+    btnRefreshVocab?.addEventListener('click', loadVocabBank);
+    vocabSearchInput?.addEventListener('input', renderVocabBank);
 
-  btnRefreshVocab?.addEventListener('click', loadVocabBank);
-  vocabSearchInput?.addEventListener('input', renderVocabBank);
+    // Vocab Modal Preview
+    function openVocabPreviewModal(data: EpisodeVocabData): void {
+        activeModalVocab = data;
+        if (!vocabPreviewModal) return;
 
-  // Vocab Modal Preview
-  function openVocabPreviewModal(data: EpisodeVocabData): void {
-    activeModalVocab = data;
-    if (!vocabPreviewModal) return;
+        if (modalEpisodeTitle) {
+            modalEpisodeTitle.textContent = `${data.showTitle || 'Episode'} (${data.movieId}) - Vocab List`;
+        }
+        if (modalWordCount) {
+            modalWordCount.textContent = `${data.words.length} words collected`;
+        }
 
-    if (modalEpisodeTitle) {
-      modalEpisodeTitle.textContent = `${data.showTitle || 'Episode'} (${data.movieId}) - Vocab List`;
-    }
-    if (modalWordCount) {
-      modalWordCount.textContent = `${data.words.length} words collected`;
-    }
+        if (modalWordsList) {
+            if (data.words.length === 0) {
+                modalWordsList.innerHTML =
+                    '<div style="text-align:center; padding: 20px; color:#888;">No words collected.</div>';
+            } else {
+                modalWordsList.innerHTML = data.words
+                    .map((w) => {
+                        const word = escapeHtml(w.word || '');
+                        const pos = w.pos
+                            ? `<span style="color:#aaa; font-style: italic; font-size: 11px;">(${escapeHtml(w.pos)})</span>`
+                            : '';
+                        const pho = w.phonetic
+                            ? `<span style="color:#777; font-size: 11px;">[${escapeHtml(w.phonetic)}]</span>`
+                            : '';
+                        const freq =
+                            w.frequency && w.frequency > 1
+                                ? `<span style="color:var(--accent-red); font-size: 11px;">×${w.frequency}</span>`
+                                : '';
+                        const sourceBadge =
+                            w.source === 'user'
+                                ? '<span class="badge" style="background:rgba(212,175,55,0.2); color:#ffd700; border:1px solid #d4af37; font-size:10px;">⭐ User Marked</span>'
+                                : '<span class="badge" style="background:#222; color:#888; font-size:10px;">🤖 AI</span>';
+                        const meaning = escapeHtml(w.meaning || '');
+                        const sentence = w.sentence
+                            ? `<div style="font-size: 12px; color: #999; margin-top: 4px;">"${escapeHtml(w.sentence)}"</div>`
+                            : '';
+                        const trans = w.sentenceTranslation
+                            ? `<div style="font-size: 11.5px; color: #666;">${escapeHtml(w.sentenceTranslation)}</div>`
+                            : '';
 
-    if (modalWordsList) {
-      if (data.words.length === 0) {
-        modalWordsList.innerHTML =
-          '<div style="text-align:center; padding: 20px; color:#888;">No words collected.</div>';
-      } else {
-        modalWordsList.innerHTML = data.words
-          .map((w) => {
-            const word = escapeHtml(w.word || '');
-            const pos = w.pos
-              ? `<span style="color:#aaa; font-style: italic; font-size: 11px;">(${escapeHtml(w.pos)})</span>`
-              : '';
-            const pho = w.phonetic
-              ? `<span style="color:#777; font-size: 11px;">[${escapeHtml(w.phonetic)}]</span>`
-              : '';
-            const freq =
-              w.frequency && w.frequency > 1
-                ? `<span style="color:var(--accent-red); font-size: 11px;">×${w.frequency}</span>`
-                : '';
-            const sourceBadge =
-              w.source === 'user'
-                ? '<span class="badge" style="background:rgba(212,175,55,0.2); color:#ffd700; border:1px solid #d4af37; font-size:10px;">⭐ User Marked</span>'
-                : '<span class="badge" style="background:#222; color:#888; font-size:10px;">🤖 AI</span>';
-            const meaning = escapeHtml(w.meaning || '');
-            const sentence = w.sentence
-              ? `<div style="font-size: 12px; color: #999; margin-top: 4px;">"${escapeHtml(w.sentence)}"</div>`
-              : '';
-            const trans = w.sentenceTranslation
-              ? `<div style="font-size: 11.5px; color: #666;">${escapeHtml(w.sentenceTranslation)}</div>`
-              : '';
-
-            return `
+                        return `
               <div style="background:#16161b; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
                 <div style="display:flex; justify-content: space-between; align-items: center;">
                   <strong style="color:#fff; font-size: 14.5px;">${word}</strong>
@@ -1123,339 +1254,398 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${trans}
               </div>
             `;
-          })
-          .join('');
-      }
+                    })
+                    .join('');
+            }
+        }
+
+        vocabPreviewModal.style.display = 'flex';
     }
 
-    vocabPreviewModal.style.display = 'flex';
-  }
+    btnModalClose?.addEventListener('click', () => {
+        if (vocabPreviewModal) vocabPreviewModal.style.display = 'none';
+    });
 
-  btnModalClose?.addEventListener('click', () => {
-    if (vocabPreviewModal) vocabPreviewModal.style.display = 'none';
-  });
+    vocabPreviewModal?.addEventListener('click', (e) => {
+        if (e.target === vocabPreviewModal)
+            vocabPreviewModal.style.display = 'none';
+    });
 
-  vocabPreviewModal?.addEventListener('click', (e) => {
-    if (e.target === vocabPreviewModal) vocabPreviewModal.style.display = 'none';
-  });
+    modalDownloadBtn?.addEventListener('click', () => {
+        if (activeModalVocab) exportVocabCsv(activeModalVocab);
+    });
 
-  modalDownloadBtn?.addEventListener('click', () => {
-    if (activeModalVocab) exportVocabCsv(activeModalVocab);
-  });
+    function exportUserMarkedVocabCsv(episodes: EpisodeVocabData[]): void {
+        if (!episodes || episodes.length === 0) {
+            showToast('No vocabulary data available to export.');
+            return;
+        }
 
-  function exportUserMarkedVocabCsv(episodes: EpisodeVocabData[]): void {
-    if (!episodes || episodes.length === 0) {
-      showToast('No vocabulary data available to export.');
-      return;
+        const headers = [
+            'Word',
+            'POS',
+            'Phonetic',
+            'Contextual Meaning',
+            'Example Sentence',
+            'Sentence Translation',
+            'Timestamp',
+            'Episode ID',
+            'Show Title',
+            'Date Added',
+        ];
+
+        const escapeCsv = (str: string | number): string => {
+            const s = String(str || '');
+            return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : `"${s}"`;
+        };
+
+        const rows: string[][] = [];
+        episodes.forEach((ep) => {
+            const epTitle = ep.showTitle || '';
+            const epMid = ep.movieId || '';
+            ep.words.forEach((w) => {
+                if (w.source === 'user') {
+                    const dateStr = w.createdAt
+                        ? new Date(w.createdAt).toLocaleString()
+                        : '';
+                    rows.push([
+                        escapeCsv(w.word || ''),
+                        escapeCsv(w.pos || ''),
+                        escapeCsv(w.phonetic || ''),
+                        escapeCsv(w.meaning || ''),
+                        escapeCsv(w.sentence || ''),
+                        escapeCsv(w.sentenceTranslation || ''),
+                        escapeCsv(
+                            typeof w.timestamp === 'number'
+                                ? `${Math.floor(w.timestamp / 60)}:${String(Math.floor(w.timestamp % 60)).padStart(2, '0')}`
+                                : '',
+                        ),
+                        escapeCsv(epMid),
+                        escapeCsv(epTitle),
+                        escapeCsv(dateStr),
+                    ]);
+                }
+            });
+        });
+
+        if (rows.length === 0) {
+            showToast('No user-marked vocabulary found to export.');
+            return;
+        }
+
+        const csvContent =
+            '\uFEFF' +
+            [
+                headers.map((h) => `"${h}"`).join(','),
+                ...rows.map((r) => r.join(',')),
+            ].join('\r\n');
+        const blob = new Blob([csvContent], {
+            type: 'text/csv;charset=utf-8;',
+        });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `user_marked_vocabulary_${rows.length}_words.csv`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 500);
+
+        showToast(`Exported ${rows.length} user-marked vocabulary words!`);
     }
 
-    const headers = [
-      'Word',
-      'POS',
-      'Phonetic',
-      'Contextual Meaning',
-      'Example Sentence',
-      'Sentence Translation',
-      'Timestamp',
-      'Episode ID',
-      'Show Title',
-      'Date Added',
-    ];
+    function exportMergedVocabCsv(
+        episodes: EpisodeVocabData[],
+        filename: string,
+    ): void {
+        if (!episodes || episodes.length === 0) return;
+        const headers = [
+            'Word',
+            'Source',
+            'POS',
+            'Phonetic',
+            'Contextual Meaning',
+            'Original Sentence',
+            'Sentence Translation',
+            'Timestamp',
+            'Frequency',
+            'Episode ID',
+            'Show Title',
+        ];
 
-    const escapeCsv = (str: string | number): string => {
-      const s = String(str || '');
-      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : `"${s}"`;
-    };
+        const escapeCsv = (str: string | number): string => {
+            const s = String(str || '');
+            return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : `"${s}"`;
+        };
 
-    const rows: string[][] = [];
-    episodes.forEach((ep) => {
-      const epTitle = ep.showTitle || '';
-      const epMid = ep.movieId || '';
-      ep.words.forEach((w) => {
-        if (w.source === 'user') {
-          const dateStr = w.createdAt ? new Date(w.createdAt).toLocaleString() : '';
-          rows.push([
+        const rows: string[][] = [];
+        episodes.forEach((ep) => {
+            const epTitle = ep.showTitle || '';
+            const epMid = ep.movieId || '';
+            ep.words.forEach((w) => {
+                rows.push([
+                    escapeCsv(w.word || ''),
+                    escapeCsv(
+                        w.source === 'user' ? 'User Marked' : 'AI Extracted',
+                    ),
+                    escapeCsv(w.pos || ''),
+                    escapeCsv(w.phonetic || ''),
+                    escapeCsv(w.meaning || ''),
+                    escapeCsv(w.sentence || ''),
+                    escapeCsv(w.sentenceTranslation || ''),
+                    escapeCsv(
+                        typeof w.timestamp === 'number'
+                            ? `${Math.floor(w.timestamp / 60)}:${String(Math.floor(w.timestamp % 60)).padStart(2, '0')}`
+                            : '',
+                    ),
+                    escapeCsv(w.frequency || 1),
+                    escapeCsv(epMid),
+                    escapeCsv(epTitle),
+                ]);
+            });
+        });
+
+        const csvContent =
+            '\uFEFF' +
+            [
+                headers.map((h) => `"${h}"`).join(','),
+                ...rows.map((r) => r.join(',')),
+            ].join('\r\n');
+        const blob = new Blob([csvContent], {
+            type: 'text/csv;charset=utf-8;',
+        });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 500);
+    }
+
+    function exportVocabCsv(data: EpisodeVocabData): void {
+        if (!data || !Array.isArray(data.words) || data.words.length === 0)
+            return;
+
+        const srcLang = data.sourceLanguage || 'Source';
+        const tgtLang = data.targetLanguage || 'Target';
+
+        const headers = [
+            `Word (${srcLang})`,
+            'Source',
+            'POS',
+            'Phonetic',
+            `Contextual Meaning (${tgtLang})`,
+            `Original Sentence (${srcLang})`,
+            `Sentence Translation (${tgtLang})`,
+            'Timestamp',
+            'Frequency',
+        ];
+
+        const escapeCsv = (str: string | number): string => {
+            const s = String(str || '');
+            return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : `"${s}"`;
+        };
+
+        const rows = data.words.map((w) => [
             escapeCsv(w.word || ''),
+            escapeCsv(w.source === 'user' ? 'User Marked' : 'AI Extracted'),
             escapeCsv(w.pos || ''),
             escapeCsv(w.phonetic || ''),
             escapeCsv(w.meaning || ''),
             escapeCsv(w.sentence || ''),
             escapeCsv(w.sentenceTranslation || ''),
             escapeCsv(
-              typeof w.timestamp === 'number'
-                ? `${Math.floor(w.timestamp / 60)}:${String(Math.floor(w.timestamp % 60)).padStart(2, '0')}`
-                : ''
+                typeof w.timestamp === 'number'
+                    ? `${Math.floor(w.timestamp / 60)}:${String(Math.floor(w.timestamp % 60)).padStart(2, '0')}`
+                    : '',
             ),
-            escapeCsv(epMid),
-            escapeCsv(epTitle),
-            escapeCsv(dateStr),
-          ]);
-        }
-      });
-    });
-
-    if (rows.length === 0) {
-      showToast('No user-marked vocabulary found to export.');
-      return;
-    }
-
-    const csvContent =
-      '\uFEFF' +
-      [headers.map((h) => `"${h}"`).join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `user_marked_vocabulary_${rows.length}_words.csv`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 500);
-
-    showToast(`Exported ${rows.length} user-marked vocabulary words!`);
-  }
-
-  function exportMergedVocabCsv(episodes: EpisodeVocabData[], filename: string): void {
-    if (!episodes || episodes.length === 0) return;
-    const headers = [
-      'Word',
-      'Source',
-      'POS',
-      'Phonetic',
-      'Contextual Meaning',
-      'Original Sentence',
-      'Sentence Translation',
-      'Timestamp',
-      'Frequency',
-      'Episode ID',
-      'Show Title',
-    ];
-
-    const escapeCsv = (str: string | number): string => {
-      const s = String(str || '');
-      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : `"${s}"`;
-    };
-
-    const rows: string[][] = [];
-    episodes.forEach((ep) => {
-      const epTitle = ep.showTitle || '';
-      const epMid = ep.movieId || '';
-      ep.words.forEach((w) => {
-        rows.push([
-          escapeCsv(w.word || ''),
-          escapeCsv(w.source === 'user' ? 'User Marked' : 'AI Extracted'),
-          escapeCsv(w.pos || ''),
-          escapeCsv(w.phonetic || ''),
-          escapeCsv(w.meaning || ''),
-          escapeCsv(w.sentence || ''),
-          escapeCsv(w.sentenceTranslation || ''),
-          escapeCsv(
-            typeof w.timestamp === 'number'
-              ? `${Math.floor(w.timestamp / 60)}:${String(Math.floor(w.timestamp % 60)).padStart(2, '0')}`
-              : ''
-          ),
-          escapeCsv(w.frequency || 1),
-          escapeCsv(epMid),
-          escapeCsv(epTitle),
+            escapeCsv(w.frequency || 1),
         ]);
-      });
-    });
 
-    const csvContent =
-      '\uFEFF' +
-      [headers.map((h) => `"${h}"`).join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+        const csvContent =
+            '\uFEFF' +
+            [
+                headers.map((h) => `"${h}"`).join(','),
+                ...rows.map((r) => r.join(',')),
+            ].join('\r\n');
+        const blob = new Blob([csvContent], {
+            type: 'text/csv;charset=utf-8;',
+        });
+        const url = URL.createObjectURL(blob);
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 500);
-  }
-
-  function exportVocabCsv(data: EpisodeVocabData): void {
-    if (!data || !Array.isArray(data.words) || data.words.length === 0) return;
-
-    const srcLang = data.sourceLanguage || 'Source';
-    const tgtLang = data.targetLanguage || 'Target';
-
-    const headers = [
-      `Word (${srcLang})`,
-      'Source',
-      'POS',
-      'Phonetic',
-      `Contextual Meaning (${tgtLang})`,
-      `Original Sentence (${srcLang})`,
-      `Sentence Translation (${tgtLang})`,
-      'Timestamp',
-      'Frequency',
-    ];
-
-    const escapeCsv = (str: string | number): string => {
-      const s = String(str || '');
-      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : `"${s}"`;
-    };
-
-    const rows = data.words.map((w) => [
-      escapeCsv(w.word || ''),
-      escapeCsv(w.source === 'user' ? 'User Marked' : 'AI Extracted'),
-      escapeCsv(w.pos || ''),
-      escapeCsv(w.phonetic || ''),
-      escapeCsv(w.meaning || ''),
-      escapeCsv(w.sentence || ''),
-      escapeCsv(w.sentenceTranslation || ''),
-      escapeCsv(
-        typeof w.timestamp === 'number'
-          ? `${Math.floor(w.timestamp / 60)}:${String(Math.floor(w.timestamp % 60)).padStart(2, '0')}`
-          : ''
-      ),
-      escapeCsv(w.frequency || 1),
-    ]);
-
-    const csvContent =
-      '\uFEFF' +
-      [headers.map((h) => `"${h}"`).join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-
-    const rawTitle = data.showTitle || `episode_${data.movieId}`;
-    const cleanTitle = rawTitle
-      .replace(/[^\w\s\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af-]/g, '')
-      .trim()
-      .replace(/\s+/g, '_');
-    const filename = `${cleanTitle}_${data.movieId}_vocab.csv`;
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 500);
-  }
-
-  // ==========================================
-  // TAB 3: SHOW CONTEXT & MEMORY CONTROLLER
-  // ==========================================
-  async function loadShowContexts(): Promise<void> {
-    const all = await storage.get<Record<string, unknown>>(null);
-    cachedContextList = [];
-    if (all) {
-      for (const [key, val] of Object.entries(all)) {
-        // Only load show-level memory from ncw_show_ keys
-        if (key.startsWith('ncw_show_') && val) {
-          const dto = val as unknown as ContextDTO;
-          const langCode = (Language.resolve(dto.targetLanguage)?.code || 'en').toLowerCase();
-          const showIdentifier = (dto.showId || dto.mainTitle || dto.title || '')
+        const rawTitle = data.showTitle || `episode_${data.movieId}`;
+        const cleanTitle = rawTitle
+            .replace(/[^\w\s\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af-]/g, '')
             .trim()
-            .toLowerCase();
-          if (!showIdentifier) continue;
+            .replace(/\s+/g, '_');
+        const filename = `${cleanTitle}_${data.movieId}_vocab.csv`;
 
-          const existingIndex = cachedContextList.findIndex((c) => {
-            const cLangCode = (Language.resolve(c.targetLanguage)?.code || 'en').toLowerCase();
-            if (cLangCode !== langCode) return false;
-            if (dto.showId && c.showId) return c.showId === dto.showId;
-            const cShowIdentifier = (c.showId || c.mainTitle || c.title || '').trim().toLowerCase();
-            return cShowIdentifier === showIdentifier;
-          });
-
-          if (existingIndex >= 0) {
-            if ((dto.updatedAt || 0) > (cachedContextList[existingIndex].updatedAt || 0)) {
-              cachedContextList[existingIndex] = { ...dto, storageKey: key };
-            }
-          } else {
-            cachedContextList.push({ ...dto, storageKey: key });
-          }
-        }
-      }
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 500);
     }
-    cachedContextList.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    renderShowContexts();
-  }
 
-  function renderShowContexts(): void {
-    const query = (contextSearchInput?.value || '').trim().toLowerCase();
-    const filtered = cachedContextList.filter((c) => {
-      if (!query) return true;
-      const titleMatch =
-        (c.title && c.title.toLowerCase().includes(query)) ||
-        (c.mainTitle && c.mainTitle.toLowerCase().includes(query));
-      if (titleMatch) return true;
-      const charMatch = Object.keys(c.characters || {}).some((k) =>
-        k.toLowerCase().includes(query)
-      );
-      const termMatch = Object.keys(c.terms || {}).some((k) => k.toLowerCase().includes(query));
-      return charMatch || termMatch;
-    });
+    // ==========================================
+    // TAB 3: SHOW CONTEXT & MEMORY CONTROLLER
+    // ==========================================
+    async function loadShowContexts(): Promise<void> {
+        const all = await storage.get<Record<string, unknown>>(null);
+        cachedContextList = [];
+        if (all) {
+            for (const [key, val] of Object.entries(all)) {
+                // Only load show-level memory from ncw_show_ keys
+                if (key.startsWith('ncw_show_') && val) {
+                    const dto = val as unknown as ContextDTO;
+                    const langCode = (
+                        Language.resolve(dto.targetLanguage)?.code || 'en'
+                    ).toLowerCase();
+                    const showIdentifier = (
+                        dto.showId ||
+                        dto.mainTitle ||
+                        dto.title ||
+                        ''
+                    )
+                        .trim()
+                        .toLowerCase();
+                    if (!showIdentifier) continue;
 
-    const totalShows = cachedContextList.length;
-    let totalChars = 0;
-    let totalTerms = 0;
-    cachedContextList.forEach((c) => {
-      totalChars += Object.keys(c.characters || {}).length;
-      totalTerms += Object.keys(c.terms || {}).length;
-    });
+                    const existingIndex = cachedContextList.findIndex((c) => {
+                        const cLangCode = (
+                            Language.resolve(c.targetLanguage)?.code || 'en'
+                        ).toLowerCase();
+                        if (cLangCode !== langCode) return false;
+                        if (dto.showId && c.showId)
+                            return c.showId === dto.showId;
+                        const cShowIdentifier = (
+                            c.showId ||
+                            c.mainTitle ||
+                            c.title ||
+                            ''
+                        )
+                            .trim()
+                            .toLowerCase();
+                        return cShowIdentifier === showIdentifier;
+                    });
 
-    if (statContextShows) statContextShows.textContent = String(totalShows);
-    if (statContextChars) statContextChars.textContent = String(totalChars);
-    if (statContextTerms) statContextTerms.textContent = String(totalTerms);
-    if (navContextCount) navContextCount.textContent = String(totalShows);
-    if (contextListCount)
-      contextListCount.textContent = `Showing ${filtered.length} of ${totalShows} shows`;
+                    if (existingIndex >= 0) {
+                        if (
+                            (dto.updatedAt || 0) >
+                            (cachedContextList[existingIndex].updatedAt || 0)
+                        ) {
+                            cachedContextList[existingIndex] = {
+                                ...dto,
+                                storageKey: key,
+                            };
+                        }
+                    } else {
+                        cachedContextList.push({ ...dto, storageKey: key });
+                    }
+                }
+            }
+        }
+        cachedContextList.sort(
+            (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+        );
+        renderShowContexts();
+    }
 
-    if (!contextCardsGrid) return;
+    function renderShowContexts(): void {
+        const query = (contextSearchInput?.value || '').trim().toLowerCase();
+        const filtered = cachedContextList.filter((c) => {
+            if (!query) return true;
+            const titleMatch =
+                (c.title && c.title.toLowerCase().includes(query)) ||
+                (c.mainTitle && c.mainTitle.toLowerCase().includes(query));
+            if (titleMatch) return true;
+            const charMatch = Object.keys(c.characters || {}).some((k) =>
+                k.toLowerCase().includes(query),
+            );
+            const termMatch = Object.keys(c.terms || {}).some((k) =>
+                k.toLowerCase().includes(query),
+            );
+            return charMatch || termMatch;
+        });
 
-    if (filtered.length === 0) {
-      contextCardsGrid.innerHTML = `
+        const totalShows = cachedContextList.length;
+        let totalChars = 0;
+        let totalTerms = 0;
+        cachedContextList.forEach((c) => {
+            totalChars += Object.keys(c.characters || {}).length;
+            totalTerms += Object.keys(c.terms || {}).length;
+        });
+
+        if (statContextShows) statContextShows.textContent = String(totalShows);
+        if (statContextChars) statContextChars.textContent = String(totalChars);
+        if (statContextTerms) statContextTerms.textContent = String(totalTerms);
+        if (navContextCount) navContextCount.textContent = String(totalShows);
+        if (contextListCount)
+            contextListCount.textContent = `Showing ${filtered.length} of ${totalShows} shows`;
+
+        if (!contextCardsGrid) return;
+
+        if (filtered.length === 0) {
+            contextCardsGrid.innerHTML = `
         <div class="empty-state" style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #888;">
           ${cachedContextList.length === 0 ? 'No show context memory initialized yet. The supervisor model will automatically identify shows and character glossaries during playback.' : 'No matching show memory found.'}
         </div>
       `;
-      return;
-    }
+            return;
+        }
 
-    contextCardsGrid.innerHTML = filtered
-      .map((c) => {
-        const titleStr = escapeHtml(c.mainTitle || c.title || 'Unknown Show');
-        const charEntries = Object.entries(c.characters || {});
-        const termEntries = Object.entries(c.terms || {});
-        const synopsisStr = c.showSynopsis
-          ? `<p style="font-size: 12px; color: #aaa; margin-bottom: 8px;">${escapeHtml(c.showSynopsis.slice(0, 140))}${c.showSynopsis.length > 140 ? '...' : ''}</p>`
-          : '';
+        contextCardsGrid.innerHTML = filtered
+            .map((c) => {
+                const titleStr = escapeHtml(
+                    c.mainTitle || c.title || 'Unknown Show',
+                );
+                const charEntries = Object.entries(c.characters || {});
+                const termEntries = Object.entries(c.terms || {});
+                const synopsisStr = c.showSynopsis
+                    ? `<p style="font-size: 12px; color: #aaa; margin-bottom: 8px;">${escapeHtml(c.showSynopsis.slice(0, 140))}${c.showSynopsis.length > 140 ? '...' : ''}</p>`
+                    : '';
 
-        const charTags = charEntries
-          .slice(0, 8)
-          .map(([name, val]) => {
-            const trans = typeof val === 'string' ? val : val?.canonical || name;
-            return `<span class="term-tag"><strong>${escapeHtml(name)}</strong>: ${escapeHtml(trans)}</span>`;
-          })
-          .join('');
+                const charTags = charEntries
+                    .slice(0, 8)
+                    .map(([name, val]) => {
+                        const trans =
+                            typeof val === 'string'
+                                ? val
+                                : val?.canonical || name;
+                        return `<span class="term-tag"><strong>${escapeHtml(name)}</strong>: ${escapeHtml(trans)}</span>`;
+                    })
+                    .join('');
 
-        const termTags = termEntries
-          .slice(0, 6)
-          .map(([term, trans]) => {
-            return `<span class="term-tag" style="background:#1e293b;">${escapeHtml(term)} ➔ ${escapeHtml(trans)}</span>`;
-          })
-          .join('');
+                const termTags = termEntries
+                    .slice(0, 6)
+                    .map(([term, trans]) => {
+                        return `<span class="term-tag" style="background:#1e293b;">${escapeHtml(term)} ➔ ${escapeHtml(trans)}</span>`;
+                    })
+                    .join('');
 
-        const langDisplay = escapeHtml(
-          typeof c.targetLanguage === 'object'
-            ? c.targetLanguage?.label || c.targetLanguage?.name || 'English'
-            : c.targetLanguage || 'English'
-        );
-        const resolvedLangCode = Language.resolve(c.targetLanguage)?.code || 'en';
+                const langDisplay = escapeHtml(
+                    typeof c.targetLanguage === 'object'
+                        ? c.targetLanguage?.label ||
+                              c.targetLanguage?.name ||
+                              'English'
+                        : c.targetLanguage || 'English',
+                );
+                const resolvedLangCode =
+                    Language.resolve(c.targetLanguage)?.code || 'en';
 
-        return `
+                return `
           <div class="card-item">
             <div>
               <div class="card-item-header">
@@ -1473,12 +1663,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="tags-cloud">${charTags || '<span style="color:#666; font-size: 11px;">None discovered yet</span>'}</div>
 
                 ${
-                  termEntries.length > 0
-                    ? `
+                    termEntries.length > 0
+                        ? `
                   <div style="font-size: 11px; color:#888; margin-top: 10px; margin-bottom: 4px;">Glossary Terms (${termEntries.length}):</div>
                   <div class="tags-cloud">${termTags}</div>
                 `
-                    : ''
+                        : ''
                 }
               </div>
             </div>
@@ -1502,216 +1692,233 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
         `;
-      })
-      .join('');
-  }
-
-  // Handle Context Actions (Open Glossary Editor & Delete)
-  contextCardsGrid?.addEventListener('click', async (e) => {
-    const target = e.target as HTMLElement | null;
-
-    // Handle Open Standalone Glossary Editor
-    const editorBtn = target?.closest('.btn-open-glossary-editor') as HTMLButtonElement | null;
-    if (editorBtn) {
-      const showId = editorBtn.dataset.showid || '';
-      const title = editorBtn.dataset.title || '';
-      const langCode = editorBtn.dataset.lang || 'en';
-
-      const params = new URLSearchParams();
-      if (showId) params.set('showId', showId);
-      if (title) params.set('title', title);
-      if (langCode) params.set('targetLang', langCode);
-      if (currentSettings.uiLanguage) params.set('uiLang', currentSettings.uiLanguage);
-
-      const pathWithQuery = `editor/editor.html?${params.toString()}`;
-      const platform = BrowserPlatformFactory.getPlatform();
-      const editorUrl = platform.getURL(pathWithQuery);
-
-      try {
-        platform.openPopupWindow({
-          url: editorUrl,
-          width: 780,
-          height: 820,
-          title: 'CoWatcher - Glossary Editor',
-        });
-      } catch {
-        window.open(editorUrl, '_blank', 'width=780,height=820');
-      }
-      return;
+            })
+            .join('');
     }
 
-    // Handle Context Delete
-    const btn = target?.closest('.btn-delete-context') as HTMLButtonElement | null;
-    if (!btn) return;
-    const key = btn.dataset.key;
-    if (!key) return;
+    // Handle Context Actions (Open Glossary Editor & Delete)
+    contextCardsGrid?.addEventListener('click', async (e) => {
+        const target = e.target as HTMLElement | null;
 
-    if (
-      confirm(
-        'Are you sure you want to clear memory for this show? The supervisor will rebuild character context on next playback.'
-      )
-    ) {
-      await storage.remove([key]);
-      const showId = btn.dataset.showid;
-      const langCode = btn.dataset.lang;
-      if (showId && langCode) {
-        messageService.resetGlossaryContext(showId, Language.resolve(langCode)).catch(() => {});
-      }
-      showToast('Show context memory cleared');
-      loadShowContexts();
-    }
-  });
+        // Handle Open Standalone Glossary Editor
+        const editorBtn = target?.closest(
+            '.btn-open-glossary-editor',
+        ) as HTMLButtonElement | null;
+        if (editorBtn) {
+            const showId = editorBtn.dataset.showid || '';
+            const title = editorBtn.dataset.title || '';
+            const langCode = editorBtn.dataset.lang || 'en';
 
-  btnClearAllContext?.addEventListener('click', async () => {
-    if (confirm('⚠️ Clear ALL show context and supervisor memories?')) {
-      const all = await storage.get<Record<string, unknown>>(null);
-      const toRemove = Object.keys(all || {}).filter((k) => k.startsWith('ncw_show_'));
-      if (toRemove.length > 0) {
-        await storage.remove(toRemove);
-        showToast('All show context memory cleared');
-        loadShowContexts();
-      }
-    }
-  });
+            const params = new URLSearchParams();
+            if (showId) params.set('showId', showId);
+            if (title) params.set('title', title);
+            if (langCode) params.set('targetLang', langCode);
+            if (currentSettings.uiLanguage)
+                params.set('uiLang', currentSettings.uiLanguage);
 
-  btnRefreshContext?.addEventListener('click', loadShowContexts);
-  contextSearchInput?.addEventListener('input', renderShowContexts);
+            const pathWithQuery = `editor/editor.html?${params.toString()}`;
+            const platform = BrowserPlatformFactory.getPlatform();
+            const editorUrl = platform.getURL(pathWithQuery);
 
-  // ==========================================
-  // TAB 4: WATCH HISTORY & ANALYTICS CONTROLLER
-  // ==========================================
-  let cachedHistoryShows: ShowWatchSummary[] = [];
-  let cachedHistorySessions: WatchSession[] = [];
-  let cachedHistoryStats: WatchHistoryStats | null = null;
-  const expandedHistoryShows = new Set<string>();
+            try {
+                platform.openPopupWindow({
+                    url: editorUrl,
+                    width: 780,
+                    height: 820,
+                    title: 'CoWatcher - Glossary Editor',
+                });
+            } catch {
+                window.open(editorUrl, '_blank', 'width=780,height=820');
+            }
+            return;
+        }
 
-  function formatHoursMinutes(totalSeconds: number): string {
-    const s = Math.max(0, Math.floor(totalSeconds));
-    const hours = Math.floor(s / 3600);
-    const minutes = Math.floor((s % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  }
+        // Handle Context Delete
+        const btn = target?.closest(
+            '.btn-delete-context',
+        ) as HTMLButtonElement | null;
+        if (!btn) return;
+        const key = btn.dataset.key;
+        if (!key) return;
 
-  function formatDurationDetailed(seconds: number): string {
-    const s = Math.max(0, Math.floor(seconds));
-    const m = Math.floor(s / 60);
-    const remS = s % 60;
-    if (m >= 60) {
-      const h = Math.floor(m / 60);
-      const remM = m % 60;
-      return `${h}h ${remM}m ${remS}s`;
-    }
-    if (m > 0) {
-      return `${m}m ${remS}s`;
-    }
-    return `${remS}s`;
-  }
-
-  async function loadWatchHistory(): Promise<void> {
-    try {
-      const res = await messageService.getWatchHistory();
-      if (res && res.success) {
-        cachedHistoryShows = res.shows || [];
-        cachedHistorySessions = res.recentSessions || [];
-        cachedHistoryStats = res.stats || null;
-      } else {
-        cachedHistoryShows = [];
-        cachedHistorySessions = [];
-        cachedHistoryStats = null;
-      }
-      renderWatchHistory();
-    } catch (e) {
-      logger.warn('options', 'Failed loading watch history:', e);
-    }
-  }
-
-  function renderWatchHistory(): void {
-    const stats = cachedHistoryStats || {
-      totalWatchSeconds: 0,
-      totalShows: 0,
-      totalEpisodes: 0,
-      totalSessions: 0,
-      dailyStats: [],
-    };
-
-    if (statHistoryTime) {
-      statHistoryTime.textContent = formatHoursMinutes(stats.totalWatchSeconds);
-    }
-    if (statHistoryShows) {
-      statHistoryShows.textContent = String(stats.totalShows);
-    }
-    if (statHistoryEpisodes) {
-      statHistoryEpisodes.textContent = String(stats.totalEpisodes);
-    }
-    if (statHistorySessions) {
-      statHistorySessions.textContent = String(stats.totalSessions);
-    }
-    if (navHistoryCount) {
-      navHistoryCount.textContent = String(stats.totalShows);
-    }
-
-    renderImmersionHeatmap(stats.dailyStats);
-    renderTrendCanvas(stats.dailyStats);
-    renderHistoryShowsList();
-  }
-
-  function renderImmersionHeatmap(dailyStats: DailyWatchStat[]): void {
-    if (!historyHeatmapContainer) return;
-
-    const statsMap = new Map<string, { seconds: number; count: number }>();
-    dailyStats.forEach((d) => {
-      statsMap.set(d.date, { seconds: d.watchSeconds, count: d.sessionsCount });
+        if (
+            confirm(
+                'Are you sure you want to clear memory for this show? The supervisor will rebuild character context on next playback.',
+            )
+        ) {
+            await storage.remove([key]);
+            const showId = btn.dataset.showid;
+            const langCode = btn.dataset.lang;
+            if (showId && langCode) {
+                messageService
+                    .resetGlossaryContext(showId, Language.resolve(langCode))
+                    .catch(() => {});
+            }
+            showToast('Show context memory cleared');
+            loadShowContexts();
+        }
     });
 
-    const now = new Date();
-    const todayDayOfWeek = now.getDay(); // 0 (Sun) .. 6 (Sat)
-    const totalWeeks = 26;
-    const startDate = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - ((totalWeeks - 1) * 7 + todayDayOfWeek)
-    );
-
-    let weeksHtml = '';
-    const nowTime = now.getTime();
-
-    for (let w = 0; w < totalWeeks; w++) {
-      let daysHtml = '';
-      for (let d = 0; d < 7; d++) {
-        const cellDate = new Date(
-          startDate.getFullYear(),
-          startDate.getMonth(),
-          startDate.getDate() + (w * 7 + d)
-        );
-        const isFuture = cellDate.getTime() > nowTime;
-        const year = cellDate.getFullYear();
-        const month = String(cellDate.getMonth() + 1).padStart(2, '0');
-        const day = String(cellDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-
-        if (isFuture) {
-          daysHtml += `<div class="heatmap-cell" style="opacity: 0.15; cursor: default;"></div>`;
-        } else {
-          const entry = statsMap.get(dateStr);
-          const seconds = entry ? entry.seconds : 0;
-          const count = entry ? entry.count : 0;
-
-          let level = 0;
-          if (seconds > 5400) level = 4; // > 90m
-          else if (seconds > 2700) level = 3; // 45m - 90m
-          else if (seconds > 900) level = 2; // 15m - 45m
-          else if (seconds > 0) level = 1; // 1s - 15m
-
-          daysHtml += `<div class="heatmap-cell level-${level}" data-date="${dateStr}" data-seconds="${seconds}" data-sessions="${count}"></div>`;
+    btnClearAllContext?.addEventListener('click', async () => {
+        if (confirm('⚠️ Clear ALL show context and supervisor memories?')) {
+            const all = await storage.get<Record<string, unknown>>(null);
+            const toRemove = Object.keys(all || {}).filter((k) =>
+                k.startsWith('ncw_show_'),
+            );
+            if (toRemove.length > 0) {
+                await storage.remove(toRemove);
+                showToast('All show context memory cleared');
+                loadShowContexts();
+            }
         }
-      }
-      weeksHtml += `<div class="heatmap-week-col">${daysHtml}</div>`;
+    });
+
+    btnRefreshContext?.addEventListener('click', loadShowContexts);
+    contextSearchInput?.addEventListener('input', renderShowContexts);
+
+    // ==========================================
+    // TAB 4: WATCH HISTORY & ANALYTICS CONTROLLER
+    // ==========================================
+    let cachedHistoryShows: ShowWatchSummary[] = [];
+    let cachedHistorySessions: WatchSession[] = [];
+    let cachedHistoryStats: WatchHistoryStats | null = null;
+    const expandedHistoryShows = new Set<string>();
+
+    function formatHoursMinutes(totalSeconds: number): string {
+        const s = Math.max(0, Math.floor(totalSeconds));
+        const hours = Math.floor(s / 3600);
+        const minutes = Math.floor((s % 3600) / 60);
+        if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        }
+        return `${minutes}m`;
     }
 
-    historyHeatmapContainer.innerHTML = `
+    function formatDurationDetailed(seconds: number): string {
+        const s = Math.max(0, Math.floor(seconds));
+        const m = Math.floor(s / 60);
+        const remS = s % 60;
+        if (m >= 60) {
+            const h = Math.floor(m / 60);
+            const remM = m % 60;
+            return `${h}h ${remM}m ${remS}s`;
+        }
+        if (m > 0) {
+            return `${m}m ${remS}s`;
+        }
+        return `${remS}s`;
+    }
+
+    async function loadWatchHistory(): Promise<void> {
+        try {
+            const res = await messageService.getWatchHistory();
+            if (res && res.success) {
+                cachedHistoryShows = res.shows || [];
+                cachedHistorySessions = res.recentSessions || [];
+                cachedHistoryStats = res.stats || null;
+            } else {
+                cachedHistoryShows = [];
+                cachedHistorySessions = [];
+                cachedHistoryStats = null;
+            }
+            renderWatchHistory();
+        } catch (e) {
+            logger.warn('options', 'Failed loading watch history:', e);
+        }
+    }
+
+    function renderWatchHistory(): void {
+        const stats = cachedHistoryStats || {
+            totalWatchSeconds: 0,
+            totalShows: 0,
+            totalEpisodes: 0,
+            totalSessions: 0,
+            dailyStats: [],
+        };
+
+        if (statHistoryTime) {
+            statHistoryTime.textContent = formatHoursMinutes(
+                stats.totalWatchSeconds,
+            );
+        }
+        if (statHistoryShows) {
+            statHistoryShows.textContent = String(stats.totalShows);
+        }
+        if (statHistoryEpisodes) {
+            statHistoryEpisodes.textContent = String(stats.totalEpisodes);
+        }
+        if (statHistorySessions) {
+            statHistorySessions.textContent = String(stats.totalSessions);
+        }
+        if (navHistoryCount) {
+            navHistoryCount.textContent = String(stats.totalShows);
+        }
+
+        renderImmersionHeatmap(stats.dailyStats);
+        renderTrendCanvas(stats.dailyStats);
+        renderHistoryShowsList();
+    }
+
+    function renderImmersionHeatmap(dailyStats: DailyWatchStat[]): void {
+        if (!historyHeatmapContainer) return;
+
+        const statsMap = new Map<string, { seconds: number; count: number }>();
+        dailyStats.forEach((d) => {
+            statsMap.set(d.date, {
+                seconds: d.watchSeconds,
+                count: d.sessionsCount,
+            });
+        });
+
+        const now = new Date();
+        const todayDayOfWeek = now.getDay(); // 0 (Sun) .. 6 (Sat)
+        const totalWeeks = 26;
+        const startDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() - ((totalWeeks - 1) * 7 + todayDayOfWeek),
+        );
+
+        let weeksHtml = '';
+        const nowTime = now.getTime();
+
+        for (let w = 0; w < totalWeeks; w++) {
+            let daysHtml = '';
+            for (let d = 0; d < 7; d++) {
+                const cellDate = new Date(
+                    startDate.getFullYear(),
+                    startDate.getMonth(),
+                    startDate.getDate() + (w * 7 + d),
+                );
+                const isFuture = cellDate.getTime() > nowTime;
+                const year = cellDate.getFullYear();
+                const month = String(cellDate.getMonth() + 1).padStart(2, '0');
+                const day = String(cellDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+
+                if (isFuture) {
+                    daysHtml += `<div class="heatmap-cell" style="opacity: 0.15; cursor: default;"></div>`;
+                } else {
+                    const entry = statsMap.get(dateStr);
+                    const seconds = entry ? entry.seconds : 0;
+                    const count = entry ? entry.count : 0;
+
+                    let level = 0;
+                    if (seconds > 5400)
+                        level = 4; // > 90m
+                    else if (seconds > 2700)
+                        level = 3; // 45m - 90m
+                    else if (seconds > 900)
+                        level = 2; // 15m - 45m
+                    else if (seconds > 0) level = 1; // 1s - 15m
+
+                    daysHtml += `<div class="heatmap-cell level-${level}" data-date="${dateStr}" data-seconds="${seconds}" data-sessions="${count}"></div>`;
+                }
+            }
+            weeksHtml += `<div class="heatmap-week-col">${daysHtml}</div>`;
+        }
+
+        historyHeatmapContainer.innerHTML = `
       <div class="heatmap-wrapper">
         <div class="heatmap-calendar-body">
           <div class="heatmap-day-labels">
@@ -1729,212 +1936,251 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
     `;
-  }
-
-  function renderTrendCanvas(dailyStats: DailyWatchStat[]): void {
-    if (!historyTrendCanvas) return;
-    const canvas = historyTrendCanvas;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Handle high DPI cleanly
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    const width = rect.width || 360;
-    const height = 130;
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    ctx.clearRect(0, 0, width, height);
-
-    const statsMap = new Map<string, number>();
-    dailyStats.forEach((d) => {
-      statsMap.set(d.date, d.watchSeconds);
-    });
-
-    const now = new Date();
-    const daysData: Array<{ dateStr: string; label: string; minutes: number; isToday: boolean }> =
-      [];
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const sec = statsMap.get(dateStr) || 0;
-      daysData.push({
-        dateStr,
-        label: `${d.getMonth() + 1}/${d.getDate()}`,
-        minutes: Math.round(sec / 60),
-        isToday: i === 0,
-      });
     }
 
-    const paddingLeft = 14;
-    const paddingRight = 14;
-    const paddingTop = 22;
-    const paddingBottom = 22;
-    const chartWidth = width - paddingLeft - paddingRight;
-    const chartHeight = height - paddingTop - paddingBottom;
+    function renderTrendCanvas(dailyStats: DailyWatchStat[]): void {
+        if (!historyTrendCanvas) return;
+        const canvas = historyTrendCanvas;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-    const maxMinutes = Math.max(30, ...daysData.map((d) => d.minutes));
+        // Handle high DPI cleanly
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const width = rect.width || 360;
+        const height = 130;
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Horizontal grid line at 50%
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(paddingLeft, paddingTop + chartHeight * 0.5);
-    ctx.lineTo(paddingLeft + chartWidth, paddingTop + chartHeight * 0.5);
-    ctx.stroke();
+        ctx.clearRect(0, 0, width, height);
 
-    // Baseline
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-    ctx.beginPath();
-    ctx.moveTo(paddingLeft, paddingTop + chartHeight);
-    ctx.lineTo(paddingLeft + chartWidth, paddingTop + chartHeight);
-    ctx.stroke();
+        const statsMap = new Map<string, number>();
+        dailyStats.forEach((d) => {
+            statsMap.set(d.date, d.watchSeconds);
+        });
 
-    const barSlotWidth = chartWidth / daysData.length;
-    const barWidth = Math.max(6, Math.min(16, barSlotWidth * 0.62));
+        const now = new Date();
+        const daysData: Array<{
+            dateStr: string;
+            label: string;
+            minutes: number;
+            isToday: boolean;
+        }> = [];
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate() - i,
+            );
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+            const sec = statsMap.get(dateStr) || 0;
+            daysData.push({
+                dateStr,
+                label: `${d.getMonth() + 1}/${d.getDate()}`,
+                minutes: Math.round(sec / 60),
+                isToday: i === 0,
+            });
+        }
 
-    daysData.forEach((d, idx) => {
-      const xCenter = paddingLeft + idx * barSlotWidth + barSlotWidth / 2;
-      const x = xCenter - barWidth / 2;
-      const barHeight = d.minutes > 0 ? Math.max(3, (d.minutes / maxMinutes) * chartHeight) : 2;
-      const y = paddingTop + chartHeight - barHeight;
+        const paddingLeft = 14;
+        const paddingRight = 14;
+        const paddingTop = 22;
+        const paddingBottom = 22;
+        const chartWidth = width - paddingLeft - paddingRight;
+        const chartHeight = height - paddingTop - paddingBottom;
 
-      if (d.minutes > 0) {
-        // Red Netflix gradient
-        const grad = ctx.createLinearGradient(x, y, x, y + barHeight);
-        grad.addColorStop(0, '#e50914');
-        grad.addColorStop(1, '#831843');
-        ctx.fillStyle = grad;
+        const maxMinutes = Math.max(30, ...daysData.map((d) => d.minutes));
 
-        // Rounded top rect
-        const radius = Math.min(3, barWidth / 2);
+        // Horizontal grid line at 50%
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(x, y + barHeight);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
-        ctx.lineTo(x + barWidth - radius, y);
-        ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
-        ctx.lineTo(x + barWidth, y + barHeight);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(paddingLeft, paddingTop + chartHeight * 0.5);
+        ctx.lineTo(paddingLeft + chartWidth, paddingTop + chartHeight * 0.5);
+        ctx.stroke();
 
-        // Minutes text above bar
-        ctx.fillStyle = d.isToday ? '#ffffff' : '#d1d5db';
-        ctx.font = '600 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${d.minutes}m`, xCenter, y - 4);
-      } else {
-        ctx.fillStyle = '#26262d';
-        ctx.fillRect(x, paddingTop + chartHeight - 2, barWidth, 2);
-      }
+        // Baseline
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.beginPath();
+        ctx.moveTo(paddingLeft, paddingTop + chartHeight);
+        ctx.lineTo(paddingLeft + chartWidth, paddingTop + chartHeight);
+        ctx.stroke();
 
-      // Day label below baseline
-      ctx.fillStyle = d.isToday ? '#e50914' : '#6b7280';
-      ctx.font = d.isToday
-        ? '700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-        : '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(d.label, xCenter, paddingTop + chartHeight + 14);
-    });
-  }
+        const barSlotWidth = chartWidth / daysData.length;
+        const barWidth = Math.max(6, Math.min(16, barSlotWidth * 0.62));
 
-  function renderHistoryShowsList(): void {
-    const query = (historySearchInput?.value || '').trim().toLowerCase();
-    const platformFilter = historyPlatformFilter?.value || 'all';
+        daysData.forEach((d, idx) => {
+            const xCenter = paddingLeft + idx * barSlotWidth + barSlotWidth / 2;
+            const x = xCenter - barWidth / 2;
+            const barHeight =
+                d.minutes > 0
+                    ? Math.max(3, (d.minutes / maxMinutes) * chartHeight)
+                    : 2;
+            const y = paddingTop + chartHeight - barHeight;
 
-    const filtered = cachedHistoryShows.filter((s) => {
-      if (platformFilter !== 'all' && s.platform.toLowerCase() !== platformFilter) {
-        return false;
-      }
-      if (!query) return true;
-      const matchTitle = (s.showTitle || '').toLowerCase().includes(query);
-      const matchId = (s.showId || '').toLowerCase().includes(query);
-      const matchPlatform = (s.platform || '').toLowerCase().includes(query);
-      const matchEp = s.lastEpisode?.episodeTitle?.toLowerCase().includes(query);
-      return matchTitle || matchId || matchPlatform || matchEp;
-    });
+            if (d.minutes > 0) {
+                // Red Netflix gradient
+                const grad = ctx.createLinearGradient(x, y, x, y + barHeight);
+                grad.addColorStop(0, '#e50914');
+                grad.addColorStop(1, '#831843');
+                ctx.fillStyle = grad;
 
-    if (historyListCount) {
-      historyListCount.textContent = `Showing ${filtered.length} of ${cachedHistoryShows.length} shows`;
+                // Rounded top rect
+                const radius = Math.min(3, barWidth / 2);
+                ctx.beginPath();
+                ctx.moveTo(x, y + barHeight);
+                ctx.lineTo(x, y + radius);
+                ctx.quadraticCurveTo(x, y, x + radius, y);
+                ctx.lineTo(x + barWidth - radius, y);
+                ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
+                ctx.lineTo(x + barWidth, y + barHeight);
+                ctx.closePath();
+                ctx.fill();
+
+                // Minutes text above bar
+                ctx.fillStyle = d.isToday ? '#ffffff' : '#d1d5db';
+                ctx.font =
+                    '600 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${d.minutes}m`, xCenter, y - 4);
+            } else {
+                ctx.fillStyle = '#26262d';
+                ctx.fillRect(x, paddingTop + chartHeight - 2, barWidth, 2);
+            }
+
+            // Day label below baseline
+            ctx.fillStyle = d.isToday ? '#e50914' : '#6b7280';
+            ctx.font = d.isToday
+                ? '700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+                : '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(d.label, xCenter, paddingTop + chartHeight + 14);
+        });
     }
 
-    if (!historyCardsGrid) return;
+    function renderHistoryShowsList(): void {
+        const query = (historySearchInput?.value || '').trim().toLowerCase();
+        const platformFilter = historyPlatformFilter?.value || 'all';
 
-    if (filtered.length === 0) {
-      historyCardsGrid.innerHTML = `
+        const filtered = cachedHistoryShows.filter((s) => {
+            if (
+                platformFilter !== 'all' &&
+                s.platform.toLowerCase() !== platformFilter
+            ) {
+                return false;
+            }
+            if (!query) return true;
+            const matchTitle = (s.showTitle || '')
+                .toLowerCase()
+                .includes(query);
+            const matchId = (s.showId || '').toLowerCase().includes(query);
+            const matchPlatform = (s.platform || '')
+                .toLowerCase()
+                .includes(query);
+            const matchEp = s.lastEpisode?.episodeTitle
+                ?.toLowerCase()
+                .includes(query);
+            return matchTitle || matchId || matchPlatform || matchEp;
+        });
+
+        if (historyListCount) {
+            historyListCount.textContent = `Showing ${filtered.length} of ${cachedHistoryShows.length} shows`;
+        }
+
+        if (!historyCardsGrid) return;
+
+        if (filtered.length === 0) {
+            historyCardsGrid.innerHTML = `
         <div class="empty-state" style="text-align: center; padding: 40px; color: #888;">
           ${cachedHistoryShows.length === 0 ? 'No viewing history recorded yet. Watch any video on Netflix, YouTube, or TVer to start tracking playback immersion.' : 'No matching shows found.'}
         </div>
       `;
-      return;
-    }
+            return;
+        }
 
-    historyCardsGrid.innerHTML = filtered
-      .map((show) => {
-        const isExpanded = expandedHistoryShows.has(show.showId);
-        const platformClass = (show.platform || 'unknown').toLowerCase();
-        const showSessions = cachedHistorySessions
-          .filter((sess) => sess.showId === show.showId)
-          .sort((a, b) => b.startedAt - a.startedAt);
+        historyCardsGrid.innerHTML = filtered
+            .map((show) => {
+                const isExpanded = expandedHistoryShows.has(show.showId);
+                const platformClass = (
+                    show.platform || 'unknown'
+                ).toLowerCase();
+                const showSessions = cachedHistorySessions
+                    .filter((sess) => sess.showId === show.showId)
+                    .sort((a, b) => b.startedAt - a.startedAt);
 
-        // Group sessions by episode/video
-        const epGroupsMap = new Map<
-          string,
-          {
-            epKey: string;
-            seasonNum?: number;
-            episodeNum?: number;
-            episodeTitle?: string;
-            videoId: string;
-            totalSeconds: number;
-            sessions: WatchSession[];
-          }
-        >();
+                // Group sessions by episode/video
+                const epGroupsMap = new Map<
+                    string,
+                    {
+                        epKey: string;
+                        seasonNum?: number;
+                        episodeNum?: number;
+                        episodeTitle?: string;
+                        videoId: string;
+                        totalSeconds: number;
+                        sessions: WatchSession[];
+                    }
+                >();
 
-        showSessions.forEach((sess) => {
-          const epKey = sess.videoId || `${sess.seasonNum || 1}_${sess.episodeNum || 1}`;
-          let ep = epGroupsMap.get(epKey);
-          if (!ep) {
-            ep = {
-              epKey,
-              seasonNum: sess.seasonNum,
-              episodeNum: sess.episodeNum,
-              episodeTitle: sess.episodeTitle,
-              videoId: sess.videoId,
-              totalSeconds: 0,
-              sessions: [],
-            };
-            epGroupsMap.set(epKey, ep);
-          }
-          ep.totalSeconds += sess.effectiveWatchSeconds;
-          ep.sessions.push(sess);
-        });
+                showSessions.forEach((sess) => {
+                    const epKey =
+                        sess.videoId ||
+                        `${sess.seasonNum || 1}_${sess.episodeNum || 1}`;
+                    let ep = epGroupsMap.get(epKey);
+                    if (!ep) {
+                        ep = {
+                            epKey,
+                            seasonNum: sess.seasonNum,
+                            episodeNum: sess.episodeNum,
+                            episodeTitle: sess.episodeTitle,
+                            videoId: sess.videoId,
+                            totalSeconds: 0,
+                            sessions: [],
+                        };
+                        epGroupsMap.set(epKey, ep);
+                    }
+                    ep.totalSeconds += sess.effectiveWatchSeconds;
+                    ep.sessions.push(sess);
+                });
 
-        const epGroups = Array.from(epGroupsMap.values());
+                const epGroups = Array.from(epGroupsMap.values());
 
-        const episodesHtml = epGroups
-          .map((ep) => {
-            const epLabel =
-              ep.seasonNum !== undefined && ep.episodeNum !== undefined
-                ? `S${ep.seasonNum}:E${ep.episodeNum}`
-                : ep.episodeNum !== undefined
-                ? `E${ep.episodeNum}`
-                : '';
-            const epFullTitle = [epLabel, ep.episodeTitle || ep.videoId].filter(Boolean).join(' - ');
+                const episodesHtml = epGroups
+                    .map((ep) => {
+                        const epLabel =
+                            ep.seasonNum !== undefined &&
+                            ep.episodeNum !== undefined
+                                ? `S${ep.seasonNum}:E${ep.episodeNum}`
+                                : ep.episodeNum !== undefined
+                                  ? `E${ep.episodeNum}`
+                                  : '';
+                        const epFullTitle = [
+                            epLabel,
+                            ep.episodeTitle || ep.videoId,
+                        ]
+                            .filter(Boolean)
+                            .join(' - ');
 
-            const sessionItemsHtml = ep.sessions
-              .map((sess) => {
-                const startStr = formatSecondsToTime(sess.fromContentTime);
-                const endStr = formatSecondsToTime(sess.toContentTime);
-                const durationStr = formatDurationDetailed(sess.effectiveWatchSeconds);
-                const dateStr = new Date(sess.startedAt).toLocaleString();
+                        const sessionItemsHtml = ep.sessions
+                            .map((sess) => {
+                                const startStr = formatSecondsToTime(
+                                    sess.fromContentTime,
+                                );
+                                const endStr = formatSecondsToTime(
+                                    sess.toContentTime,
+                                );
+                                const durationStr = formatDurationDetailed(
+                                    sess.effectiveWatchSeconds,
+                                );
+                                const dateStr = new Date(
+                                    sess.startedAt,
+                                ).toLocaleString();
 
-                return `
+                                return `
                   <div class="history-session-item">
                     <div>
                       <span class="history-session-interval">⏱️ ${startStr} ➔ ${endStr}</span>
@@ -1943,10 +2189,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="history-session-date">${dateStr}</span>
                   </div>
                 `;
-              })
-              .join('');
+                            })
+                            .join('');
 
-            return `
+                        return `
               <div class="history-ep-row">
                 <div class="history-ep-header">
                   <span class="history-ep-title">${escapeHtml(epFullTitle)}</span>
@@ -1957,10 +2203,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
               </div>
             `;
-          })
-          .join('');
+                    })
+                    .join('');
 
-        return `
+                return `
           <div class="history-show-card ${isExpanded ? 'expanded' : ''}" data-show-id="${escapeHtml(show.showId)}">
             <div class="history-show-header" data-show-id="${escapeHtml(show.showId)}">
               <div class="history-show-left">
@@ -1985,376 +2231,458 @@ document.addEventListener('DOMContentLoaded', () => {
             ${isExpanded ? `<div class="history-episodes-list">${episodesHtml || '<div style="font-size: 12px; color: #777;">No session intervals recorded.</div>'}</div>` : ''}
           </div>
         `;
-      })
-      .join('');
-  }
-
-  // Heatmap Tooltip Interactions
-  historyHeatmapContainer?.addEventListener('mouseover', (e) => {
-    const target = (e.target as HTMLElement)?.closest('.heatmap-cell') as HTMLElement | null;
-    if (!target || !heatmapTooltip) return;
-    const date = target.dataset.date;
-    const seconds = parseInt(target.dataset.seconds || '0', 10);
-    const count = parseInt(target.dataset.sessions || '0', 10);
-    if (date) {
-      const formatted = formatHoursMinutes(seconds);
-      const dateFormatted = new Date(date + 'T00:00:00').toLocaleDateString(undefined, {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-      heatmapTooltip.innerHTML = `<span style="color: #fff; font-weight: 600;">${dateFormatted}</span>: ${formatted === '0m' && seconds === 0 ? 'No viewing activity' : `<strong>${formatted}</strong> watched (${count} sessions)`}`;
-    }
-  });
-
-  historyHeatmapContainer?.addEventListener('mouseleave', () => {
-    if (heatmapTooltip) {
-      heatmapTooltip.textContent = 'Hover over a day to view watch details.';
-    }
-  });
-
-  // History Show Card Actions (Accordion & Delete Show)
-  historyCardsGrid?.addEventListener('click', async (e) => {
-    const target = e.target as HTMLElement | null;
-
-    // Delete Show
-    const deleteBtn = target?.closest('.btn-delete-show') as HTMLButtonElement | null;
-    if (deleteBtn) {
-      const showId = deleteBtn.dataset.showId || deleteBtn.getAttribute('data-show-id');
-      const title = deleteBtn.dataset.title || showId || 'this show';
-      if (!showId) return;
-      if (confirm(`Are you sure you want to delete all viewing history for "${title}"?`)) {
-        await messageService.deleteShowHistory(showId);
-        showToast('Show viewing history deleted');
-        loadWatchHistory();
-      }
-      return;
-    }
-
-    // Toggle Card Accordion
-    const header = target?.closest('.history-show-header') as HTMLElement | null;
-    if (header) {
-      const showId = header.dataset.showId || header.getAttribute('data-show-id');
-      if (showId) {
-        if (expandedHistoryShows.has(showId)) {
-          expandedHistoryShows.delete(showId);
-        } else {
-          expandedHistoryShows.add(showId);
-        }
-        renderHistoryShowsList();
-      }
-    }
-  });
-
-  // Filter & Search
-  historySearchInput?.addEventListener('input', () => renderHistoryShowsList());
-  historyPlatformFilter?.addEventListener('change', () => renderHistoryShowsList());
-
-  // Window resize to redraw trend chart
-  window.addEventListener('resize', () => {
-    if (cachedHistoryStats) {
-      renderTrendCanvas(cachedHistoryStats.dailyStats);
-    }
-  });
-
-  // Buttons
-  btnRefreshHistory?.addEventListener('click', async () => {
-    btnRefreshHistory.textContent = '🔄 Refreshing...';
-    await loadWatchHistory();
-    btnRefreshHistory.textContent = '🔄 Refresh';
-    showToast('Viewing history refreshed');
-  });
-
-  btnClearAllHistory?.addEventListener('click', async () => {
-    if (
-      confirm(
-        '⚠️ Are you sure you want to permanently clear ALL watch history logs? This action cannot be undone.'
-      )
-    ) {
-      await messageService.clearWatchHistory();
-      showToast('All watch history logs cleared');
-      loadWatchHistory();
-    }
-  });
-
-  btnExportHistoryCsv?.addEventListener('click', () => {
-    if (cachedHistorySessions.length === 0) {
-      showToast('No viewing sessions to export.');
-      return;
-    }
-    const headers = [
-      'Session ID',
-      'Platform',
-      'Show ID',
-      'Show Title',
-      'Season',
-      'Episode',
-      'Episode Title',
-      'Video ID',
-      'Started At (ISO)',
-      'Ended At (ISO)',
-      'From Content Time (s)',
-      'From Timecode',
-      'To Content Time (s)',
-      'To Timecode',
-      'Video Duration (s)',
-      'Effective Watch Time (s)',
-      'Effective Watch Time (min)',
-    ];
-
-    const rows = cachedHistorySessions.map((s) => [
-      s.id,
-      s.platform,
-      s.showId,
-      s.showTitle,
-      s.seasonNum ?? '',
-      s.episodeNum ?? '',
-      s.episodeTitle ?? '',
-      s.videoId,
-      new Date(s.startedAt).toISOString(),
-      new Date(s.endedAt).toISOString(),
-      s.fromContentTime,
-      formatSecondsToTime(s.fromContentTime),
-      s.toContentTime,
-      formatSecondsToTime(s.toContentTime),
-      s.videoDuration,
-      s.effectiveWatchSeconds,
-      (s.effectiveWatchSeconds / 60).toFixed(1),
-    ]);
-
-    const csvContent =
-      '\uFEFF' +
-      [headers, ...rows]
-        .map((row) =>
-          row
-            .map((cell) => {
-              const val = String(cell ?? '');
-              if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-                return `"${val.replace(/"/g, '""')}"`;
-              }
-              return val;
             })
-            .join(',')
-        )
-        .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const dateStr = new Date().toISOString().slice(0, 10);
-    a.download = `cowatcher-viewing-history-${dateStr}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast(`Exported ${cachedHistorySessions.length} viewing sessions to CSV!`);
-  });
-
-  // ==========================================
-  // TAB 5: SETTINGS CONTROLLER
-  // ==========================================
-  async function loadSettings(): Promise<void> {
-    const res = await storage.get<Record<string, unknown>>([NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]);
-    if (res && res[NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]) {
-      currentSettings = {
-        ...NCW_CONSTANTS.DEFAULT_SETTINGS,
-        ...(res[NCW_CONSTANTS.STORAGE_KEYS.SETTINGS] as Partial<ExtensionSettings>),
-      };
+            .join('');
     }
-    syncSettingsUI();
-  }
 
-  function syncSettingsUI(): void {
-    if (cfgAiProvider) cfgAiProvider.value = currentSettings.aiProvider || 'google';
-    toggleProviderVisibility(currentSettings.aiProvider || 'google');
-
-    if (cfgOllamaHost) cfgOllamaHost.value = currentSettings.ollamaHost || 'http://localhost:11434';
-    if (cfgTranslationModel)
-      cfgTranslationModel.value = currentSettings.translationModel || 'translategemma:4b';
-    if (cfgSupervisorModel)
-      cfgSupervisorModel.value = currentSettings.supervisorModel || 'translategemma:4b';
-
-    if (cfgOpenrouterKey) cfgOpenrouterKey.value = currentSettings.openrouterApiKey || '';
-    if (cfgEnableSupervisor)
-      cfgEnableSupervisor.checked = currentSettings.enableSupervisor !== false;
-    if (cfgTargetLang) {
-      cfgTargetLang.innerHTML = Language.getAll()
-        .map((l) => `<option value="${l.code}">${l.label}</option>`)
-        .join('');
-      const currentLang = Language.resolve(currentSettings.targetLanguage);
-      cfgTargetLang.value = currentLang.code;
-    }
-    if (cfgDisplayMode) cfgDisplayMode.value = currentSettings.displayMode || 'bilingual';
-    if (cfgPreferNativeSubtitles)
-      cfgPreferNativeSubtitles.checked = currentSettings.preferNativeSubtitles !== false;
-    if (cfgExtractNativeTerms)
-      cfgExtractNativeTerms.checked = Boolean(currentSettings.extractTermsFromNativeSubtitles);
-    if (cfgHideNative) cfgHideNative.checked = currentSettings.hideNativeSubtitles !== false;
-    if (cfgEnableDomSync) cfgEnableDomSync.checked = Boolean(currentSettings.enableDomSubtitleSync);
-    if (cfgEnableLearning) cfgEnableLearning.checked = Boolean(currentSettings.enableSubtitleLearning);
-    if (cfgAutoPauseLearning) cfgAutoPauseLearning.checked = currentSettings.autoPauseOnTokenClick !== false;
-
-    if (cfgVocabEnabled) cfgVocabEnabled.checked = Boolean(currentSettings.vocabExtractorEnabled);
-    if (cfgVocabProvider)
-      cfgVocabProvider.value = currentSettings.vocabExtractorProvider || 'openrouter';
-    if (cfgVocabDifficulty)
-      cfgVocabDifficulty.value = currentSettings.vocabExtractorDifficulty || 'medium';
-    if (cfgVocabSourceLang) {
-      const currentSrc = currentSettings.vocabSourceLanguage || 'auto';
-      cfgVocabSourceLang.innerHTML = [
-        '<option value="auto">✨ Auto Detect</option>',
-        ...Language.getAll().map((l) => `<option value="${l.code}">${l.label}</option>`),
-      ].join('');
-      const matched = Language.get(currentSrc);
-      cfgVocabSourceLang.value = matched
-        ? matched.code
-        : currentSrc === 'auto'
-          ? 'auto'
-          : Language.resolve(currentSrc).code;
-    }
-    if (cfgVocabCustomPrompt)
-      cfgVocabCustomPrompt.value = currentSettings.vocabExtractorCustomPrompt || '';
-    if (uiLanguageSelect) uiLanguageSelect.value = currentSettings.uiLanguage || 'en';
-
-    populateOpenRouterOptions();
-  }
-
-  function toggleProviderVisibility(provider: string): void {
-    const isOllama = provider === 'ollama';
-    const isOpenRouter = provider === 'openrouter';
-    if (cfgOllamaSection) cfgOllamaSection.style.display = isOllama ? 'block' : 'none';
-    if (cfgOpenrouterSection) cfgOpenrouterSection.style.display = isOpenRouter ? 'block' : 'none';
-  }
-
-  cfgAiProvider?.addEventListener('change', (e) => {
-    const target = e.target as HTMLSelectElement | null;
-    if (target) toggleProviderVisibility(target.value);
-  });
-
-  const RECOMMENDED_MODELS = [
-    { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
-    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-    { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-    { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B Instruct' },
-    { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B Instruct' },
-    { id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku' },
-    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
-  ];
-
-  function populateOpenRouterOptions(): void {
-    if (!cfgOpenrouterTransModel || !cfgOpenrouterSupModel) return;
-
-    cfgOpenrouterTransModel.innerHTML = '';
-    cfgOpenrouterSupModel.innerHTML = '';
-
-    RECOMMENDED_MODELS.forEach((m) => {
-      const opt1 = document.createElement('option');
-      opt1.value = m.id;
-      opt1.textContent = `${m.name} (${m.id})`;
-      cfgOpenrouterTransModel?.appendChild(opt1);
-
-      const opt2 = document.createElement('option');
-      opt2.value = m.id;
-      opt2.textContent = `${m.name} (${m.id})`;
-      cfgOpenrouterSupModel?.appendChild(opt2);
+    // Heatmap Tooltip Interactions
+    historyHeatmapContainer?.addEventListener('mouseover', (e) => {
+        const target = (e.target as HTMLElement)?.closest(
+            '.heatmap-cell',
+        ) as HTMLElement | null;
+        if (!target || !heatmapTooltip) return;
+        const date = target.dataset.date;
+        const seconds = parseInt(target.dataset.seconds || '0', 10);
+        const count = parseInt(target.dataset.sessions || '0', 10);
+        if (date) {
+            const formatted = formatHoursMinutes(seconds);
+            const dateFormatted = new Date(
+                date + 'T00:00:00',
+            ).toLocaleDateString(undefined, {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+            });
+            heatmapTooltip.innerHTML = `<span style="color: #fff; font-weight: 600;">${dateFormatted}</span>: ${formatted === '0m' && seconds === 0 ? 'No viewing activity' : `<strong>${formatted}</strong> watched (${count} sessions)`}`;
+        }
     });
 
-    if (currentSettings.openrouterTranslationModel) {
-      cfgOpenrouterTransModel.value = currentSettings.openrouterTranslationModel;
+    historyHeatmapContainer?.addEventListener('mouseleave', () => {
+        if (heatmapTooltip) {
+            heatmapTooltip.textContent =
+                'Hover over a day to view watch details.';
+        }
+    });
+
+    // History Show Card Actions (Accordion & Delete Show)
+    historyCardsGrid?.addEventListener('click', async (e) => {
+        const target = e.target as HTMLElement | null;
+
+        // Delete Show
+        const deleteBtn = target?.closest(
+            '.btn-delete-show',
+        ) as HTMLButtonElement | null;
+        if (deleteBtn) {
+            const showId =
+                deleteBtn.dataset.showId ||
+                deleteBtn.getAttribute('data-show-id');
+            const title = deleteBtn.dataset.title || showId || 'this show';
+            if (!showId) return;
+            if (
+                confirm(
+                    `Are you sure you want to delete all viewing history for "${title}"?`,
+                )
+            ) {
+                await messageService.deleteShowHistory(showId);
+                showToast('Show viewing history deleted');
+                loadWatchHistory();
+            }
+            return;
+        }
+
+        // Toggle Card Accordion
+        const header = target?.closest(
+            '.history-show-header',
+        ) as HTMLElement | null;
+        if (header) {
+            const showId =
+                header.dataset.showId || header.getAttribute('data-show-id');
+            if (showId) {
+                if (expandedHistoryShows.has(showId)) {
+                    expandedHistoryShows.delete(showId);
+                } else {
+                    expandedHistoryShows.add(showId);
+                }
+                renderHistoryShowsList();
+            }
+        }
+    });
+
+    // Filter & Search
+    historySearchInput?.addEventListener('input', () =>
+        renderHistoryShowsList(),
+    );
+    historyPlatformFilter?.addEventListener('change', () =>
+        renderHistoryShowsList(),
+    );
+
+    // Window resize to redraw trend chart
+    window.addEventListener('resize', () => {
+        if (cachedHistoryStats) {
+            renderTrendCanvas(cachedHistoryStats.dailyStats);
+        }
+    });
+
+    // Buttons
+    btnRefreshHistory?.addEventListener('click', async () => {
+        btnRefreshHistory.textContent = '🔄 Refreshing...';
+        await loadWatchHistory();
+        btnRefreshHistory.textContent = '🔄 Refresh';
+        showToast('Viewing history refreshed');
+    });
+
+    btnClearAllHistory?.addEventListener('click', async () => {
+        if (
+            confirm(
+                '⚠️ Are you sure you want to permanently clear ALL watch history logs? This action cannot be undone.',
+            )
+        ) {
+            await messageService.clearWatchHistory();
+            showToast('All watch history logs cleared');
+            loadWatchHistory();
+        }
+    });
+
+    btnExportHistoryCsv?.addEventListener('click', () => {
+        if (cachedHistorySessions.length === 0) {
+            showToast('No viewing sessions to export.');
+            return;
+        }
+        const headers = [
+            'Session ID',
+            'Platform',
+            'Show ID',
+            'Show Title',
+            'Season',
+            'Episode',
+            'Episode Title',
+            'Video ID',
+            'Started At (ISO)',
+            'Ended At (ISO)',
+            'From Content Time (s)',
+            'From Timecode',
+            'To Content Time (s)',
+            'To Timecode',
+            'Video Duration (s)',
+            'Effective Watch Time (s)',
+            'Effective Watch Time (min)',
+        ];
+
+        const rows = cachedHistorySessions.map((s) => [
+            s.id,
+            s.platform,
+            s.showId,
+            s.showTitle,
+            s.seasonNum ?? '',
+            s.episodeNum ?? '',
+            s.episodeTitle ?? '',
+            s.videoId,
+            new Date(s.startedAt).toISOString(),
+            new Date(s.endedAt).toISOString(),
+            s.fromContentTime,
+            formatSecondsToTime(s.fromContentTime),
+            s.toContentTime,
+            formatSecondsToTime(s.toContentTime),
+            s.videoDuration,
+            s.effectiveWatchSeconds,
+            (s.effectiveWatchSeconds / 60).toFixed(1),
+        ]);
+
+        const csvContent =
+            '\uFEFF' +
+            [headers, ...rows]
+                .map((row) =>
+                    row
+                        .map((cell) => {
+                            const val = String(cell ?? '');
+                            if (
+                                val.includes(',') ||
+                                val.includes('"') ||
+                                val.includes('\n')
+                            ) {
+                                return `"${val.replace(/"/g, '""')}"`;
+                            }
+                            return val;
+                        })
+                        .join(','),
+                )
+                .join('\n');
+
+        const blob = new Blob([csvContent], {
+            type: 'text/csv;charset=utf-8;',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.download = `cowatcher-viewing-history-${dateStr}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(
+            `Exported ${cachedHistorySessions.length} viewing sessions to CSV!`,
+        );
+    });
+
+    // ==========================================
+    // TAB 5: SETTINGS CONTROLLER
+    // ==========================================
+    async function loadSettings(): Promise<void> {
+        const res = await storage.get<Record<string, unknown>>([
+            NCW_CONSTANTS.STORAGE_KEYS.SETTINGS,
+        ]);
+        if (res && res[NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]) {
+            currentSettings = {
+                ...NCW_CONSTANTS.DEFAULT_SETTINGS,
+                ...(res[
+                    NCW_CONSTANTS.STORAGE_KEYS.SETTINGS
+                ] as Partial<ExtensionSettings>),
+            };
+        }
+        syncSettingsUI();
     }
-    if (currentSettings.openrouterSupervisorModel) {
-      cfgOpenrouterSupModel.value = currentSettings.openrouterSupervisorModel;
+
+    function syncSettingsUI(): void {
+        if (cfgAiProvider)
+            cfgAiProvider.value = currentSettings.aiProvider || 'google';
+        toggleProviderVisibility(currentSettings.aiProvider || 'google');
+
+        if (cfgOllamaHost)
+            cfgOllamaHost.value =
+                currentSettings.ollamaHost || 'http://localhost:11434';
+        if (cfgTranslationModel)
+            cfgTranslationModel.value =
+                currentSettings.translationModel || 'translategemma:4b';
+        if (cfgSupervisorModel)
+            cfgSupervisorModel.value =
+                currentSettings.supervisorModel || 'translategemma:4b';
+
+        if (cfgOpenrouterKey)
+            cfgOpenrouterKey.value = currentSettings.openrouterApiKey || '';
+        if (cfgEnableSupervisor)
+            cfgEnableSupervisor.checked =
+                currentSettings.enableSupervisor !== false;
+        if (cfgTargetLang) {
+            cfgTargetLang.innerHTML = Language.getAll()
+                .map((l) => `<option value="${l.code}">${l.label}</option>`)
+                .join('');
+            const currentLang = Language.resolve(
+                currentSettings.targetLanguage,
+            );
+            cfgTargetLang.value = currentLang.code;
+        }
+        if (cfgDisplayMode)
+            cfgDisplayMode.value = currentSettings.displayMode || 'bilingual';
+        if (cfgPreferNativeSubtitles)
+            cfgPreferNativeSubtitles.checked =
+                currentSettings.preferNativeSubtitles !== false;
+        if (cfgExtractNativeTerms)
+            cfgExtractNativeTerms.checked = Boolean(
+                currentSettings.extractTermsFromNativeSubtitles,
+            );
+        if (cfgHideNative)
+            cfgHideNative.checked =
+                currentSettings.hideNativeSubtitles !== false;
+        if (cfgEnableDomSync)
+            cfgEnableDomSync.checked = Boolean(
+                currentSettings.enableDomSubtitleSync,
+            );
+        if (cfgEnableLearning)
+            cfgEnableLearning.checked = Boolean(
+                currentSettings.enableSubtitleLearning,
+            );
+        if (cfgAutoPauseLearning)
+            cfgAutoPauseLearning.checked =
+                currentSettings.autoPauseOnTokenClick !== false;
+
+        if (cfgVocabEnabled)
+            cfgVocabEnabled.checked = Boolean(
+                currentSettings.vocabExtractorEnabled,
+            );
+        if (cfgVocabProvider)
+            cfgVocabProvider.value =
+                currentSettings.vocabExtractorProvider || 'openrouter';
+        if (cfgVocabDifficulty)
+            cfgVocabDifficulty.value =
+                currentSettings.vocabExtractorDifficulty || 'medium';
+        if (cfgVocabSourceLang) {
+            const currentSrc = currentSettings.vocabSourceLanguage || 'auto';
+            cfgVocabSourceLang.innerHTML = [
+                '<option value="auto">✨ Auto Detect</option>',
+                ...Language.getAll().map(
+                    (l) => `<option value="${l.code}">${l.label}</option>`,
+                ),
+            ].join('');
+            const matched = Language.get(currentSrc);
+            cfgVocabSourceLang.value = matched
+                ? matched.code
+                : currentSrc === 'auto'
+                  ? 'auto'
+                  : Language.resolve(currentSrc).code;
+        }
+        if (cfgVocabCustomPrompt)
+            cfgVocabCustomPrompt.value =
+                currentSettings.vocabExtractorCustomPrompt || '';
+        if (uiLanguageSelect)
+            uiLanguageSelect.value = currentSettings.uiLanguage || 'en';
+
+        populateOpenRouterOptions();
     }
-  }
 
-  btnSaveSettings?.addEventListener('click', async () => {
-    const updated: ExtensionSettings = {
-      ...currentSettings,
-      aiProvider: (cfgAiProvider
-        ? cfgAiProvider.value
-        : currentSettings.aiProvider) as TranslationProvider,
-      ollamaHost: cfgOllamaHost ? cfgOllamaHost.value.trim() : currentSettings.ollamaHost,
-      translationModel: cfgTranslationModel
-        ? cfgTranslationModel.value
-        : currentSettings.translationModel,
-      supervisorModel: cfgSupervisorModel
-        ? cfgSupervisorModel.value
-        : currentSettings.supervisorModel,
-      openrouterApiKey: cfgOpenrouterKey
-        ? cfgOpenrouterKey.value.trim()
-        : currentSettings.openrouterApiKey,
-      openrouterTranslationModel: cfgOpenrouterTransModel
-        ? cfgOpenrouterTransModel.value
-        : currentSettings.openrouterTranslationModel,
-      openrouterSupervisorModel: cfgOpenrouterSupModel
-        ? cfgOpenrouterSupModel.value
-        : currentSettings.openrouterSupervisorModel,
-      enableSupervisor: cfgEnableSupervisor
-        ? cfgEnableSupervisor.checked
-        : currentSettings.enableSupervisor,
-      targetLanguage: cfgTargetLang
-        ? Language.resolve(cfgTargetLang.value)
-        : currentSettings.targetLanguage,
-      displayMode: (cfgDisplayMode ? cfgDisplayMode.value : currentSettings.displayMode) as
-        'bilingual' | 'translated' | 'original',
-      preferNativeSubtitles: cfgPreferNativeSubtitles
-        ? cfgPreferNativeSubtitles.checked
-        : currentSettings.preferNativeSubtitles,
-      extractTermsFromNativeSubtitles: cfgExtractNativeTerms
-        ? cfgExtractNativeTerms.checked
-        : currentSettings.extractTermsFromNativeSubtitles,
-      hideNativeSubtitles: cfgHideNative
-        ? cfgHideNative.checked
-        : currentSettings.hideNativeSubtitles,
-      enableDomSubtitleSync: cfgEnableDomSync
-        ? cfgEnableDomSync.checked
-        : currentSettings.enableDomSubtitleSync,
-      enableSubtitleLearning: cfgEnableLearning
-        ? cfgEnableLearning.checked
-        : currentSettings.enableSubtitleLearning,
-      autoPauseOnTokenClick: cfgAutoPauseLearning
-        ? cfgAutoPauseLearning.checked
-        : currentSettings.autoPauseOnTokenClick,
-      vocabExtractorEnabled: cfgVocabEnabled
-        ? cfgVocabEnabled.checked
-        : currentSettings.vocabExtractorEnabled,
-      vocabExtractorProvider: (cfgVocabProvider
-        ? cfgVocabProvider.value
-        : currentSettings.vocabExtractorProvider) as 'ollama' | 'openrouter',
-      vocabExtractorDifficulty: (cfgVocabDifficulty
-        ? cfgVocabDifficulty.value
-        : currentSettings.vocabExtractorDifficulty) as 'easy' | 'medium' | 'hard',
-      vocabSourceLanguage: cfgVocabSourceLang
-        ? cfgVocabSourceLang.value === 'auto'
-          ? 'auto'
-          : Language.resolve(cfgVocabSourceLang.value)
-        : currentSettings.vocabSourceLanguage,
-      vocabExtractorCustomPrompt: cfgVocabCustomPrompt
-        ? cfgVocabCustomPrompt.value.trim()
-        : currentSettings.vocabExtractorCustomPrompt,
-      uiLanguage: (uiLanguageSelect ? uiLanguageSelect.value : currentSettings.uiLanguage) as
-        'en' | 'zh',
-    };
+    function toggleProviderVisibility(provider: string): void {
+        const isOllama = provider === 'ollama';
+        const isOpenRouter = provider === 'openrouter';
+        if (cfgOllamaSection)
+            cfgOllamaSection.style.display = isOllama ? 'block' : 'none';
+        if (cfgOpenrouterSection)
+            cfgOpenrouterSection.style.display = isOpenRouter
+                ? 'block'
+                : 'none';
+    }
 
-    currentSettings = updated;
-    await storage.set({ [NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]: updated });
-    showToast('Settings saved successfully!');
-  });
+    cfgAiProvider?.addEventListener('change', (e) => {
+        const target = e.target as HTMLSelectElement | null;
+        if (target) toggleProviderVisibility(target.value);
+    });
 
-  uiLanguageSelect?.addEventListener('change', async (e) => {
-    const target = e.target as HTMLSelectElement | null;
-    if (!target) return;
-    const lang = target.value as 'en' | 'zh';
-    currentSettings.uiLanguage = lang;
-    await storage.set({ [NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]: currentSettings });
-  });
+    const RECOMMENDED_MODELS = [
+        { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
+        { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+        { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+        { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B Instruct' },
+        {
+            id: 'meta-llama/llama-3.3-70b-instruct',
+            name: 'Llama 3.3 70B Instruct',
+        },
+        { id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku' },
+        { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
+    ];
 
-  // Initial Data Loads
-  loadSubtitleCaches();
-  loadVocabBank();
-  loadShowContexts();
-  loadWatchHistory();
-  loadSettings();
+    function populateOpenRouterOptions(): void {
+        if (!cfgOpenrouterTransModel || !cfgOpenrouterSupModel) return;
+
+        cfgOpenrouterTransModel.innerHTML = '';
+        cfgOpenrouterSupModel.innerHTML = '';
+
+        RECOMMENDED_MODELS.forEach((m) => {
+            const opt1 = document.createElement('option');
+            opt1.value = m.id;
+            opt1.textContent = `${m.name} (${m.id})`;
+            cfgOpenrouterTransModel?.appendChild(opt1);
+
+            const opt2 = document.createElement('option');
+            opt2.value = m.id;
+            opt2.textContent = `${m.name} (${m.id})`;
+            cfgOpenrouterSupModel?.appendChild(opt2);
+        });
+
+        if (currentSettings.openrouterTranslationModel) {
+            cfgOpenrouterTransModel.value =
+                currentSettings.openrouterTranslationModel;
+        }
+        if (currentSettings.openrouterSupervisorModel) {
+            cfgOpenrouterSupModel.value =
+                currentSettings.openrouterSupervisorModel;
+        }
+    }
+
+    btnSaveSettings?.addEventListener('click', async () => {
+        const updated: ExtensionSettings = {
+            ...currentSettings,
+            aiProvider: (cfgAiProvider
+                ? cfgAiProvider.value
+                : currentSettings.aiProvider) as TranslationProvider,
+            ollamaHost: cfgOllamaHost
+                ? cfgOllamaHost.value.trim()
+                : currentSettings.ollamaHost,
+            translationModel: cfgTranslationModel
+                ? cfgTranslationModel.value
+                : currentSettings.translationModel,
+            supervisorModel: cfgSupervisorModel
+                ? cfgSupervisorModel.value
+                : currentSettings.supervisorModel,
+            openrouterApiKey: cfgOpenrouterKey
+                ? cfgOpenrouterKey.value.trim()
+                : currentSettings.openrouterApiKey,
+            openrouterTranslationModel: cfgOpenrouterTransModel
+                ? cfgOpenrouterTransModel.value
+                : currentSettings.openrouterTranslationModel,
+            openrouterSupervisorModel: cfgOpenrouterSupModel
+                ? cfgOpenrouterSupModel.value
+                : currentSettings.openrouterSupervisorModel,
+            enableSupervisor: cfgEnableSupervisor
+                ? cfgEnableSupervisor.checked
+                : currentSettings.enableSupervisor,
+            targetLanguage: cfgTargetLang
+                ? Language.resolve(cfgTargetLang.value)
+                : currentSettings.targetLanguage,
+            displayMode: (cfgDisplayMode
+                ? cfgDisplayMode.value
+                : currentSettings.displayMode) as
+                'bilingual' | 'translated' | 'original',
+            preferNativeSubtitles: cfgPreferNativeSubtitles
+                ? cfgPreferNativeSubtitles.checked
+                : currentSettings.preferNativeSubtitles,
+            extractTermsFromNativeSubtitles: cfgExtractNativeTerms
+                ? cfgExtractNativeTerms.checked
+                : currentSettings.extractTermsFromNativeSubtitles,
+            hideNativeSubtitles: cfgHideNative
+                ? cfgHideNative.checked
+                : currentSettings.hideNativeSubtitles,
+            enableDomSubtitleSync: cfgEnableDomSync
+                ? cfgEnableDomSync.checked
+                : currentSettings.enableDomSubtitleSync,
+            enableSubtitleLearning: cfgEnableLearning
+                ? cfgEnableLearning.checked
+                : currentSettings.enableSubtitleLearning,
+            autoPauseOnTokenClick: cfgAutoPauseLearning
+                ? cfgAutoPauseLearning.checked
+                : currentSettings.autoPauseOnTokenClick,
+            vocabExtractorEnabled: cfgVocabEnabled
+                ? cfgVocabEnabled.checked
+                : currentSettings.vocabExtractorEnabled,
+            vocabExtractorProvider: (cfgVocabProvider
+                ? cfgVocabProvider.value
+                : currentSettings.vocabExtractorProvider) as
+                'ollama' | 'openrouter',
+            vocabExtractorDifficulty: (cfgVocabDifficulty
+                ? cfgVocabDifficulty.value
+                : currentSettings.vocabExtractorDifficulty) as
+                'easy' | 'medium' | 'hard',
+            vocabSourceLanguage: cfgVocabSourceLang
+                ? cfgVocabSourceLang.value === 'auto'
+                    ? 'auto'
+                    : Language.resolve(cfgVocabSourceLang.value)
+                : currentSettings.vocabSourceLanguage,
+            vocabExtractorCustomPrompt: cfgVocabCustomPrompt
+                ? cfgVocabCustomPrompt.value.trim()
+                : currentSettings.vocabExtractorCustomPrompt,
+            uiLanguage: (uiLanguageSelect
+                ? uiLanguageSelect.value
+                : currentSettings.uiLanguage) as 'en' | 'zh',
+        };
+
+        currentSettings = updated;
+        await storage.set({ [NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]: updated });
+        showToast('Settings saved successfully!');
+    });
+
+    uiLanguageSelect?.addEventListener('change', async (e) => {
+        const target = e.target as HTMLSelectElement | null;
+        if (!target) return;
+        const lang = target.value as 'en' | 'zh';
+        currentSettings.uiLanguage = lang;
+        await storage.set({
+            [NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]: currentSettings,
+        });
+    });
+
+    // Initial Data Loads
+    loadSubtitleCaches();
+    loadVocabBank();
+    loadShowContexts();
+    loadWatchHistory();
+    loadSettings();
 });

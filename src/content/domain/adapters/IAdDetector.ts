@@ -6,13 +6,13 @@
  */
 
 export interface AdDetectorOptions {
-  onAdStart?: () => void;
-  onAdEnd?: () => void;
+    onAdStart?: () => void;
+    onAdEnd?: () => void;
 }
 
 export interface IAdDetector {
-  readonly isAdPlaying: boolean;
-  startMonitoring(): void;
-  stopMonitoring(): void;
-  reset(): void;
+    readonly isAdPlaying: boolean;
+    startMonitoring(): void;
+    stopMonitoring(): void;
+    reset(): void;
 }
