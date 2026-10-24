@@ -1,5 +1,6 @@
 import {
     IInjectedAdapter,
+    InjectedIncomingEvent,
     InjectedSubtitleRawDataPayload,
     InjectedMetadataLoadedPayload,
     InjectedSubtitleOffPayload,
@@ -14,66 +15,41 @@ import {
     StreamingPlatformId,
 } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
+import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPayload';
 import { NetworkHook } from '../../network/NetworkHook';
 import { Logger } from '@shared/utils/logger';
-
-declare global {
-    interface Window {
-        __NCW_YOUTUBE_INTERCEPTOR_INITIALIZED__?: boolean;
-        ytInitialPlayerResponse?: any;
-        ytplayer?: any;
-    }
-}
-
-export interface YouTubeTrackItem {
-    languageCode: string;
-    name?: string;
-    vssId?: string;
-    kind?: string;
-    isAsr?: boolean;
-    baseUrl?: string;
-    isDefault?: boolean;
-}
-
-export interface YouTubeCachedSubtitle {
-    trackKey: string;
-    videoId: string;
-    languageCode: string;
-    isAsr: boolean;
-    rawText: string;
-    url: string;
-    timestamp: number;
-}
-
-export interface YouTubeVideoTrackRecord {
-    videoId: string;
-    tracks: YouTubeTrackItem[];
-    cachedSubtitles: Map<string, YouTubeCachedSubtitle>;
-    activeTrackKey: string | null;
-    targetLangCode?: string;
-    nativeTrackCached?: boolean;
-    lastEmittedSignature?: string;
-    userExplicitlyDisabledCaptions?: boolean;
-    isFetchingActiveTrack?: boolean;
-    isFetchingNativeTrack?: boolean;
-}
+import { YouTubeTrackRegistry } from './YouTubeTrackRegistry';
+import {
+    YouTubePlayerElement,
+    YouTubeCachedSubtitle,
+} from './YouTubeTypes';
 
 export class YouTubeInjectedAdapter implements IInjectedAdapter {
     readonly platformId: StreamingPlatformId = STREAMING_PLATFORMS.YOUTUBE;
     private readonly logger: Logger = new Logger('YouTubeInjectedAdapter');
 
-    /**
-     * Track records store keyed by YouTube videoId.
-     * Maintains track lists, cached subtitle raw payloads, active track states, and native target tracks.
-     */
-    private videoRecords: Map<string, YouTubeVideoTrackRecord> = new Map();
+    private readonly trackRegistry: YouTubeTrackRegistry;
 
-    private lastReportedUrl: string = '';
+    private lastReportedUrl = '';
     private lastObservedVideoId: string | null = null;
-    private lastAdState: boolean = false;
-    private pollIntervalId: NodeJS.Timeout | number | null = null;
-    private messageListener: ((e: MessageEvent) => void) | null = null;
+    private lastAdState = false;
+    private lastReportedTime: number | null = null;
+    private lastTimeUpdateSync = 0;
+
+    private pollIntervalId: ReturnType<typeof setInterval> | null = null;
+    private playerBridgeAttached = false;
+    private playerAdListener?: (...args: unknown[]) => void;
+    private playerOptionListener?: (...args: unknown[]) => void;
+
+    // Lifecycle cleanups
     private unhookNetwork?: () => void;
+    private unhookNavigation?: () => void;
+    private cleanupMessageListener?: () => void;
+    private unhookPlayerEvents?: () => void;
+
+    constructor() {
+        this.trackRegistry = new YouTubeTrackRegistry();
+    }
 
     matches(url: string): boolean {
         return /youtube\.com/i.test(url);
@@ -88,25 +64,28 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
 
         this.logger.info(
             'YouTube-AI-Sub',
-            'Initializing YouTube Injected Adapter with Video Track Store.',
+            'Initializing YouTube Injected Adapter in MAIN world.',
         );
 
         this.setupNetworkInterceptor();
         this.setupNavigationMonitoring();
         this.setupPlayerBridge();
+        this.setupPlayerEventHooks();
         this.setupMessageListener();
 
-        // Start background polling for route, ad, and captions state
+        // Background polling for route, ad, and captions state
         this.pollIntervalId = setInterval(() => {
             this.checkUrlAndVideoChange();
             this.checkPlayerAdState();
             this.checkPlayerCaptionsState();
+            this.syncPlaybackState();
         }, 500);
 
         // Initial warmup
         setTimeout(() => {
             this.emitMetadataForCurrentVideo();
             this.checkPlayerCaptionsState();
+            this.syncPlaybackState();
         }, 600);
     }
 
@@ -115,35 +94,45 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
             clearInterval(this.pollIntervalId);
             this.pollIntervalId = null;
         }
-        if (this.messageListener) {
-            window.removeEventListener('message', this.messageListener);
-            this.messageListener = null;
-        }
-        if (this.unhookNetwork) {
-            this.unhookNetwork();
-            this.unhookNetwork = undefined;
-        }
+
+        this.cleanupMessageListener?.();
+        this.unhookNavigation?.();
+        this.unhookPlayerEvents?.();
+        this.teardownPlayerBridge();
+        this.unhookNetwork?.();
+
+        this.trackRegistry.clear();
+        PlaybackDatasetHelper.clear();
+
+        window.__NCW_YOUTUBE_INTERCEPTOR_INITIALIZED__ = false;
+        this.logger.info('YouTube-AI-Sub', 'YouTubeInjectedAdapter destroyed and cleaned up.');
     }
 
-    // --- Track Info Store Management ---
-    private getVideoRecord(videoId: string): YouTubeVideoTrackRecord {
-        let record = this.videoRecords.get(videoId);
-        if (!record) {
-            record = {
-                videoId,
-                tracks: [],
-                cachedSubtitles: new Map(),
-                activeTrackKey: null,
-                targetLangCode: undefined,
-                nativeTrackCached: false,
-                lastEmittedSignature: undefined,
-                userExplicitlyDisabledCaptions: false,
-                isFetchingActiveTrack: false,
-                isFetchingNativeTrack: false,
-            };
-            this.videoRecords.set(videoId, record);
+    // --------------------------------------------------------------------------
+    // 1. Helpers & Extraction
+    // --------------------------------------------------------------------------
+
+    private extractVideoId(url: string = window.location.href): string | null {
+        if (!url) return null;
+        try {
+            const urlObj = new URL(url, window.location.origin);
+            const v = urlObj.searchParams.get('v');
+            if (v) return v;
+
+            const pathname = urlObj.pathname;
+            const shortsMatch = pathname.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
+            if (shortsMatch) return shortsMatch[1];
+
+            const embedMatch = pathname.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
+            if (embedMatch) return embedMatch[1];
+
+            const liveMatch = pathname.match(/\/live\/([a-zA-Z0-9_-]{11})/);
+            if (liveMatch) return liveMatch[1];
+        } catch {
+            const match = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+            if (match) return match[1];
         }
-        return record;
+        return null;
     }
 
     private getCurrentVideoId(): string | null {
@@ -153,7 +142,26 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
         );
     }
 
-    // --- Network Interception & Subtitle Caching ---
+    private getPlayerElement(): YouTubePlayerElement | null {
+        return (
+            (document.getElementById('movie_player') as YouTubePlayerElement | null) ||
+            window.ytplayer ||
+            null
+        );
+    }
+
+    private getVideoElement(): HTMLVideoElement | null {
+        return (
+            (document.querySelector('#movie_player video') as HTMLVideoElement | null) ||
+            (document.querySelector('video.html5-main-video') as HTMLVideoElement | null) ||
+            document.querySelector('video')
+        );
+    }
+
+    // --------------------------------------------------------------------------
+    // 2. Network Interceptor (Fetch timedtext)
+    // --------------------------------------------------------------------------
+
     private setupNetworkInterceptor(): void {
         this.unhookNetwork = NetworkHook.onSubtitlePayload((url, text) => {
             if (!url.toLowerCase().includes('timedtext')) return;
@@ -162,97 +170,55 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
     }
 
     private handleInterceptedSubtitle(url: string, text: string): void {
-        try {
-            const urlObj = new URL(url, window.location.origin);
-            const videoId =
-                urlObj.searchParams.get('v') || this.getCurrentVideoId() || '';
-            if (!videoId) return;
+        const currentVideoId = this.getCurrentVideoId();
+        const cached = this.trackRegistry.handleInterceptedSubtitle(url, text, currentVideoId);
+        if (!cached) return;
 
-            const lang = urlObj.searchParams.get('lang') || 'en';
-            const kind = urlObj.searchParams.get('kind');
-            const isAsr = kind === 'asr' || url.includes('kind=asr');
-            const trackKey = `${lang}_${isAsr ? 'asr' : 'normal'}`;
+        // If intercepted subtitle is for current playing video, emit to Content
+        if (cached.videoId === currentVideoId) {
+            const record = this.trackRegistry.getVideoRecord(cached.videoId);
+            const signature = `${cached.videoId}_${cached.trackKey}_${text.length}`;
+            if (signature !== record.lastEmittedSignature) {
+                record.lastEmittedSignature = signature;
+                record.activeTrackKey = cached.trackKey;
+                record.userExplicitlyDisabledCaptions = false;
 
-            const record = this.getVideoRecord(videoId);
-
-            const cachedItem: YouTubeCachedSubtitle = {
-                trackKey,
-                videoId,
-                languageCode: lang,
-                isAsr,
-                rawText: text,
-                url,
-                timestamp: Date.now(),
-            };
-
-            // Cache by full trackKey as well as lang shorthand
-            record.cachedSubtitles.set(trackKey, cachedItem);
-            record.cachedSubtitles.set(lang, cachedItem);
-            record.isFetchingActiveTrack = false;
-
-            // Check if this fulfills a native target track requirement
-            if (record.targetLangCode) {
-                const targetNormalized = record.targetLangCode
-                    .toLowerCase()
-                    .split('-')[0];
-                if (
-                    lang.toLowerCase() ===
-                        record.targetLangCode.toLowerCase() ||
-                    lang.toLowerCase().startsWith(targetNormalized)
-                ) {
-                    record.nativeTrackCached = true;
-                    record.isFetchingNativeTrack = false;
-                }
+                const payload: InjectedSubtitleRawDataPayload = {
+                    type: NCW_MESSAGE_TYPES.SUBTITLE_RAW_DATA,
+                    movieId: cached.videoId,
+                    url,
+                    pageUrl: window.location.href,
+                    rawText: text,
+                    bcp47: cached.languageCode,
+                    timestamp: Date.now(),
+                    isAsr: cached.isAsr,
+                };
+                window.postMessage(payload, '*');
             }
-
-            this.logger.info(
-                'YouTube-AI-Sub',
-                `Cached timedtext in track info store [video: ${videoId}, trackKey: ${trackKey}, bytes: ${text.length}]`,
-            );
-
-            // If this intercepted subtitle is for the current playing video, emit to content script
-            const currentVideoId = this.getCurrentVideoId();
-            if (videoId === currentVideoId) {
-                const signature = `${videoId}_${trackKey}_${text.length}`;
-                if (signature !== record.lastEmittedSignature) {
-                    record.lastEmittedSignature = signature;
-                    record.activeTrackKey = trackKey;
-                    record.userExplicitlyDisabledCaptions = false;
-
-                    const payload: InjectedSubtitleRawDataPayload = {
-                        type: NCW_MESSAGE_TYPES.SUBTITLE_RAW_DATA,
-                        movieId: videoId,
-                        url,
-                        pageUrl: window.location.href,
-                        rawText: text,
-                        bcp47: lang,
-                        timestamp: Date.now(),
-                        isAsr,
-                    };
-                    window.postMessage(payload, '*');
-                }
-            }
-        } catch (err) {
-            this.logger.error(
-                'YouTube-AI-Sub',
-                'Error handling intercepted subtitle:',
-                err,
-            );
         }
     }
 
-    // --- Navigation & Route Monitoring ---
+    // --------------------------------------------------------------------------
+    // 3. Navigation & Route Monitoring
+    // --------------------------------------------------------------------------
+
     private setupNavigationMonitoring(): void {
         const onNavigate = () => {
             this.checkUrlAndVideoChange();
             setTimeout(() => {
                 this.emitMetadataForCurrentVideo();
                 this.checkPlayerCaptionsState();
+                this.syncPlaybackState();
             }, 500);
         };
 
         document.addEventListener('yt-navigate-finish', onNavigate);
         window.addEventListener('popstate', onNavigate);
+
+        this.unhookNavigation = () => {
+            document.removeEventListener('yt-navigate-finish', onNavigate);
+            window.removeEventListener('popstate', onNavigate);
+        };
     }
 
     private checkUrlAndVideoChange(): void {
@@ -278,8 +244,8 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
             window.postMessage(epPayload, '*');
             this.emitMetadataForCurrentVideo();
 
-            // Check if we already have cached subtitles for this video from previous view
-            const record = this.getVideoRecord(currentVideoId);
+            // Replay cached subtitle if previously viewed in SPA session
+            const record = this.trackRegistry.getVideoRecord(currentVideoId);
             if (record.cachedSubtitles.size > 0 && record.activeTrackKey) {
                 const cached =
                     record.cachedSubtitles.get(record.activeTrackKey) ||
@@ -295,7 +261,10 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
         }
     }
 
-    // --- Metadata Extraction ---
+    // --------------------------------------------------------------------------
+    // 4. Metadata Extraction with Strong Consistency (video_id check)
+    // --------------------------------------------------------------------------
+
     private emitMetadataForCurrentVideo(): void {
         const videoId = this.getCurrentVideoId();
         if (!videoId) return;
@@ -307,7 +276,10 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
         if (player && typeof player.getVideoData === 'function') {
             try {
                 const data = player.getVideoData();
-                if (data && data.title) title = data.title;
+                // Strictly guarantee title matches the target videoId
+                if (data && data.video_id === videoId && data.title) {
+                    title = data.title;
+                }
             } catch {}
         }
 
@@ -315,8 +287,7 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
             const details = window.ytInitialPlayerResponse.videoDetails;
             if (details.videoId === videoId) {
                 if (details.title) title = details.title;
-                if (details.shortDescription)
-                    description = details.shortDescription;
+                if (details.shortDescription) description = details.shortDescription;
             }
         }
 
@@ -329,6 +300,7 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
         if (title) {
             const metaPayload: InjectedMetadataLoadedPayload = {
                 type: NCW_MESSAGE_TYPES.METADATA_LOADED,
+                movieId: videoId,
                 showId: videoId,
                 showTitle: title,
                 showSynopsis: description || undefined,
@@ -337,28 +309,133 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
         }
     }
 
-    // --- Player State & Ad Detection ---
+    // --------------------------------------------------------------------------
+    // 5. Player Bridge & Event Hooks
+    // --------------------------------------------------------------------------
+
     private setupPlayerBridge(): void {
+        if (this.playerBridgeAttached) return;
         const player = this.getPlayerElement();
-        if (!player) return;
+        if (!player || typeof player.addEventListener !== 'function') return;
 
         try {
-            if (typeof player.addEventListener === 'function') {
-                player.addEventListener('onAdStateChange', (state: any) => {
-                    const isAd = Boolean(state === 1 || state === true);
-                    this.reportAdState(isAd);
-                });
+            this.playerAdListener = (state: unknown) => {
+                const isAd = Boolean(state === 1 || state === true);
+                this.reportAdState(isAd);
+            };
+            this.playerOptionListener = (option: unknown, value: unknown) => {
+                if (option === 'captions') {
+                    this.handleCaptionsOptionChange(value as { languageCode?: string; kind?: string; vssId?: string } | null);
+                }
+            };
 
-                player.addEventListener(
-                    'onOptionChange',
-                    (option: string, value: any) => {
-                        if (option === 'captions') {
-                            this.handleCaptionsOptionChange(value);
-                        }
-                    },
-                );
-            }
+            player.addEventListener('onAdStateChange', this.playerAdListener);
+            player.addEventListener('onOptionChange', this.playerOptionListener);
+            this.playerBridgeAttached = true;
         } catch {}
+    }
+
+    private teardownPlayerBridge(): void {
+        const player = this.getPlayerElement();
+        if (player && typeof player.removeEventListener === 'function') {
+            if (this.playerAdListener) {
+                player.removeEventListener('onAdStateChange', this.playerAdListener);
+            }
+            if (this.playerOptionListener) {
+                player.removeEventListener('onOptionChange', this.playerOptionListener);
+            }
+        }
+        this.playerBridgeAttached = false;
+        this.playerAdListener = undefined;
+        this.playerOptionListener = undefined;
+    }
+
+    private setupPlayerEventHooks(): void {
+        const onTimeUpdate = () => {
+            const now = performance.now();
+            if (now - this.lastTimeUpdateSync > 250) {
+                this.lastTimeUpdateSync = now;
+                this.syncPlaybackState();
+            }
+        };
+
+        const onStateChange = () => setTimeout(() => this.syncPlaybackState(), 50);
+        const playerEvents = ['seeked', 'playing', 'pause', 'ratechange'] as const;
+
+        window.addEventListener('timeupdate', onTimeUpdate, { capture: true, passive: true });
+        playerEvents.forEach((evt) => {
+            window.addEventListener(evt, onStateChange, { capture: true, passive: true });
+        });
+
+        this.unhookPlayerEvents = () => {
+            window.removeEventListener('timeupdate', onTimeUpdate, { capture: true });
+            playerEvents.forEach((evt) => {
+                window.removeEventListener(evt, onStateChange, { capture: true });
+            });
+        };
+    }
+
+    // --------------------------------------------------------------------------
+    // 6. Playback State Synchronization (Type 4 Dataset + TimeSync Events)
+    // --------------------------------------------------------------------------
+
+    private syncPlaybackState(): void {
+        const videoId = this.getCurrentVideoId();
+        if (!videoId) return;
+
+        // Lazy attach player bridge if not yet bound
+        if (!this.playerBridgeAttached) {
+            this.setupPlayerBridge();
+        }
+
+        const video = this.getVideoElement();
+        const player = this.getPlayerElement();
+        if (!video && !player) return;
+
+        let currentTime = 0;
+        if (player && typeof player.getCurrentTime === 'function') {
+            try {
+                const t = player.getCurrentTime();
+                if (typeof t === 'number' && !isNaN(t) && t >= 0) currentTime = t;
+            } catch {}
+        }
+        if (!currentTime && video && typeof video.currentTime === 'number') {
+            currentTime = video.currentTime;
+        }
+
+        const isPaused = video ? video.paused : (player?.getPlayerState?.() === 2);
+        const playbackRate = player?.getPlaybackRate?.() || video?.playbackRate || 1.0;
+        const nowPerf = performance.now();
+
+        // 1. Authoritative Type 4 High-Frequency Dataset Sync
+        PlaybackDatasetHelper.write({
+            movieId: videoId,
+            currentTime,
+            syncAt: nowPerf,
+            isPaused,
+            playbackRate,
+        });
+
+        // 2. Low-frequency TIME_SYNC Event
+        if (
+            this.lastReportedTime === null ||
+            Math.abs(currentTime - this.lastReportedTime) > 0.5
+        ) {
+            this.lastReportedTime = currentTime;
+            window.postMessage(
+                {
+                    type: NCW_MESSAGE_TYPES.TIME_SYNC,
+                    movieId: videoId,
+                    segmentTime: currentTime,
+                    syncAt: nowPerf,
+                    isPaused,
+                    playbackRate,
+                    cadmiumOffset: 0,
+                    adOffset: 0,
+                },
+                '*',
+            );
+        }
     }
 
     private checkPlayerAdState(): void {
@@ -387,56 +464,58 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
         if (isAd === this.lastAdState) return;
         this.lastAdState = isAd;
 
+        const videoId = this.getCurrentVideoId();
         const payload: InjectedAdStateChangedPayload = {
             type: NCW_MESSAGE_TYPES.AD_STATE_CHANGED,
             isAd,
+            movieId: videoId || undefined,
         };
         window.postMessage(payload, '*');
     }
 
-    // --- Subtitle Polling & Robust State Management ---
+    // --------------------------------------------------------------------------
+    // 7. Caption Track Selection & State Observers
+    // --------------------------------------------------------------------------
+
     private checkPlayerCaptionsState(): void {
         const player = this.getPlayerElement();
         const currentVideoId = this.getCurrentVideoId();
         if (!player || !currentVideoId) return;
 
         try {
-            // 1. Guard against video desynchronization during route transitions
+            // Guard against video desynchronization during route transitions
             if (typeof player.getVideoData === 'function') {
                 const playerVideoId = player.getVideoData()?.video_id;
                 if (playerVideoId && playerVideoId !== currentVideoId) {
-                    // Player is still unloading previous video or loading new video, hold state
                     return;
                 }
             }
 
-            const record = this.getVideoRecord(currentVideoId);
+            const record = this.trackRegistry.getVideoRecord(currentVideoId);
+            this.trackRegistry.refreshVideoTracks(currentVideoId, player);
 
-            // 2. Refresh available tracks in record
-            this.refreshVideoTracks(currentVideoId, record);
-
-            // 3. Proactively cache native target language track if requested and available
-            this.checkAndCacheNativeTargetTrack(currentVideoId, record);
-
-            // 4. Poll current caption track selection from player
             if (typeof player.getOption !== 'function') return;
-            const track = player.getOption('captions', 'track');
+            const track = player.getOption('captions', 'track') as {
+                languageCode?: string;
+                kind?: string;
+                vssId?: string;
+            } | null;
             const hasActiveTrack = Boolean(track && track.languageCode);
 
-            if (hasActiveTrack) {
+            if (hasActiveTrack && track && track.languageCode) {
                 const lang = track.languageCode;
                 const isAsr =
                     track.kind === 'asr' ||
-                    (track.vssId && track.vssId.startsWith('a.'));
+                    (track.vssId ? track.vssId.startsWith('a.') : false);
                 const trackKey = `${lang}_${isAsr ? 'asr' : 'normal'}`;
 
                 record.activeTrackKey = trackKey;
                 record.userExplicitlyDisabledCaptions = false;
 
-                // Check cache for this track
                 const cached =
                     record.cachedSubtitles.get(trackKey) ||
                     record.cachedSubtitles.get(lang);
+
                 if (cached) {
                     const sig = `${currentVideoId}_${trackKey}_${cached.rawText.length}`;
                     if (sig !== record.lastEmittedSignature) {
@@ -447,16 +526,10 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
                         );
                         this.emitCachedSubtitle(cached, false);
                     }
-                } else {
-                    // Cache miss: actively fetch and cache
-                    if (!record.isFetchingActiveTrack) {
-                        this.fetchAndCacheTrack(currentVideoId, record, track);
-                    }
+                } else if (!record.isFetchingActiveTrack) {
+                    this.trackRegistry.fetchAndCacheTrack(currentVideoId, track);
                 }
             } else {
-                // Captions are off in the player
-                // Eliminate false SUBTITLE_OFF: Only emit if captions were genuinely active before
-                // AND player is currently in active playback/paused state (not unstarted / buffering initial video load)
                 const playerState =
                     typeof player.getPlayerState === 'function'
                         ? player.getPlayerState()
@@ -486,19 +559,17 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
                 }
             }
         } catch (err) {
-            this.logger.debug(
-                'YouTube-AI-Sub',
-                'Error in checkPlayerCaptionsState:',
-                err,
-            );
+            this.logger.debug('YouTube-AI-Sub', 'Error in checkPlayerCaptionsState:', err);
         }
     }
 
-    private handleCaptionsOptionChange(value: any): void {
+    private handleCaptionsOptionChange(
+        value: { languageCode?: string; kind?: string; vssId?: string } | null,
+    ): void {
         const currentVideoId = this.getCurrentVideoId();
         if (!currentVideoId) return;
 
-        const record = this.getVideoRecord(currentVideoId);
+        const record = this.trackRegistry.getVideoRecord(currentVideoId);
 
         if (!value || !value.languageCode) {
             if (
@@ -520,7 +591,7 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
             const lang = value.languageCode;
             const isAsr =
                 value.kind === 'asr' ||
-                (value.vssId && value.vssId.startsWith('a.'));
+                (value.vssId ? value.vssId.startsWith('a.') : false);
             const trackKey = `${lang}_${isAsr ? 'asr' : 'normal'}`;
 
             record.activeTrackKey = trackKey;
@@ -532,16 +603,16 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
             if (cached) {
                 this.emitCachedSubtitle(cached, false);
             } else {
-                this.fetchAndCacheTrack(currentVideoId, record, value);
+                this.trackRegistry.fetchAndCacheTrack(currentVideoId, value);
             }
         }
     }
 
     private emitCachedSubtitle(
         cached: YouTubeCachedSubtitle,
-        isReplay: boolean = false,
+        isReplay = false,
     ): void {
-        const record = this.getVideoRecord(cached.videoId);
+        const record = this.trackRegistry.getVideoRecord(cached.videoId);
         const sig = `${cached.videoId}_${cached.trackKey}_${cached.rawText.length}`;
         record.lastEmittedSignature = sig;
         record.activeTrackKey = cached.trackKey;
@@ -561,288 +632,31 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
         window.postMessage(payload, '*');
     }
 
-    private async fetchAndCacheTrack(
-        videoId: string,
-        record: YouTubeVideoTrackRecord,
-        track: any,
-    ): Promise<void> {
-        if (!track || !track.languageCode) return;
+    // --------------------------------------------------------------------------
+    // 8. Message Listener (ISOLATED World -> MAIN World)
+    // --------------------------------------------------------------------------
 
-        record.isFetchingActiveTrack = true;
-        const lang = track.languageCode;
-        const isAsr =
-            track.kind === 'asr' ||
-            (track.vssId && track.vssId.startsWith('a.'));
-
-        // Check available caption tracks for direct baseUrl
-        const matching = record.tracks.find(
-            (t) =>
-                t.languageCode === lang ||
-                (t.vssId && track.vssId && t.vssId === track.vssId),
-        );
-
-        let fetchUrl = matching?.baseUrl;
-        if (fetchUrl) {
-            try {
-                const parsed = new URL(fetchUrl, window.location.origin);
-                const urlV = parsed.searchParams.get('v');
-                if (urlV && urlV !== videoId) {
-                    fetchUrl = undefined;
-                }
-            } catch {
-                fetchUrl = undefined;
-            }
-        }
-
-        if (!fetchUrl && videoId) {
-            fetchUrl = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}&fmt=json3${isAsr ? '&kind=asr' : ''}`;
-        }
-
-        if (!fetchUrl) {
-            record.isFetchingActiveTrack = false;
-            return;
-        }
-
-        if (!fetchUrl.includes('fmt=')) {
-            fetchUrl += '&fmt=json3';
-        }
-
-        try {
-            const res = await fetch(fetchUrl);
-            if (res.ok) {
-                const text = await res.text();
-                if (text && text.length > 0) {
-                    this.handleInterceptedSubtitle(fetchUrl, text);
-                }
-            }
-        } catch (err) {
-            this.logger.warn(
-                'YouTube-AI-Sub',
-                'Direct fetch for track failed:',
-                err,
-            );
-        } finally {
-            record.isFetchingActiveTrack = false;
-        }
-    }
-
-    // --- Track Discovery & Native Target Language Caching ---
-    private refreshVideoTracks(
-        videoId: string,
-        record: YouTubeVideoTrackRecord,
-    ): void {
-        const player = this.getPlayerElement();
-        const tracks: YouTubeTrackItem[] = [];
-
-        // 1. Try movie_player getPlayerResponse()
-        if (player && typeof player.getPlayerResponse === 'function') {
-            try {
-                const pr = player.getPlayerResponse();
-                const prVideoId = pr?.videoDetails?.videoId;
-                if (!prVideoId || prVideoId === videoId) {
-                    const rawTracks =
-                        pr?.captions?.playerCaptionsTracklistRenderer
-                            ?.captionTracks;
-                    if (Array.isArray(rawTracks)) {
-                        rawTracks.forEach((t: any) => {
-                            if (t && t.languageCode) {
-                                tracks.push({
-                                    languageCode: t.languageCode,
-                                    name: t.name?.simpleText,
-                                    vssId: t.vssId,
-                                    kind: t.kind,
-                                    isAsr:
-                                        t.kind === 'asr' ||
-                                        (t.vssId && t.vssId.startsWith('a.')),
-                                    baseUrl: t.baseUrl,
-                                    isDefault: Boolean(t.isDefault),
-                                });
-                            }
-                        });
-                    }
-                }
-            } catch {}
-        }
-
-        // 2. Try movie_player getOption tracklist
-        if (
-            tracks.length === 0 &&
-            player &&
-            typeof player.getOption === 'function'
-        ) {
-            try {
-                const list = player.getOption('captions', 'tracklist');
-                if (Array.isArray(list)) {
-                    list.forEach((t: any) => {
-                        if (t && t.languageCode) {
-                            tracks.push({
-                                languageCode: t.languageCode,
-                                name: t.name,
-                                vssId: t.vssId,
-                                kind: t.kind,
-                                isAsr:
-                                    t.kind === 'asr' ||
-                                    (t.vssId && t.vssId.startsWith('a.')),
-                                baseUrl: t.baseUrl,
-                            });
-                        }
-                    });
-                }
-            } catch {}
-        }
-
-        // 3. Fallback to window.ytInitialPlayerResponse
-        if (
-            tracks.length === 0 &&
-            window.ytInitialPlayerResponse?.videoDetails?.videoId === videoId
-        ) {
-            const initTracks =
-                window.ytInitialPlayerResponse?.captions
-                    ?.playerCaptionsTracklistRenderer?.captionTracks;
-            if (Array.isArray(initTracks)) {
-                initTracks.forEach((t: any) => {
-                    if (t && t.languageCode) {
-                        tracks.push({
-                            languageCode: t.languageCode,
-                            name: t.name?.simpleText,
-                            vssId: t.vssId,
-                            kind: t.kind,
-                            isAsr:
-                                t.kind === 'asr' ||
-                                (t.vssId && t.vssId.startsWith('a.')),
-                            baseUrl: t.baseUrl,
-                            isDefault: Boolean(t.isDefault),
-                        });
-                    }
-                });
-            }
-        }
-
-        if (tracks.length > 0) {
-            record.tracks = tracks;
-        }
-    }
-
-    private async checkAndCacheNativeTargetTrack(
-        videoId: string,
-        record: YouTubeVideoTrackRecord,
-    ): Promise<void> {
-        if (
-            !record.targetLangCode ||
-            record.nativeTrackCached ||
-            record.tracks.length === 0 ||
-            record.isFetchingNativeTrack
-        ) {
-            return;
-        }
-
-        const targetCode = record.targetLangCode.toLowerCase();
-        const targetPrefix = targetCode.split('-')[0];
-
-        // Look for matching non-ASR human-authored track first, then fallback to any matching track
-        const match =
-            record.tracks.find((t) => {
-                const c = (t.languageCode || '').toLowerCase();
-                return (
-                    !t.isAsr && (c === targetCode || c.startsWith(targetPrefix))
-                );
-            }) ||
-            record.tracks.find((t) => {
-                const c = (t.languageCode || '').toLowerCase();
-                return c === targetCode || c.startsWith(targetPrefix);
-            });
-
-        if (!match) return;
-
-        record.isFetchingNativeTrack = true;
-        this.logger.info(
-            'YouTube-AI-Sub',
-            `Detected available native target track (${match.languageCode}) for ${videoId}. Proactively caching...`,
-        );
-
-        // Strategy A: Fetch direct baseUrl
-        if (match.baseUrl) {
-            try {
-                let fetchUrl = match.baseUrl;
-                if (!fetchUrl.includes('fmt=')) fetchUrl += '&fmt=json3';
-
-                const res = await fetch(fetchUrl);
-                if (res.ok) {
-                    const text = await res.text();
-                    if (text && text.length > 0) {
-                        this.handleInterceptedSubtitle(fetchUrl, text);
-                        record.nativeTrackCached = true;
-                        record.isFetchingNativeTrack = false;
-                        return;
-                    }
-                }
-            } catch (e) {
-                this.logger.debug(
-                    'YouTube-AI-Sub',
-                    'Direct baseUrl fetch failed, trying setOption:',
-                    e,
-                );
-            }
-        }
-
-        // Strategy B: Trigger native player track switch to force YouTube timedtext fetch & interception
-        this.triggerPlayerTrackSwitch(match.languageCode, record);
-    }
-
-    private triggerPlayerTrackSwitch(
-        targetLanguageCode: string,
-        record: YouTubeVideoTrackRecord,
-    ): void {
-        const player = this.getPlayerElement();
-        if (
-            !player ||
-            typeof player.setOption !== 'function' ||
-            typeof player.getOption !== 'function'
-        ) {
-            record.isFetchingNativeTrack = false;
-            return;
-        }
-
-        try {
-            const originalTrack = player.getOption('captions', 'track');
-            player.setOption('captions', 'track', {
-                languageCode: targetLanguageCode,
-            });
-
-            // After triggering network request, restore original user track after short tick
-            setTimeout(() => {
-                if (!originalTrack || !originalTrack.languageCode) {
-                    player.setOption('captions', 'track', {});
-                } else if (originalTrack.languageCode !== targetLanguageCode) {
-                    player.setOption('captions', 'track', originalTrack);
-                }
-                record.isFetchingNativeTrack = false;
-            }, 400);
-        } catch {
-            record.isFetchingNativeTrack = false;
-        }
-    }
-
-    // --- Content Script Message Communication ---
     private setupMessageListener(): void {
-        this.messageListener = (event: MessageEvent) => {
+        const handler = async (event: MessageEvent) => {
             if (event.source !== window || !event.data) return;
+            const data: InjectedIncomingEvent = event.data;
 
-            const type = event.data.type;
-            if (type === NCW_MESSAGE_TYPES.REQUEST_SUBTITLE_RETRY) {
+            // 8.1 Legacy Subtitle Retry (Backward Compatibility)
+            if (data.type === NCW_MESSAGE_TYPES.REQUEST_SUBTITLE_RETRY) {
                 this.handleRetryRequest();
-            } else if (type === NCW_MESSAGE_TYPES.QUERY_NATIVE_TRACK) {
-                this.handleQueryNativeTrack(
-                    event.data.movieId,
-                    event.data.targetLangCode,
-                );
-            } else if (type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
+            }
+
+            // 8.2 Legacy Request Metadata (Backward Compatibility)
+            if (data.type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
                 this.emitMetadataForCurrentVideo();
-            } else if (type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
-                const queryId = event.data.queryId;
-                const targetVid = event.data.movieId
-                    ? String(event.data.movieId)
-                    : this.getCurrentVideoId();
+            }
+
+            // 8.3 Tri-State Query Metadata (Type 2)
+            if (data.type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
+                const queryId = data.queryId;
+                const targetVid =
+                    data.movieId ||
+                    this.getCurrentVideoId();
 
                 const respond = (
                     status: 'resolved' | 'null' | 'undefined',
@@ -853,6 +667,7 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
                             type: NCW_MESSAGE_TYPES.QUERY_METADATA_RESULT,
                             queryId,
                             status,
+                            movieId: targetVid || undefined,
                             metadata,
                         },
                         '*',
@@ -871,19 +686,14 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
                 const player = this.getPlayerElement();
                 if (player && typeof player.getVideoData === 'function') {
                     try {
-                        const data = player.getVideoData();
-                        if (data) {
-                            if (
-                                data.video_id &&
-                                targetVid &&
-                                data.video_id !== targetVid
-                            ) {
-                                // Player has not yet switched to the requested video
+                        const vData = player.getVideoData();
+                        if (vData) {
+                            if (vData.video_id && vData.video_id !== targetVid) {
                                 respond('undefined');
                                 return;
                             }
-                            if (data.title) title = data.title;
-                            if (data.author) channelName = data.author;
+                            if (vData.title) title = vData.title;
+                            if (vData.author) channelName = vData.author;
                         }
                     } catch {}
                 }
@@ -893,8 +703,7 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
                     if (details.videoId === targetVid) {
                         if (details.title) title = details.title;
                         if (details.author) channelName = details.author;
-                        if (details.shortDescription)
-                            description = details.shortDescription;
+                        if (details.shortDescription) description = details.shortDescription;
                     }
                 }
 
@@ -911,20 +720,20 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
                         fullTitle: title,
                         videoId: targetVid,
                         showId: targetVid,
-                        showSummary: channelName
-                            ? `Channel: ${channelName}`
-                            : description || undefined,
+                        showSummary: channelName ? `Channel: ${channelName}` : description || undefined,
                     };
                     respond('resolved', meta);
                 } else {
                     respond('undefined');
                 }
-            } else if (type === NCW_MESSAGE_TYPES.QUERY_SUBTITLE) {
-                const queryId = event.data.queryId;
-                const requestedMid = event.data.movieId
-                    ? String(event.data.movieId)
-                    : null;
-                const targetVid = requestedMid || this.getCurrentVideoId();
+            }
+
+            // 8.4 Tri-State Query Subtitle (Type 2)
+            if (data.type === NCW_MESSAGE_TYPES.QUERY_SUBTITLE) {
+                const queryId = data.queryId;
+                const targetVid =
+                    data.movieId ||
+                    this.getCurrentVideoId();
 
                 const respond = (
                     status: 'resolved' | 'null' | 'undefined',
@@ -935,6 +744,7 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
                             type: NCW_MESSAGE_TYPES.QUERY_SUBTITLE_RESULT,
                             queryId,
                             status,
+                            movieId: targetVid || undefined,
                             rawText: payload?.rawText,
                             bcp: payload?.bcp,
                         },
@@ -947,72 +757,37 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
                     return;
                 }
 
-                const player = this.getPlayerElement();
-                if (player && typeof player.getVideoData === 'function') {
-                    try {
-                        const vData = player.getVideoData();
-                        if (vData?.video_id && vData.video_id !== targetVid) {
-                            respond('undefined');
-                            return;
-                        }
-                    } catch {
-                        // Ignore
-                    }
-                }
+                const result = await this.trackRegistry.getTrack(targetVid, this.getPlayerElement());
 
-                const record = this.getVideoRecord(targetVid);
-                this.refreshVideoTracks(targetVid, record);
-
-                if (record.tracks.length === 0) {
-                    respond('null');
-                    return;
-                }
-
-                const currentOpt =
-                    typeof player?.getOption === 'function'
-                        ? player.getOption('captions', 'track')
-                        : null;
-                const isCaptionsOff = !currentOpt || !currentOpt.languageCode;
-
-                if (isCaptionsOff) {
-                    respond('null');
-                    return;
-                }
-
-                const targetTrack =
-                    record.tracks.find(
-                        (t) => t.languageCode === currentOpt.languageCode,
-                    ) || record.tracks[0];
-                const cached =
-                    record.cachedSubtitles.get(targetTrack.languageCode) ||
-                    (record.activeTrackKey
-                        ? record.cachedSubtitles.get(record.activeTrackKey)
-                        : undefined);
-                if (cached && cached.rawText) {
+                if (result.status === 'resolved' && result.subtitle) {
                     respond('resolved', {
-                        rawText: cached.rawText,
-                        bcp: cached.languageCode,
+                        rawText: result.subtitle.rawText,
+                        bcp: result.subtitle.languageCode,
                     });
+                } else if (result.status === 'null') {
+                    respond('null');
                 } else {
-                    this.fetchAndCacheTrack(targetVid, record, targetTrack);
                     respond('undefined');
                 }
             }
+
+            // 8.5 Native Track Query
+            if (data.type === NCW_MESSAGE_TYPES.QUERY_NATIVE_TRACK) {
+                this.handleQueryNativeTrack(data.movieId, data.targetLangCode);
+            }
         };
-        window.addEventListener('message', this.messageListener);
+
+        window.addEventListener('message', handler);
+        this.cleanupMessageListener = () => {
+            window.removeEventListener('message', handler);
+        };
     }
 
     private handleRetryRequest(): void {
         const currentVideoId = this.getCurrentVideoId();
         if (!currentVideoId) return;
 
-        this.logger.info(
-            'YouTube-AI-Sub',
-            `Handling subtitle retry request for ${currentVideoId}`,
-        );
-        const record = this.getVideoRecord(currentVideoId);
-
-        // 1. If we have any cached subtitle for this video, re-emit immediately
+        const record = this.trackRegistry.getVideoRecord(currentVideoId);
         if (record.cachedSubtitles.size > 0) {
             const targetCached =
                 (record.activeTrackKey &&
@@ -1024,24 +799,21 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
             }
         }
 
-        // 2. Otherwise actively fetch from current track or first available caption track
-        this.refreshVideoTracks(currentVideoId, record);
+        this.trackRegistry.refreshVideoTracks(currentVideoId, this.getPlayerElement());
         if (record.tracks.length > 0) {
             const player = this.getPlayerElement();
             const current =
                 typeof player?.getOption === 'function'
-                    ? player.getOption('captions', 'track')
+                    ? (player.getOption('captions', 'track') as { languageCode?: string } | null)
                     : null;
             const targetTrack =
                 (current &&
                     current.languageCode &&
-                    record.tracks.find(
-                        (t) => t.languageCode === current.languageCode,
-                    )) ||
+                    record.tracks.find((t) => t.languageCode === current.languageCode)) ||
                 record.tracks[0];
 
             if (targetTrack) {
-                this.fetchAndCacheTrack(currentVideoId, record, targetTrack);
+                this.trackRegistry.fetchAndCacheTrack(currentVideoId, targetTrack);
             }
         }
     }
@@ -1056,91 +828,25 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
             return;
         }
 
-        const record = this.getVideoRecord(effectiveVideoId);
-        record.targetLangCode = targetLangCode;
-
-        // 1. Check if matching track is already cached in store
-        const targetNormalized = targetLangCode.toLowerCase().split('-')[0];
-        for (const [_, item] of record.cachedSubtitles.entries()) {
-            const c = item.languageCode.toLowerCase();
-            if (
-                c === targetLangCode.toLowerCase() ||
-                c.startsWith(targetNormalized)
-            ) {
-                this.sendNativeTrackFound(
-                    effectiveVideoId,
-                    item.languageCode,
-                    item.rawText,
-                    targetLangCode,
-                );
-                return;
-            }
-        }
-
-        // 2. Discover tracks and attempt direct fetch
-        this.refreshVideoTracks(effectiveVideoId, record);
-        const match =
-            record.tracks.find((t) => {
-                const c = (t.languageCode || '').toLowerCase();
-                return (
-                    !t.isAsr &&
-                    (c === targetLangCode.toLowerCase() ||
-                        c.startsWith(targetNormalized))
-                );
-            }) ||
-            record.tracks.find((t) => {
-                const c = (t.languageCode || '').toLowerCase();
-                return (
-                    c === targetLangCode.toLowerCase() ||
-                    c.startsWith(targetNormalized)
-                );
-            });
-
-        if (match && match.baseUrl) {
-            try {
-                let fetchUrl = match.baseUrl;
-                if (!fetchUrl.includes('fmt=')) fetchUrl += '&fmt=json3';
-
-                const res = await fetch(fetchUrl);
-                if (res.ok) {
-                    const text = await res.text();
-                    if (text && text.length > 0) {
-                        this.handleInterceptedSubtitle(fetchUrl, text);
-                        this.sendNativeTrackFound(
-                            effectiveVideoId,
-                            match.languageCode,
-                            text,
-                            targetLangCode,
-                        );
-                        return;
-                    }
-                }
-            } catch {}
-        }
-
-        // 3. Trigger native player caching if available
-        if (match) {
-            this.triggerPlayerTrackSwitch(match.languageCode, record);
-        }
-
-        this.sendNativeTrackNotFound(effectiveVideoId, targetLangCode);
-    }
-
-    private sendNativeTrackFound(
-        movieId: string,
-        bcp47: string,
-        rawText: string,
-        targetLangCode: string,
-    ): void {
-        const payload: InjectedNativeTrackDataPayload = {
-            type: NCW_MESSAGE_TYPES.NATIVE_TRACK_DATA,
-            movieId,
-            found: true,
-            bcp47,
-            rawText,
+        const cached = await this.trackRegistry.checkAndCacheNativeTargetTrack(
+            effectiveVideoId,
             targetLangCode,
-        };
-        window.postMessage(payload, '*');
+            this.getPlayerElement(),
+        );
+
+        if (cached && cached.rawText) {
+            const payload: InjectedNativeTrackDataPayload = {
+                type: NCW_MESSAGE_TYPES.NATIVE_TRACK_DATA,
+                movieId: effectiveVideoId,
+                found: true,
+                bcp47: cached.languageCode,
+                rawText: cached.rawText,
+                targetLangCode,
+            };
+            window.postMessage(payload, '*');
+        } else {
+            this.sendNativeTrackNotFound(effectiveVideoId, targetLangCode);
+        }
     }
 
     private sendNativeTrackNotFound(
@@ -1154,32 +860,5 @@ export class YouTubeInjectedAdapter implements IInjectedAdapter {
             targetLangCode,
         };
         window.postMessage(notFoundPayload, '*');
-    }
-
-    private getPlayerElement(): any {
-        return document.getElementById('movie_player') || window.ytplayer;
-    }
-
-    private extractVideoId(url: string = window.location.href): string | null {
-        if (!url) return null;
-        try {
-            const urlObj = new URL(url, window.location.origin);
-            const v = urlObj.searchParams.get('v');
-            if (v) return v;
-
-            const pathname = urlObj.pathname;
-            const shortsMatch = pathname.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
-            if (shortsMatch) return shortsMatch[1];
-
-            const embedMatch = pathname.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
-            if (embedMatch) return embedMatch[1];
-
-            const liveMatch = pathname.match(/\/live\/([a-zA-Z0-9_-]{11})/);
-            if (liveMatch) return liveMatch[1];
-        } catch {
-            const match = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-            if (match) return match[1];
-        }
-        return null;
     }
 }
