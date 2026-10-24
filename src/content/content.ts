@@ -407,8 +407,10 @@ const logger: Logger = new Logger('content');
         const newVid = adapter.extractVideoId(newUrl) || null;
         if (!newVid) {
             currentVideoId = null;
+            retryCount = 0;
+            lastParsedCues = null;
             stopSubtitlePolling();
-            subtitleManager.clearCues();
+            subtitleManager.onEpisodeChange(null);
             overlay.hide(true);
             await sendHeartbeat();
         } else if (newVid && newVid !== currentVideoId) {

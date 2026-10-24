@@ -456,8 +456,12 @@ export class SubtitleManager {
         this.pipeline.isTranslating = false;
         this.pipeline.isReviewing = false;
         this.pipeline.isPreReviewing = false;
+        this.syncer.stopRafLoop();
         this.syncer.reset();
         this.adDetector?.reset?.();
+        if (!newIdStr) {
+            this.currentRawLanguage = '';
+        }
 
         const isKnown = this.contextManager.isEpisodeOfCurrentShow(newIdStr);
         if (
