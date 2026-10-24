@@ -235,14 +235,6 @@ export class NetflixContentAdapter implements IStreamingAdapter {
                     : this.extractVideoId() || '';
                 callback({
                     movieId,
-                    cadmiumOffset:
-                        typeof event.data.cadmiumOffset === 'number'
-                            ? event.data.cadmiumOffset
-                            : undefined,
-                    adOffset:
-                        typeof event.data.adOffset === 'number'
-                            ? event.data.adOffset
-                            : undefined,
                 });
             }
         };

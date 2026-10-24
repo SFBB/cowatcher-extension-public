@@ -12,8 +12,6 @@ export class NetflixAdDetector implements IAdDetector {
     readonly onAdEnd: () => void;
     isAdPlaying: boolean = false;
     private messageListener: ((e: MessageEvent) => void) | null = null;
-    private adStartTime: number = 0;
-    private accumulatedAdOffset: number = 0;
 
     logger: Logger = new Logger('NetflixAdDetector');
 
@@ -44,8 +42,6 @@ export class NetflixAdDetector implements IAdDetector {
 
     reset(): void {
         this.isAdPlaying = false;
-        this.adStartTime = 0;
-        this.accumulatedAdOffset = 0;
     }
 
     private setAuthoritativeAdState(isAd: boolean): void {
@@ -53,7 +49,6 @@ export class NetflixAdDetector implements IAdDetector {
 
         if (isAd) {
             this.isAdPlaying = true;
-            this.adStartTime = Date.now();
             this.logger.info(
                 'Netflix-Ad',
                 'Player API reported Ad start. Hiding subtitles.',
@@ -69,14 +64,9 @@ export class NetflixAdDetector implements IAdDetector {
             }
         } else {
             this.isAdPlaying = false;
-            const durationSec =
-                this.adStartTime > 0
-                    ? (Date.now() - this.adStartTime) / 1000
-                    : 0;
-            this.accumulatedAdOffset += durationSec;
             this.logger.info(
                 'Netflix-Ad',
-                `Player API reported Ad end (${durationSec.toFixed(1)}s). Total ad offset: ${this.accumulatedAdOffset.toFixed(1)}s. Resuming subtitles.`,
+                'Player API reported Ad end. Resuming subtitles.',
             );
             try {
                 this.onAdEnd();

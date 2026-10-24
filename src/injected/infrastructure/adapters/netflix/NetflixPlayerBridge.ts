@@ -134,7 +134,11 @@ export class NetflixPlayerBridge {
 
     getSegmentTime(targetMovieId?: string): number {
         const player = this.getActivePlayer(targetMovieId);
-        return player ? player.getSegmentTime() : 0;
+        if (!player) return 0;
+        const rawTime = player.getSegmentTime();
+        return typeof rawTime === 'number' && !isNaN(rawTime)
+            ? Math.max(0, rawTime / 1000)
+            : 0;
     }
 
     isPaused(targetMovieId?: string): boolean {
@@ -144,7 +148,11 @@ export class NetflixPlayerBridge {
 
     isAd(targetMovieId?: string): boolean {
         const player = this.getActivePlayer(targetMovieId);
-        return player ? player.isAd() : false;
+        return player
+            ? typeof player.isAd === 'function'
+                ? Boolean(player.isAd())
+                : false
+            : false;
     }
 
     getPlaybackRate(targetMovieId?: string): number {
@@ -240,7 +248,11 @@ export class NetflixPlayerBridge {
         if (!observedPlayer) return;
 
         this.checkAdState(observedPlayer);
-        if (observedPlayer.isAd()) return;
+        const isAd =
+            typeof observedPlayer.isAd === 'function'
+                ? Boolean(observedPlayer.isAd())
+                : false;
+        if (isAd) return;
 
         // Detect player-driven episode changes (e.g. continuous autoplay)
         this.checkEpisodeChange(observedPlayer);
@@ -250,7 +262,8 @@ export class NetflixPlayerBridge {
     }
 
     private checkAdState(player: NetflixPlayer): void {
-        const isAd = player.isAd();
+        const isAd =
+            typeof player.isAd === 'function' ? Boolean(player.isAd()) : false;
         if (isAd !== this.lastObservedAdState) {
             this.lastObservedAdState = isAd;
             const movieId = String(player.getMovieId());
@@ -294,7 +307,11 @@ export class NetflixPlayerBridge {
     }
 
     private dispatchTimeSync(player: NetflixPlayer): void {
-        const segmentTime = player.getSegmentTime();
+        const rawSegmentTime = player.getSegmentTime();
+        const segmentTime =
+            typeof rawSegmentTime === 'number' && !isNaN(rawSegmentTime)
+                ? Math.max(0, rawSegmentTime / 1000)
+                : 0;
         const movieId = String(player.getMovieId());
         this.handlers.onTimeSync?.({
             movieId,
