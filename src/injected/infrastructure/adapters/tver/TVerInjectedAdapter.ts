@@ -1,52 +1,47 @@
-import { IInjectedAdapter } from '../../../domain/IInjectedAdapter';
+import {
+    IInjectedAdapter,
+    InjectedIncomingEvent,
+    InjectedMetadataLoadedPayload,
+} from '../../../domain/IInjectedAdapter';
 import { VideoMetadata } from '../../../../content/domain/adapters/IStreamingAdapter';
 import {
     STREAMING_PLATFORMS,
     StreamingPlatformId,
 } from '@shared/domain/constants/StreamingPlatforms';
 import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
+import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPayload';
 import { Logger } from '@shared/utils/logger';
-
-declare global {
-    interface Window {
-        streaksplayer?: {
-            getPlayers: () => Record<string, any>;
-        };
-        __NCW_TVER_INTERCEPTOR_INITIALIZED__?: boolean;
-        __NCW_TVER_CAPTURED_TOKEN__?: {
-            token: string;
-            uid?: string;
-            capturedAt?: number;
-        };
-    }
-}
+import { TVerTrackRegistry } from './TVerTrackRegistry';
+import { TVerMetadataManager } from './TVerMetadataManager';
+import { TVerStreaksPlayer, TVerTextTrackLike } from './TVerTypes';
 
 export class TVerInjectedAdapter implements IInjectedAdapter {
     readonly platformId: StreamingPlatformId = STREAMING_PLATFORMS.TVER;
     private readonly logger: Logger = new Logger('TVerInjectedAdapter');
 
-    private lastEmittedSignature: string = '';
-    private lastInterceptedSubtitle: {
-        episodeId: string | null;
-        url: string;
-        text: string;
-        lang: string;
-        timestamp: number;
-    } | null = null;
+    private readonly trackRegistry: TVerTrackRegistry;
+    private readonly metadataManager: TVerMetadataManager;
 
-    private lastReportedUrl: string = '';
+    private lastEmittedSignature = '';
+    private lastReportedUrl = '';
     private lastObservedEpisodeId: string | null = null;
-    private lastTrackState: string = '';
-    private lastAdState: boolean = false;
+    private lastTrackState = '';
+    private lastAdState = false;
     private lastReportedTime: number | null = null;
-    private lastTimeUpdateSync: number = 0;
-    private pollIntervalId: NodeJS.Timeout | number | null = null;
-    private messageListener: ((e: MessageEvent) => void) | null = null;
+    private lastTimeUpdateSync = 0;
 
-    private capturedToken: string | null = null;
-    private capturedUid: string | null = null;
-    private hasFetchedSeriesMetadata: Set<string> = new Set();
-    private lastMetaPayload: any = null;
+    private pollIntervalId: ReturnType<typeof setInterval> | null = null;
+
+    // Lifecycle cleanups
+    private unhookNetwork?: () => void;
+    private unhookRouting?: () => void;
+    private unhookPlayerEvents?: () => void;
+    private cleanupMessageListener?: () => void;
+
+    constructor() {
+        this.trackRegistry = new TVerTrackRegistry();
+        this.metadataManager = new TVerMetadataManager();
+    }
 
     matches(url: string): boolean {
         return /tver\.jp/i.test(url);
@@ -57,27 +52,25 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
         window.__NCW_TVER_INTERCEPTOR_INITIALIZED__ = true;
 
         this.lastReportedUrl = window.location.href;
-        this.lastObservedEpisodeId = this.extractEpisodeId(
-            window.location.href,
-        );
+        this.lastObservedEpisodeId = this.extractEpisodeId(window.location.href);
 
         this.logger.info(
             'TVer-AI-Sub',
             'Initializing TVer Injected Adapter in MAIN world.',
         );
 
-        this.hookNetwork();
-        this.hookRouting();
-        this.hookPlayerEvents();
+        this.setupNetworkInterceptor();
+        this.setupRouteMonitoring();
+        this.setupPlayerEventHooks();
         this.setupMessageListener();
 
-        // Start background sync polling
+        // Background state sync polling
         this.pollIntervalId = setInterval(() => {
             this.notifyUrlChange();
             this.checkTVerPlayerState();
         }, 500);
 
-        // Initial check
+        // Initial bootstrapping
         setTimeout(() => {
             this.checkTVerPlayerState();
             this.tryExtractFromTextTracks();
@@ -89,13 +82,24 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
             clearInterval(this.pollIntervalId);
             this.pollIntervalId = null;
         }
-        if (this.messageListener) {
-            window.removeEventListener('message', this.messageListener);
-            this.messageListener = null;
-        }
+
+        this.cleanupMessageListener?.();
+        this.unhookRouting?.();
+        this.unhookPlayerEvents?.();
+        this.unhookNetwork?.();
+
+        this.trackRegistry.clear();
+        this.metadataManager.clear();
+        PlaybackDatasetHelper.clear();
+
+        window.__NCW_TVER_INTERCEPTOR_INITIALIZED__ = false;
+        this.logger.info('TVer-AI-Sub', 'TVerInjectedAdapter destroyed and cleaned up.');
     }
 
-    // --- Helpers ---
+    // --------------------------------------------------------------------------
+    // 1. Helpers & Extraction
+    // --------------------------------------------------------------------------
+
     private extractEpisodeId(url?: string): string | null {
         const match = (url || window.location.href || '').match(
             /\/episodes\/([a-zA-Z0-9_-]+)/,
@@ -103,61 +107,26 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
         return match ? match[1] : null;
     }
 
-    private isSubtitleContent(text: string): boolean {
-        if (!text || typeof text !== 'string') return false;
-        const clean = text.replace(/^\uFEFF/, '').trim();
-        const snippet = clean.slice(0, 2000);
-
-        if (
-            snippet.startsWith('WEBVTT') ||
-            snippet.includes('WEBVTT') ||
-            snippet.includes('-->')
-        ) {
-            return true;
-        }
-        if (
-            snippet.includes('<tt') ||
-            snippet.includes('<timedtext') ||
-            snippet.includes('begin="')
-        ) {
-            return true;
-        }
-        return false;
+    private getVideoElement(): HTMLVideoElement | null {
+        return (
+            (document.getElementById('video-player') as HTMLVideoElement | null) ||
+            document.querySelector('video')
+        );
     }
 
-    private formatVttTime(seconds: number): string {
-        if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0)
-            seconds = 0;
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = seconds % 60;
-        const pad = (n: number | string, z = 2) => String(n).padStart(z, '0');
-        return `${pad(h)}:${pad(m)}:${pad(s.toFixed(3), 6)}`;
-    }
-
-    private textTrackToWebVTT(track: any): string | null {
-        const cues = track?.cues_ || track?.cues;
-        if (!cues || cues.length === 0) return null;
-
-        let out = 'WEBVTT\n\n';
-        for (let i = 0; i < cues.length; i++) {
-            const cue = cues[i];
-            if (
-                typeof cue.startTime !== 'number' ||
-                typeof cue.endTime !== 'number'
-            )
-                continue;
-            const start = this.formatVttTime(cue.startTime);
-            const end = this.formatVttTime(cue.endTime);
-            const text =
-                cue.text ||
-                cue.rawText ||
-                cue.getCueAsHTML?.()?.textContent ||
-                '';
-            if (!text.trim()) continue;
-            out += `${i + 1}\n${start} --> ${end}\n${text.trim()}\n\n`;
+    private getTVerPlayer(): TVerStreaksPlayer | null {
+        try {
+            const video = this.getVideoElement() as any;
+            if (!video) return null;
+            const players = window.streaksplayer?.getPlayers?.() || {};
+            return (
+                (video.playerId && players[video.playerId]) ||
+                Object.values(players)[0] ||
+                null
+            );
+        } catch {
+            return null;
         }
-        return out.length > 20 ? out : null;
     }
 
     private emitSubtitleData(
@@ -172,14 +141,6 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
 
             const currentActiveId = this.extractEpisodeId(window.location.href);
             const effectiveId = explicitEpisodeId || currentActiveId;
-
-            this.lastInterceptedSubtitle = {
-                episodeId: effectiveId,
-                url: url || window.location.href,
-                text,
-                lang: explicitLang || 'ja',
-                timestamp: Date.now(),
-            };
 
             const signature = `${effectiveId || ''}_${text.length}_${text.slice(0, 80)}_${text.slice(-80)}`;
             if (!force && signature === this.lastEmittedSignature) {
@@ -204,301 +165,400 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                 `Emitted subtitle payload for episode (${effectiveId || 'active'}), length: ${text.length}`,
             );
         } catch (e) {
-            this.logger.error(
-                'TVer-AI-Sub',
-                'Failed to post subtitle message:',
-                e,
-            );
+            this.logger.error('TVer-AI-Sub', 'Failed to post subtitle message:', e);
         }
     }
 
-    // --- Network Interceptor (Fetch & XHR) ---
-    private hookNetwork(): void {
-        const originalFetch = window.fetch;
-        const self = this;
+    // --------------------------------------------------------------------------
+    // 2. Network Interceptor (Fetch & XHR) with Full Teardown
+    // --------------------------------------------------------------------------
 
-        window.fetch = async function (...args: any[]) {
-            const response = await (originalFetch as any).apply(this, args);
+    private setupNetworkInterceptor(): void {
+        const originalFetch = window.fetch;
+        const origOpen = XMLHttpRequest.prototype.open;
+        const origSend = XMLHttpRequest.prototype.send;
+        const xhrUrlMap = new WeakMap<XMLHttpRequest, string>();
+
+        window.fetch = async (...args: Parameters<typeof originalFetch>) => {
+            const response = await (originalFetch as (...a: unknown[]) => Promise<Response>).apply(window, args);
             try {
                 const rawUrl =
                     typeof args[0] === 'string'
                         ? args[0]
-                        : args[0]?.url || response.url || '';
-                const url = rawUrl.toLowerCase();
+                        : (args[0] as Request)?.url || response.url || '';
+                const lowerUrl = rawUrl.toLowerCase();
 
-                // 1. Intercept platform_token & platform_uid from API queries
-                if (url.includes('platform_token=')) {
+                // 1. Intercept platform_token & platform_uid
+                if (lowerUrl.includes('platform_token=')) {
                     try {
                         const u = new URL(rawUrl, window.location.href);
                         const token = u.searchParams.get('platform_token');
                         const uid = u.searchParams.get('platform_uid');
                         if (token) {
-                            self.capturedToken = token;
-                            if (uid) self.capturedUid = uid;
-                            window.__NCW_TVER_CAPTURED_TOKEN__ = {
-                                token,
-                                uid: uid || undefined,
-                                capturedAt: Date.now(),
-                            };
-                            self.logger.info(
-                                'TVer-AI-Sub',
-                                `Captured platform_token (${token.slice(0, 8)}...)`,
-                            );
-                            self.triggerMetadataFetchIfReady();
+                            this.metadataManager.setCapturedToken(token, uid || undefined);
+                            this.triggerMetadataFetchIfReady();
                         }
-                    } catch {
-                        // Ignore URL parsing errors
-                    }
+                    } catch {}
                 }
 
-                // 2. Intercept series episodes response directly if TVer requested it
-                if (url.includes('/callseriesepisodes/')) {
+                // 2. Intercept series episodes response directly
+                if (lowerUrl.includes('/callseriesepisodes/')) {
                     const clone = response.clone();
                     clone
                         .json()
-                        .then((data: any) => {
-                            self.handleSeriesEpisodesResponse(data);
+                        .then((data: unknown) => {
+                            this.handleSeriesEpisodesApiResponse(data);
                         })
                         .catch(() => {});
                 }
 
-                // 3. Intercept subtitle files (.vtt, .ttml, etc.) - Ignore thumbnails!
+                // 3. Intercept subtitle files (.vtt, .ttml, etc.)
                 const isCandidate =
-                    !url.includes('thumbnail') &&
-                    (url.includes('.vtt') ||
-                        url.includes('webvtt') ||
-                        url.includes('.ttml') ||
-                        url.includes('arib') ||
-                        url.includes('subtitles') ||
-                        url.includes('caption') ||
-                        url.includes('track/'));
+                    !lowerUrl.includes('thumbnail') &&
+                    (lowerUrl.includes('.vtt') ||
+                        lowerUrl.includes('webvtt') ||
+                        lowerUrl.includes('.ttml') ||
+                        lowerUrl.includes('arib') ||
+                        lowerUrl.includes('subtitles') ||
+                        lowerUrl.includes('caption') ||
+                        lowerUrl.includes('track/'));
 
                 if (isCandidate) {
                     const clone = response.clone();
                     clone
                         .text()
                         .then((text: string) => {
-                            if (self.isSubtitleContent(text)) {
-                                self.emitSubtitleData(rawUrl, text);
+                            if (TVerTrackRegistry.isSubtitleContent(text)) {
+                                const epId = this.extractEpisodeId(window.location.href);
+                                const detail = this.trackRegistry.addInterceptedTrack(
+                                    rawUrl,
+                                    text,
+                                    epId,
+                                    'ja',
+                                );
+                                if (detail) {
+                                    this.emitSubtitleData(rawUrl, text, false, detail.episodeId);
+                                }
                             }
                         })
                         .catch(() => {});
                 }
-            } catch {
-                // Never break page requests
-            }
+            } catch {}
             return response;
         };
 
-        // XHR Hook
-        const origOpen = XMLHttpRequest.prototype.open;
-        const origSend = XMLHttpRequest.prototype.send;
+        const onXhrLoad = (xhr: XMLHttpRequest) => {
+            try {
+                const rawUrl = xhrUrlMap.get(xhr) || xhr.responseURL || '';
+                const lowerUrl = rawUrl.toLowerCase();
+
+                // Token detection
+                if (lowerUrl.includes('platform_token=')) {
+                    try {
+                        const u = new URL(rawUrl, window.location.href);
+                        const token = u.searchParams.get('platform_token');
+                        const uid = u.searchParams.get('platform_uid');
+                        if (token) {
+                            this.metadataManager.setCapturedToken(token, uid || undefined);
+                            this.triggerMetadataFetchIfReady();
+                        }
+                    } catch {}
+                }
+
+                // Series episodes JSON
+                if (lowerUrl.includes('/callseriesepisodes/')) {
+                    try {
+                        const text = xhr.responseText;
+                        if (text) {
+                            const data = JSON.parse(text);
+                            this.handleSeriesEpisodesApiResponse(data);
+                        }
+                    } catch {}
+                }
+
+                // Subtitle text
+                if (!lowerUrl.includes('thumbnail')) {
+                    const text = xhr.responseText;
+                    if (
+                        typeof text === 'string' &&
+                        TVerTrackRegistry.isSubtitleContent(text)
+                    ) {
+                        const epId = this.extractEpisodeId(window.location.href);
+                        const detail = this.trackRegistry.addInterceptedTrack(
+                            rawUrl,
+                            text,
+                            epId,
+                            'ja',
+                        );
+                        if (detail) {
+                            this.emitSubtitleData(rawUrl, text, false, detail.episodeId);
+                        }
+                    }
+                }
+            } catch {}
+        };
 
         XMLHttpRequest.prototype.open = function (
-            this: any,
+            this: XMLHttpRequest,
             method: string,
             url: string | URL,
             ...rest: any[]
         ) {
-            this._ncw_url = typeof url === 'string' ? url : url.href;
+            const urlStr = typeof url === 'string' ? url : url.href;
+            xhrUrlMap.set(this, urlStr);
             return origOpen.apply(this, [method, url, ...rest] as any);
         };
 
-        XMLHttpRequest.prototype.send = function (this: any, ...args: any[]) {
-            this.addEventListener(
-                'load',
-                () => {
-                    try {
-                        const rawUrl = this._ncw_url || this.responseURL || '';
-                        const url = rawUrl.toLowerCase();
+        XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, ...args: any[]) {
+            this.addEventListener('load', () => onXhrLoad(this), { passive: true });
+            return origSend.apply(this, args as any);
+        };
 
-                        // Token detection
-                        if (url.includes('platform_token=')) {
-                            try {
-                                const u = new URL(rawUrl, window.location.href);
-                                const token =
-                                    u.searchParams.get('platform_token');
-                                const uid = u.searchParams.get('platform_uid');
-                                if (token) {
-                                    self.capturedToken = token;
-                                    if (uid) self.capturedUid = uid;
-                                    window.__NCW_TVER_CAPTURED_TOKEN__ = {
-                                        token,
-                                        uid: uid || undefined,
-                                        capturedAt: Date.now(),
-                                    };
-                                    self.triggerMetadataFetchIfReady();
-                                }
-                            } catch {}
-                        }
-
-                        // Series episodes JSON
-                        if (url.includes('/callseriesepisodes/')) {
-                            try {
-                                const text = this.responseText;
-                                if (text) {
-                                    const data = JSON.parse(text);
-                                    self.handleSeriesEpisodesResponse(data);
-                                }
-                            } catch {}
-                        }
-
-                        // Subtitle text
-                        if (!url.includes('thumbnail')) {
-                            const text = this.responseText;
-                            if (
-                                typeof text === 'string' &&
-                                self.isSubtitleContent(text)
-                            ) {
-                                self.emitSubtitleData(rawUrl, text);
-                            }
-                        }
-                    } catch {}
-                },
-                { passive: true },
-            );
-            return (origSend as any).apply(this, args);
+        this.unhookNetwork = () => {
+            window.fetch = originalFetch;
+            XMLHttpRequest.prototype.open = origOpen;
+            XMLHttpRequest.prototype.send = origSend;
         };
     }
 
-    // --- TVer Player Hook ---
-    private getTVerPlayer(): any {
-        try {
-            const video =
-                (document.getElementById('video-player') as any) ||
-                (document.querySelector('video') as any);
-            if (!video) return null;
-            const players = window.streaksplayer?.getPlayers?.() || {};
-            return (
-                (video.playerId && players[video.playerId]) ||
-                Object.values(players)[0] ||
-                null
+    // --------------------------------------------------------------------------
+    // 3. SPA Route Observer & History Hooks with Full Teardown
+    // --------------------------------------------------------------------------
+
+    private setupRouteMonitoring(): void {
+        const origPushState = history.pushState;
+        const origReplaceState = history.replaceState;
+
+        const notify = () => this.notifyUrlChange();
+
+        history.pushState = function (...args: any[]) {
+            const res = origPushState.apply(this, args as any);
+            notify();
+            return res;
+        };
+
+        history.replaceState = function (...args: any[]) {
+            const res = origReplaceState.apply(this, args as any);
+            notify();
+            return res;
+        };
+
+        const popstateHandler = () => notify();
+        window.addEventListener('popstate', popstateHandler);
+
+        this.unhookRouting = () => {
+            history.pushState = origPushState;
+            history.replaceState = origReplaceState;
+            window.removeEventListener('popstate', popstateHandler);
+        };
+    }
+
+    private notifyUrlChange(): void {
+        const current = window.location.href;
+        if (current !== this.lastReportedUrl) {
+            this.lastReportedUrl = current;
+            this.lastEmittedSignature = '';
+
+            const newEpId = this.extractEpisodeId(current);
+            if (newEpId && newEpId !== this.lastObservedEpisodeId) {
+                this.lastObservedEpisodeId = newEpId;
+                this.lastTrackState = '';
+
+                window.postMessage(
+                    {
+                        type: NCW_MESSAGE_TYPES.EPISODE_CHANGED,
+                        movieId: newEpId,
+                        url: current,
+                    },
+                    '*',
+                );
+
+                this.triggerMetadataFetchIfReady();
+                setTimeout(() => this.tryExtractFromTextTracks(true), 600);
+            }
+
+            window.postMessage(
+                {
+                    type: NCW_MESSAGE_TYPES.URL_CHANGED,
+                    url: current,
+                },
+                '*',
             );
-        } catch {
-            return null;
         }
     }
 
-    /**
-     * Extract subtitle from StreaksPlayer textTracks().tracks_
-     */
-    private tryExtractFromTextTracks(
-        force = false,
-        targetTrack?: any,
-        targetIndex?: number,
-    ): boolean {
+    // --------------------------------------------------------------------------
+    // 4. Player Event Hooks & Teardown
+    // --------------------------------------------------------------------------
+
+    private setupPlayerEventHooks(): void {
+        const onStateChange = () => setTimeout(() => this.checkTVerPlayerState(), 50);
+        const playerEvents = ['seeked', 'playing', 'pause', 'ratechange'] as const;
+
+        playerEvents.forEach((evt) => {
+            window.addEventListener(evt, onStateChange, {
+                capture: true,
+                passive: true,
+            });
+        });
+
+        const onTimeUpdate = () => {
+            const now = performance.now();
+            if (now - this.lastTimeUpdateSync > 250) {
+                this.lastTimeUpdateSync = now;
+                this.checkTVerPlayerState();
+            }
+        };
+        window.addEventListener('timeupdate', onTimeUpdate, {
+            capture: true,
+            passive: true,
+        });
+
+        this.unhookPlayerEvents = () => {
+            playerEvents.forEach((evt) => {
+                window.removeEventListener(evt, onStateChange, { capture: true } as any);
+            });
+            window.removeEventListener('timeupdate', onTimeUpdate, { capture: true } as any);
+        };
+    }
+
+    // --------------------------------------------------------------------------
+    // 5. State Synchronization (Type 4 Dataset + Type 3 Events)
+    // --------------------------------------------------------------------------
+
+    private checkTVerPlayerState(): void {
         try {
-            const video =
-                (document.getElementById('video-player') as any) ||
-                (document.querySelector('video') as any);
+            const video = this.getVideoElement();
             const player = this.getTVerPlayer();
+            const currentEpId =
+                this.lastObservedEpisodeId || this.extractEpisodeId(window.location.href) || '';
 
-            const trackList =
-                (player && typeof player.textTracks === 'function'
-                    ? player.textTracks()?.tracks_ || player.textTracks()
-                    : null) ||
-                (video && video.textTracks ? video.textTracks : null);
+            // 1. Authoritative Ad Break Detection
+            let isAd = false;
+            if (player) {
+                if (typeof player.inAdBreak === 'function') {
+                    isAd = Boolean(player.inAdBreak());
+                } else if (typeof player.isInAdMode === 'function') {
+                    isAd = Boolean(player.isInAdMode());
+                } else if (typeof player.isInPreroll === 'function') {
+                    isAd = Boolean(player.isInPreroll());
+                }
+                if (!isAd && typeof player.currentAd === 'function' && player.currentAd()) {
+                    isAd = true;
+                }
+            }
+            if (!isAd) {
+                const activeAdEl = document.querySelector(
+                    '.vjs-ad-playing, .vjs-ad-loading',
+                );
+                if (activeAdEl && (activeAdEl as HTMLElement).offsetParent !== null) {
+                    isAd = true;
+                }
+            }
 
-            if (!trackList || trackList.length === 0) return false;
+            if (isAd !== this.lastAdState) {
+                this.lastAdState = isAd;
+                this.logger.info('TVer-AI-Sub', `TVer Ad State changed: ${isAd} for movie ${currentEpId}`);
+                window.postMessage(
+                    {
+                        type: NCW_MESSAGE_TYPES.AD_STATE_CHANGED,
+                        isAd,
+                        movieId: currentEpId || undefined,
+                    },
+                    '*',
+                );
+            }
 
-            const candidates: any[] = [];
+            if (isAd) return;
 
-            if (targetTrack) {
-                const cues = targetTrack.cues_ || targetTrack.cues;
-                const cueCount = cues && cues.length ? cues.length : 0;
-                candidates.push({
-                    track: targetTrack,
-                    src: targetTrack.src || '',
-                    cueCount,
-                    index: targetIndex ?? 0,
+            // 2. Playback Presentation Time Synchronization (Type 4 Dataset)
+            if (video && currentEpId) {
+                let curTime = 0;
+                if (player && typeof player.currentContentTime === 'function') {
+                    try {
+                        const t = player.currentContentTime();
+                        if (typeof t === 'number' && !isNaN(t) && t >= 0) curTime = t;
+                    } catch {}
+                }
+                if (!curTime && player && typeof player.currentTime === 'function') {
+                    try {
+                        const t = player.currentTime();
+                        if (typeof t === 'number' && !isNaN(t) && t >= 0) curTime = t;
+                    } catch {}
+                }
+                if (!curTime && typeof video.currentTime === 'number') {
+                    curTime = video.currentTime;
+                }
+
+                const isPaused = video.paused;
+                const playbackRate = video.playbackRate || 1.0;
+                const nowPerf = performance.now();
+
+                // 2.1 Authoritative Type 4 DOM Dataset write
+                PlaybackDatasetHelper.write({
+                    movieId: currentEpId,
+                    currentTime: curTime,
+                    syncAt: nowPerf,
+                    isPaused,
+                    playbackRate,
                 });
-            } else {
-                for (let i = 0; i < trackList.length; i++) {
-                    const track = trackList[i];
-                    if (!track) continue;
 
-                    const src = (track.src || '').toLowerCase();
-                    if (src.includes('thumbnail')) continue;
-
-                    const kind = (track.kind || '').toLowerCase();
-                    if (kind === 'metadata' || kind === 'chapters') continue;
-
-                    const cues = track.cues_ || track.cues;
-                    const cueCount = cues && cues.length ? cues.length : 0;
-
-                    candidates.push({
-                        track,
-                        src: track.src || '',
-                        cueCount,
-                        index: i,
-                    });
-                }
-                candidates.sort((a, b) => b.cueCount - a.cueCount);
-            }
-
-            for (const item of candidates) {
-                const { track, src, cueCount, index } = item;
-                if (cueCount > 0) {
-                    const vtt = this.textTrackToWebVTT(track);
-                    if (vtt && vtt.length > 20) {
-                        const trackId = `track_${track.label || track.language || index}`;
-                        this.emitSubtitleData(
-                            trackId,
-                            vtt,
-                            force,
-                            null,
-                            track.language || 'ja',
-                        );
-                        return true;
-                    }
-                } else if (src) {
-                    fetch(src)
-                        .then((r) => r.arrayBuffer())
-                        .then((buf) => {
-                            const text = new TextDecoder('utf-8').decode(buf);
-                            if (this.isSubtitleContent(text)) {
-                                this.emitSubtitleData(
-                                    src,
-                                    text,
-                                    force,
-                                    null,
-                                    track.language || 'ja',
-                                );
-                            }
-                        })
-                        .catch(() => {});
+                // 2.2 Low-frequency event sync when time shifts significantly
+                if (
+                    this.lastReportedTime === null ||
+                    Math.abs(curTime - this.lastReportedTime) > 0.5
+                ) {
+                    this.lastReportedTime = curTime;
+                    window.postMessage(
+                        {
+                            type: NCW_MESSAGE_TYPES.TIME_SYNC,
+                            movieId: currentEpId,
+                            segmentTime: curTime,
+                            syncAt: nowPerf,
+                            isPaused,
+                            playbackRate,
+                            cadmiumOffset: 0,
+                            adOffset: 0,
+                        },
+                        '*',
+                    );
                 }
             }
-        } catch (e) {
-            this.logger.warn(
-                'TVer-AI-Sub',
-                'Error in tryExtractFromTextTracks:',
-                e,
-            );
-        }
-        return false;
+
+            // Check metadata trigger
+            this.triggerMetadataFetchIfReady();
+
+            // Check text track changes
+            this.checkTVerTextTracks();
+
+            // Attempt initial extraction if not yet cached
+            if (currentEpId && !this.trackRegistry.getCachedTrack(currentEpId)) {
+                this.tryExtractFromTextTracks();
+            }
+        } catch {}
     }
 
     private checkTVerTextTracks(): void {
         try {
-            const video =
-                (document.getElementById('video-player') as any) ||
-                (document.querySelector('video') as any);
+            const video = this.getVideoElement();
             const player = this.getTVerPlayer();
 
-            const trackList =
-                (player && typeof player.textTracks === 'function'
-                    ? player.textTracks()?.tracks_ || player.textTracks()
-                    : null) ||
-                (video && video.textTracks ? video.textTracks : null);
+            const rawTrackList = (
+                player && typeof player.textTracks === 'function'
+                    ? (player.textTracks() as { tracks_?: TVerTextTrackLike[] })?.tracks_ || player.textTracks()
+                    : video && video.textTracks ? video.textTracks : null
+            ) as ArrayLike<TVerTextTrackLike> | null;
 
-            if (!trackList || trackList.length === 0) return;
+            if (!rawTrackList) return;
 
-            let activeTrack: any = null;
+            const length = typeof rawTrackList.length === 'number' ? rawTrackList.length : 0;
+            if (length === 0) return;
+
+            let activeTrack: TVerTextTrackLike | null = null;
             let activeTrackIndex = -1;
 
-            for (let i = 0; i < trackList.length; i++) {
-                const track = trackList[i];
+            for (let i = 0; i < length; i++) {
+                const track = rawTrackList[i];
                 if (!track) continue;
 
                 const src = (track.src || '').toLowerCase();
@@ -514,7 +574,8 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                 }
             }
 
-            const currentEpId = this.extractEpisodeId(window.location.href);
+            const currentEpId =
+                this.lastObservedEpisodeId || this.extractEpisodeId(window.location.href) || '';
 
             if (activeTrack) {
                 const trackSig = String(
@@ -529,18 +590,13 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                         `Subtitle track changed on TVer: "${this.lastTrackState}" -> "${trackSig}". Extracting...`,
                     );
                     this.lastTrackState = trackSig;
-                    this.tryExtractFromTextTracks(
-                        true,
-                        activeTrack,
-                        activeTrackIndex,
-                    );
+                    this.tryExtractFromTextTracks(true);
                 }
             } else {
-                // No showing track -> OFF
                 if (this.lastTrackState && this.lastTrackState !== '__OFF__') {
                     this.logger.info(
                         'TVer-AI-Sub',
-                        `All subtitle tracks disabled on TVer. Posting SUBTITLE_OFF.`,
+                        'All subtitle tracks disabled on TVer. Posting SUBTITLE_OFF.',
                     );
                     this.lastTrackState = '__OFF__';
                     window.postMessage(
@@ -558,388 +614,133 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
         }
     }
 
-    // --- Player State & Time Synchronization ---
-    private checkTVerPlayerState(): void {
-        try {
-            const video =
-                (document.getElementById('video-player') as HTMLVideoElement) ||
-                document.querySelector('video');
-            const player = this.getTVerPlayer();
+    private tryExtractFromTextTracks(force = false): boolean {
+        const currentEpId =
+            this.lastObservedEpisodeId || this.extractEpisodeId(window.location.href);
+        if (!currentEpId) return false;
 
-            // 1. Authoritative Ad Break Detection (StreaksPlayer native methods)
-            let isAd = false;
-            if (player) {
-                if (typeof player.inAdBreak === 'function') {
-                    isAd = Boolean(player.inAdBreak());
-                } else if (typeof player.isInAdMode === 'function') {
-                    isAd = Boolean(player.isInAdMode());
-                } else if (typeof player.isInPreroll === 'function') {
-                    isAd = Boolean(player.isInPreroll());
-                }
-                if (
-                    !isAd &&
-                    typeof player.currentAd === 'function' &&
-                    player.currentAd()
-                ) {
-                    isAd = true;
-                }
-            }
-            if (!isAd) {
-                // Only active/visible ad playing markers (NOT static containers)
-                const activeAdEl = document.querySelector(
-                    '.vjs-ad-playing, .vjs-ad-loading',
-                );
-                if (
-                    activeAdEl &&
-                    (activeAdEl as HTMLElement).offsetParent !== null
-                ) {
-                    isAd = true;
-                }
-            }
-
-            if (isAd !== this.lastAdState) {
-                this.lastAdState = isAd;
-                this.logger.info(
-                    'TVer-AI-Sub',
-                    `TVer Ad State changed: ${isAd}`,
-                );
-                window.postMessage(
-                    { type: NCW_MESSAGE_TYPES.AD_STATE_CHANGED, isAd },
-                    '*',
-                );
-            }
-
-            if (isAd) return;
-
-            // 2. Playback Presentation Time Synchronization (StreaksPlayer currentContentTime)
-            if (video) {
-                let curTime = 0;
-                if (player && typeof player.currentContentTime === 'function') {
-                    try {
-                        const t = player.currentContentTime();
-                        if (typeof t === 'number' && !isNaN(t) && t >= 0)
-                            curTime = t;
-                    } catch {}
-                }
-                if (
-                    !curTime &&
-                    player &&
-                    typeof player.currentTime === 'function'
-                ) {
-                    try {
-                        const t = player.currentTime();
-                        if (typeof t === 'number' && !isNaN(t) && t >= 0)
-                            curTime = t;
-                    } catch {}
-                }
-                if (!curTime && typeof video.currentTime === 'number') {
-                    curTime = video.currentTime;
-                }
-
-                const isPaused = video.paused;
-                const playbackRate = video.playbackRate || 1.0;
-                const nowPerf = performance.now();
-
-                if (document.documentElement) {
-                    document.documentElement.dataset.ncwSegmentAtomic = `${curTime}|${nowPerf}|${isPaused ? 1 : 0}|${playbackRate}`;
-                    document.documentElement.dataset.ncwSegmentTime =
-                        String(curTime);
-                    document.documentElement.dataset.ncwSegmentSyncAt =
-                        String(nowPerf);
-                    document.documentElement.dataset.ncwIsPaused = isPaused
-                        ? 'true'
-                        : 'false';
-                    document.documentElement.dataset.ncwPlaybackRate =
-                        String(playbackRate);
-                }
-
-                if (
-                    this.lastReportedTime === null ||
-                    Math.abs(curTime - this.lastReportedTime) > 0.5
-                ) {
-                    this.lastReportedTime = curTime;
-                    window.postMessage(
-                        {
-                            type: NCW_MESSAGE_TYPES.TIME_SYNC,
-                            segmentTime: curTime,
-                            syncAt: nowPerf,
-                            isPaused,
-                            playbackRate,
-                            cadmiumOffset: 0,
-                            adOffset: 0,
-                        },
-                        '*',
+        this.trackRegistry
+            .getTrack(currentEpId, 'ja', this.getTVerPlayer(), this.getVideoElement())
+            .then((detail) => {
+                if (detail && detail.rawText) {
+                    this.emitSubtitleData(
+                        detail.url || 'streaksplayer-track',
+                        detail.rawText,
+                        force,
+                        currentEpId,
+                        detail.lang,
                     );
                 }
-            }
-
-            // Check series metadata trigger if player ready
-            this.triggerMetadataFetchIfReady();
-
-            // Check text track change or OFF state
-            this.checkTVerTextTracks();
-
-            // If no subtitle captured yet, attempt extraction
-            if (
-                !this.lastInterceptedSubtitle &&
-                this.lastTrackState !== '__OFF__'
-            ) {
-                this.tryExtractFromTextTracks();
-            }
-        } catch {}
+            });
+        return true;
     }
 
-    // --- Series Metadata Fetching & Parsing ---
+    // --------------------------------------------------------------------------
+    // 6. Metadata Handling
+    // --------------------------------------------------------------------------
+
     private triggerMetadataFetchIfReady(): void {
         try {
             const player = this.getTVerPlayer();
             const adFields = player?.getMedia?.()?.adFields || {};
             const seriesId = adFields.ad_series_id;
-            const pUid =
-                adFields.platformUid ||
-                adFields.platformAdUid ||
-                this.capturedUid;
-            const pToken =
-                this.capturedToken || window.__NCW_TVER_CAPTURED_TOKEN__?.token;
+            const currentEpId =
+                this.lastObservedEpisodeId || this.extractEpisodeId(window.location.href);
 
-            if (
-                !seriesId ||
-                !pToken ||
-                this.hasFetchedSeriesMetadata.has(seriesId)
-            ) {
+            if (!seriesId || !currentEpId) return;
+
+            // If already cached, no need to re-fetch
+            if (this.metadataManager.isEpisodeCached(currentEpId)) {
                 return;
             }
-            this.hasFetchedSeriesMetadata.add(seriesId);
 
-            const url = new URL(
-                `https://platform-api.tver.jp/service/api/v1/callSeriesEpisodes/${seriesId}`,
-            );
-            if (pUid) url.searchParams.append('platform_uid', pUid);
-            url.searchParams.append('platform_token', pToken);
-            url.searchParams.append('require_data', 'later,good,resume');
-
-            fetch(url.toString(), {
-                headers: {
-                    'x-tver-platform-type': 'web',
-                    accept: 'application/json, text/plain, */*',
-                },
-            })
-                .then((r) => r.json())
-                .then((data) => {
-                    this.handleSeriesEpisodesResponse(data);
-                })
-                .catch((err) => {
-                    this.logger.warn(
+            this.metadataManager.fetchSeriesEpisodes(seriesId, currentEpId).then((payload) => {
+                if (payload) {
+                    window.postMessage(payload, '*');
+                    this.logger.info(
                         'TVer-AI-Sub',
-                        'Failed fetching series episodes metadata:',
-                        err,
+                        `Dispatched METADATA_LOADED for movie: ${payload.movieId} (Series "${payload.showTitle}")`,
                     );
-                });
+                }
+            });
         } catch {}
     }
 
-    private handleSeriesEpisodesResponse(data: any): void {
-        try {
-            const currentEpId = this.extractEpisodeId(window.location.href);
-            const rawGroups = data?.result?.contents || [];
-
-            let foundSeriesTitle = '';
-            let foundSeriesId = '';
-            let currentEpisodeInfo: any = null;
-
-            for (const group of rawGroups) {
-                const items = group?.contents || [];
-                for (const item of items) {
-                    if (item?.type === 'episode' && item.content) {
-                        const c = item.content;
-                        if (!foundSeriesTitle && c.seriesTitle) {
-                            foundSeriesTitle = c.seriesTitle;
-                        }
-                        if (!foundSeriesId && c.seriesID) {
-                            foundSeriesId = c.seriesID;
-                        }
-                        if (c.id === currentEpId || !currentEpisodeInfo) {
-                            currentEpisodeInfo = c;
-                        }
-                    }
-                }
-            }
-
-            if (foundSeriesTitle || currentEpisodeInfo) {
-                const metaPayload = {
-                    type: NCW_MESSAGE_TYPES.METADATA_LOADED,
-                    showId:
-                        foundSeriesId ||
-                        currentEpisodeInfo?.seriesID ||
-                        currentEpId ||
-                        '',
-                    showTitle:
-                        foundSeriesTitle ||
-                        currentEpisodeInfo?.seriesTitle ||
-                        document.title,
-                    currentEpisode: currentEpisodeInfo
-                        ? {
-                              episodeId: currentEpisodeInfo.id,
-                              episodeTitle: currentEpisodeInfo.title,
-                              episodeSynopsis:
-                                  currentEpisodeInfo.broadcastDateLabel || '',
-                          }
-                        : undefined,
-                    rawMetadata: data,
-                };
-
-                if (document.documentElement) {
-                    document.documentElement.dataset.ncwShowId =
-                        metaPayload.showId;
-                    document.documentElement.dataset.ncwMainTitle =
-                        metaPayload.showTitle;
-                    if (currentEpisodeInfo?.title) {
-                        document.documentElement.dataset.ncwEpisodeTitle =
-                            currentEpisodeInfo.title;
-                    }
-                }
-
-                this.lastMetaPayload = metaPayload;
-                window.postMessage(metaPayload, '*');
-                this.logger.info(
-                    'TVer-AI-Sub',
-                    `Dispatched METADATA_LOADED: Series "${metaPayload.showTitle}" [${metaPayload.showId}], Ep: "${currentEpisodeInfo?.title}"`,
-                );
-            }
-        } catch (e) {
-            this.logger.warn(
+    private handleSeriesEpisodesApiResponse(data: any): void {
+        const currentEpId =
+            this.lastObservedEpisodeId || this.extractEpisodeId(window.location.href);
+        const payload = this.metadataManager.handleSeriesEpisodesResponse(data, currentEpId);
+        if (payload) {
+            window.postMessage(payload, '*');
+            this.logger.info(
                 'TVer-AI-Sub',
-                'Error parsing callSeriesEpisodes data:',
-                e,
+                `Dispatched METADATA_LOADED from API response: Series "${payload.showTitle}" [${payload.showId}]`,
             );
         }
     }
 
-    // --- SPA Route & Player Event Hooks ---
-    private notifyUrlChange(): void {
-        const current = window.location.href;
-        if (current !== this.lastReportedUrl) {
-            this.lastReportedUrl = current;
-            this.lastEmittedSignature = '';
-
-            const newEpId = this.extractEpisodeId(current);
-            if (newEpId && newEpId !== this.lastObservedEpisodeId) {
-                this.lastObservedEpisodeId = newEpId;
-                this.lastTrackState = '';
-                window.postMessage(
-                    {
-                        type: NCW_MESSAGE_TYPES.EPISODE_CHANGED,
-                        movieId: newEpId,
-                        url: current,
-                    },
-                    '*',
-                );
-                setTimeout(() => this.tryExtractFromTextTracks(true), 600);
-            }
-
-            window.postMessage(
-                {
-                    type: NCW_MESSAGE_TYPES.URL_CHANGED,
-                    url: current,
-                },
-                '*',
-            );
-        }
-    }
-
-    private hookRouting(): void {
-        const origPushState = history.pushState;
-        const self = this;
-        history.pushState = function (...args: any[]) {
-            const res = (origPushState as any).apply(this, args);
-            self.notifyUrlChange();
-            return res;
-        };
-
-        const origReplaceState = history.replaceState;
-        history.replaceState = function (...args: any[]) {
-            const res = (origReplaceState as any).apply(this, args);
-            self.notifyUrlChange();
-            return res;
-        };
-
-        window.addEventListener('popstate', () => this.notifyUrlChange());
-    }
-
-    private hookPlayerEvents(): void {
-        ['seeked', 'playing', 'pause', 'ratechange'].forEach((evt) => {
-            window.addEventListener(
-                evt,
-                () => setTimeout(() => this.checkTVerPlayerState(), 50),
-                {
-                    capture: true,
-                    passive: true,
-                },
-            );
-        });
-
-        window.addEventListener(
-            'timeupdate',
-            () => {
-                const now = performance.now();
-                if (now - this.lastTimeUpdateSync > 250) {
-                    this.lastTimeUpdateSync = now;
-                    this.checkTVerPlayerState();
-                }
-            },
-            { capture: true, passive: true },
-        );
-    }
+    // --------------------------------------------------------------------------
+    // 7. Message Listener (ISOLATED World -> MAIN World)
+    // --------------------------------------------------------------------------
 
     private setupMessageListener(): void {
-        this.messageListener = (event: MessageEvent) => {
+        const handler = async (event: MessageEvent) => {
             if (event.source !== window || !event.data) return;
-            if (event.data.type === NCW_MESSAGE_TYPES.REQUEST_SUBTITLE_RETRY) {
-                const currentEpId = this.extractEpisodeId(window.location.href);
-                this.lastEmittedSignature = '';
+            const data: InjectedIncomingEvent = event.data;
 
-                if (
-                    this.lastInterceptedSubtitle &&
-                    this.lastInterceptedSubtitle.text
-                ) {
-                    this.logger.info(
-                        'TVer-AI-Sub',
-                        `Re-emitting cached subtitle for episode (${currentEpId || 'active'}).`,
-                    );
-                    window.postMessage(
-                        {
-                            type: NCW_MESSAGE_TYPES.SUBTITLE_RAW_DATA,
-                            movieId:
-                                this.lastInterceptedSubtitle.episodeId ||
-                                currentEpId,
-                            url: this.lastInterceptedSubtitle.url,
-                            rawText: this.lastInterceptedSubtitle.text,
-                            bcp47: this.lastInterceptedSubtitle.lang || 'ja',
-                            timestamp: Date.now(),
-                            isReplay: true,
-                        },
-                        '*',
-                    );
-                    return;
+            // 7.1 Legacy Subtitle Retry (Backward Compatibility)
+            if (data.type === NCW_MESSAGE_TYPES.REQUEST_SUBTITLE_RETRY) {
+                const currentEpId =
+                    this.lastObservedEpisodeId || this.extractEpisodeId(window.location.href);
+                this.lastEmittedSignature = '';
+                if (currentEpId) {
+                    const cached = this.trackRegistry.getCachedTrack(currentEpId);
+                    if (cached && cached.rawText) {
+                        this.emitSubtitleData(
+                            cached.url || 'cached-track',
+                            cached.rawText,
+                            true,
+                            currentEpId,
+                            cached.lang,
+                        );
+                        return;
+                    }
                 }
                 this.tryExtractFromTextTracks(true);
             }
 
-            if (event.data.type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
-                if (this.lastMetaPayload) {
-                    this.logger.info(
-                        'TVer-AI-Sub',
-                        'Re-emitting cached series metadata upon REQUEST_METADATA.',
-                    );
-                    window.postMessage(this.lastMetaPayload, '*');
+            // 7.2 Legacy Request Metadata (Backward Compatibility)
+            if (data.type === NCW_MESSAGE_TYPES.REQUEST_METADATA) {
+                const targetEpId =
+                    data.movieId ||
+                    this.lastObservedEpisodeId ||
+                    this.extractEpisodeId(window.location.href);
+                if (targetEpId) {
+                    const cachedMeta = this.metadataManager.getCachedMetadata(targetEpId);
+                    if (cachedMeta) {
+                        const payload: InjectedMetadataLoadedPayload = {
+                            type: NCW_MESSAGE_TYPES.METADATA_LOADED,
+                            movieId: targetEpId,
+                            showId: cachedMeta.showId || targetEpId,
+                            showTitle: cachedMeta.mainTitle,
+                            currentEpisode: {
+                                episodeId: targetEpId,
+                                episodeTitle: cachedMeta.episodeTitle || '',
+                                episodeSynopsis: cachedMeta.episodeSummary || '',
+                            },
+                        };
+                        window.postMessage(payload, '*');
+                    }
                 }
             }
 
-            if (event.data.type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
-                const queryId = event.data.queryId;
-                const targetEpId = event.data.movieId
-                    ? String(event.data.movieId)
-                    : this.extractEpisodeId(window.location.href);
+            // 7.3 Tri-State Query Metadata (Type 2)
+            if (data.type === NCW_MESSAGE_TYPES.QUERY_METADATA) {
+                const queryId = data.queryId;
+                const targetEpId =
+                    data.movieId ||
+                    this.lastObservedEpisodeId ||
+                    this.extractEpisodeId(window.location.href);
 
                 const respond = (
                     status: 'resolved' | 'null' | 'undefined',
@@ -950,6 +751,7 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                             type: NCW_MESSAGE_TYPES.QUERY_METADATA_RESULT,
                             queryId,
                             status,
+                            movieId: targetEpId || undefined,
                             metadata,
                         },
                         '*',
@@ -961,45 +763,18 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                     return;
                 }
 
-                if (this.lastMetaPayload) {
-                    const p = this.lastMetaPayload;
-                    const currentEp = p.currentEpisode;
-                    if (
-                        currentEp &&
-                        (!targetEpId || currentEp.episodeId === targetEpId)
-                    ) {
-                        const meta: VideoMetadata = {
-                            mainTitle: p.showTitle || '',
-                            episodeTitle: currentEp.episodeTitle || '',
-                            fullTitle: currentEp.episodeTitle
-                                ? p.showTitle
-                                    ? `${p.showTitle} - ${currentEp.episodeTitle}`
-                                    : currentEp.episodeTitle
-                                : p.showTitle || '',
-                            videoId: currentEp.episodeId || targetEpId,
-                            showId: p.showId || targetEpId,
-                            seasonId: p.seasonId,
-                            showSummary: p.showSynopsis,
-                            episodeSummary: currentEp.episodeSynopsis,
-                            seasonNum: p.seasonSeq,
-                            episodeNum: currentEp.episodeSeq,
-                        };
-                        respond('resolved', meta);
-                        return;
-                    }
-                }
+                const player = this.getTVerPlayer();
+                const playerSeriesId = player?.getMedia?.()?.adFields?.ad_series_id || null;
+                const result = this.metadataManager.getMetadata(targetEpId, playerSeriesId);
 
-                this.triggerMetadataFetchIfReady();
-                respond('undefined');
+                respond(result.status, result.metadata);
             }
 
-            if (event.data.type === NCW_MESSAGE_TYPES.QUERY_SUBTITLE) {
-                const queryId = event.data.queryId;
-                const requestedMid = event.data.movieId
-                    ? String(event.data.movieId)
-                    : null;
+            // 7.4 Tri-State Query Subtitle (Type 2)
+            if (data.type === NCW_MESSAGE_TYPES.QUERY_SUBTITLE) {
+                const queryId = data.queryId;
                 const targetEpId =
-                    requestedMid ||
+                    data.movieId ||
                     this.lastObservedEpisodeId ||
                     this.extractEpisodeId(window.location.href);
 
@@ -1012,6 +787,7 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                             type: NCW_MESSAGE_TYPES.QUERY_SUBTITLE_RESULT,
                             queryId,
                             status,
+                            movieId: targetEpId || undefined,
                             rawText: payload?.rawText,
                             bcp: payload?.bcp,
                         },
@@ -1024,40 +800,29 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                     return;
                 }
 
-                if (
-                    this.lastInterceptedSubtitle &&
-                    this.lastInterceptedSubtitle.text
-                ) {
-                    if (
-                        !this.lastInterceptedSubtitle.episodeId ||
-                        this.lastInterceptedSubtitle.episodeId === targetEpId
-                    ) {
-                        respond('resolved', {
-                            rawText: this.lastInterceptedSubtitle.text,
-                            bcp: this.lastInterceptedSubtitle.lang || 'ja',
-                        });
-                        return;
-                    }
-                }
+                const track = await this.trackRegistry.getTrack(
+                    targetEpId,
+                    'ja',
+                    this.getTVerPlayer(),
+                    this.getVideoElement(),
+                );
 
-                // Try extracting from active video element text tracks
-                const extracted = this.tryExtractFromTextTracks(false);
-                if (extracted && this.lastInterceptedSubtitle?.text) {
+                if (track && track.rawText) {
                     respond('resolved', {
-                        rawText: this.lastInterceptedSubtitle.text,
-                        bcp: this.lastInterceptedSubtitle.lang || 'ja',
+                        rawText: track.rawText,
+                        bcp: track.lang || 'ja',
                     });
-                    return;
-                }
-
-                const video = document.querySelector('video');
-                if (video && video.currentTime > 2) {
+                } else if (track === null) {
                     respond('null');
                 } else {
                     respond('undefined');
                 }
             }
         };
-        window.addEventListener('message', this.messageListener);
+
+        window.addEventListener('message', handler);
+        this.cleanupMessageListener = () => {
+            window.removeEventListener('message', handler);
+        };
     }
 }
