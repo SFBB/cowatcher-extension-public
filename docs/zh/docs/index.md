@@ -44,7 +44,7 @@ features:
   - icon: 🌟
     title: 贡献者与赞助者榜单
     details: 查看为 CoWatcher 贡献代码、文档与赞助咖啡的荣誉名册，了解如何参与社区建设。
-    link: https://github.com/SFBB/cowatcher-extension-public/blob/main/CONTRIBUTORS.md
+    link: https://github.com/cowatcher-app/cowatcher-extension/blob/main/CONTRIBUTORS.md
 ---
 
 ## 🧭 文档快速导航
@@ -87,4 +87,4 @@ CoWatcher 提供多种翻译接入方式，不管你是追剧高中生还是技�
 
 ### 4. 💖 鸣谢与社区贡献
 
-CoWatcher 是完全开源透明的项目。欢迎阅读我们的 [核心系统架构白皮书](/zh/docs/architecture)，或在 [GitHub 仓库](https://github.com/SFBB/cowatcher-extension-public) 提交 Issue、Pull Request，以及查看 [贡献者与赞助者榜单](https://github.com/SFBB/cowatcher-extension-public/blob/main/CONTRIBUTORS.md)！
+CoWatcher 是完全开源透明的项目。欢迎阅读我们的 [核心系统架构白皮书](/zh/docs/architecture)，或在 [GitHub 仓库](https://github.com/cowatcher-app/cowatcher-extension) 提交 Issue、Pull Request，以及查看 [贡献者与赞助者榜单](https://github.com/cowatcher-app/cowatcher-extension/blob/main/CONTRIBUTORS.md)！

@@ -28,7 +28,8 @@
   "permissions": [
     "storage",
     "unlimitedStorage",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "alarms"
   ],
   "host_permissions": [
     "http://*/*",

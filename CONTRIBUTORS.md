@@ -10,28 +10,29 @@ Thank you to all developers, testers, translators, and sponsors who help make **
 
 ## 🏆 Core Maintainers & Code Contributors
 
-* [SFBB](https://github.com/SFBB) - Project Creator & Lead Architect
+- [SFBB](https://github.com/SFBB) - Project Creator & Lead Architect
 
 ---
 
 ## ☕ Special Thanks to Sponsors
 
-*Every sponsorship directly funds the Chrome Web Store developer account, domain maintenance, and open-source infrastructure.*
+_Every sponsorship directly funds the Chrome Web Store developer account, domain maintenance, and open-source infrastructure._
 
-* [Support us on Ko-fi ☕](https://ko-fi.com/sfbb49898) to be featured here as an honorary founding sponsor!
+- [Support us on Ko-fi ☕](https://ko-fi.com/sfbb49898) to be featured here as an honorary founding sponsor!
 
 ---
 
 ## 💡 Documentation, Translations & Community
 
-* Heartfelt thanks to all movie fans, anime enthusiasts, and language learners who actively test and provide valuable feedback across Netflix, TVer, and YouTube!
+- Heartfelt thanks to all movie fans, anime enthusiasts, and language learners who actively test and provide valuable feedback across Netflix, TVer, and YouTube!
 
 ---
 
 ## 🤝 How to Contribute
 
 We warmly welcome contributions from the community:
+
 - **Code & Adapters**: Submit bug fixes, new streaming platform adapters, or UI optimizations via Pull Requests.
 - **Documentation & Localization**: Help translate or refine documentation and user guides into English, Chinese, Japanese, or Korean.
-- **Bug Reports & Ideas**: Open actionable issues and suggestions on [GitHub Issues](https://github.com/SFBB/cowatcher-extension-public/issues).
+- **Bug Reports & Ideas**: Open actionable issues and suggestions on [GitHub Issues](https://github.com/cowatcher-app/cowatcher-extension/issues).
 - **Sponsorship**: Help sustain ongoing development and cloud testing on [Ko-fi](https://ko-fi.com/sfbb49898).

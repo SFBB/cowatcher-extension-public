@@ -70,42 +70,42 @@ Indeed, we use message to communicate between different browser components, but 
 
 1. **Clone the repository**:
 
-   ```bash
-   git clone https://github.com/SFBB/NetflixCoWatcher.git
-   cd cowatcher-extension-public
-   ```
+    ```bash
+    git clone https://github.com/cowatcher-app/cowatcher-extension.git
+    cd cowatcher-extension-public
+    ```
 
 2. **Install dependencies**:
 
-   ```bash
-   npm install
-   // or
-   npm ci // to get the same env with current project
-   ```
+    ```bash
+    npm install
+    // or
+    npm ci // to get the same env with current project
+    ```
 
 3. **Build targets**:
    CoWatcher compiles to two separate browser distributions from a single codebase:
 
-   ```bash
-   # Build Chrome Manifest V3 (outputs to dist/)
-   npm run build:chrome
+    ```bash
+    # Build Chrome Manifest V3 (outputs to dist/)
+    npm run build:chrome
 
-   # Build Firefox Manifest V3 (outputs to dist-firefox/)
-   npm run build:firefox
+    # Build Firefox Manifest V3 (outputs to dist-firefox/)
+    npm run build:firefox
 
-   # Build both targets simultaneously
-   npm run build:all
-   ```
+    # Build both targets simultaneously
+    npm run build:all
+    ```
 
 4. **Watch mode during development**:
 
-   ```bash
-   # Watch Chrome build
-   npm run watch
+    ```bash
+    # Watch Chrome build
+    npm run watch
 
-   # Watch Firefox build
-   npm run watch:firefox
-   ```
+    # Watch Firefox build
+    npm run watch:firefox
+    ```
 
 ---
 
@@ -195,19 +195,19 @@ If you are adding a new streaming service (e.g., Disney+, Hulu, Crunchyroll):
 ## 7. Pull Request Guidelines
 
 1. **Branch Naming**:
-   - `feature/<description>` for new capabilities or platforms.
-   - `fix/<description>` for bug and selector fixes.
-   - `refactor/<description>` for code restructuring.
+    - `feature/<description>` for new capabilities or platforms.
+    - `fix/<description>` for bug and selector fixes.
+    - `refactor/<description>` for code restructuring.
 2. **Commit Messages**:
    We encourage [Conventional Commits](https://www.conventionalcommits.org/):
-   - `feat(tver): support full screen player subtitle mounting`
-   - `fix(chrome): resolve MV3 background service worker registration`
-   - `docs: update contributing guide and architectural tenets`
+    - `feat(tver): support full screen player subtitle mounting`
+    - `fix(chrome): resolve MV3 background service worker registration`
+    - `docs: update contributing guide and architectural tenets`
 3. **PR Checklist**:
-   - [ ] Code strictly follows the 5 Core Engineering Tenets (Explicit over implicit, no silent fallbacks, no DTOs, ACL platform isolation, packaging).
-   - [ ] `npx tsc --noEmit` passes with 0 errors.
-   - [ ] `npm run build:all` passes without warnings.
-   - [ ] Tested locally on both Chrome (`dist/`) and Firefox (`dist-firefox/`).
-   - [ ] Diagnostic logs added with `Logger` where appropriate.
+    - [ ] Code strictly follows the 5 Core Engineering Tenets (Explicit over implicit, no silent fallbacks, no DTOs, ACL platform isolation, packaging).
+    - [ ] `npx tsc --noEmit` passes with 0 errors.
+    - [ ] `npm run build:all` passes without warnings.
+    - [ ] Tested locally on both Chrome (`dist/`) and Firefox (`dist-firefox/`).
+    - [ ] Diagnostic logs added with `Logger` where appropriate.
 
 Thank you for helping make CoWatcher the best bilingual watching experience! 🍿

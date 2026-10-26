@@ -24,15 +24,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SFBB/NetflixCoWatcher.git"
+    "url": "git+https://github.com/cowatcher-app/cowatcher-extension.git"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/SFBB/NetflixCoWatcher/issues"
+    "url": "https://github.com/cowatcher-app/cowatcher-extension/issues"
   },
-  "homepage": "https://github.com/SFBB/NetflixCoWatcher#readme",
+  "homepage": "https://cowactcher-app.github.com/cowatcher-extension/",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/chrome": "^0.3.4",

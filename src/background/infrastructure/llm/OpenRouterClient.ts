@@ -121,7 +121,7 @@ export class OpenRouterClient implements ILlmClient {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${apiKey}`,
                 'HTTP-Referer':
-                    'https://github.com/SFBB/cowatcher-extension-public',
+                    'https://github.com/cowatcher-app/cowatcher-extension',
                 'X-Title': 'CoWatcher Translator',
             },
             body: JSON.stringify(payload),
@@ -161,7 +161,7 @@ export class OpenRouterClient implements ILlmClient {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
             'HTTP-Referer':
-                'https://github.com/SFBB/cowatcher-extension-public',
+                'https://github.com/cowatcher-app/cowatcher-extension',
             'X-Title': 'CoWatcher Translator',
         };
         if (key && key.trim()) {
@@ -208,7 +208,7 @@ export class OpenRouterClient implements ILlmClient {
             headers: {
                 Authorization: `Bearer ${key}`,
                 'HTTP-Referer':
-                    'https://github.com/SFBB/cowatcher-extension-public',
+                    'https://github.com/cowatcher-app/cowatcher-extension',
                 'X-Title': 'CoWatcher Translator',
             },
         });
