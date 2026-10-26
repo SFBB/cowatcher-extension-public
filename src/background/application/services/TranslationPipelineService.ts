@@ -33,7 +33,7 @@ interface QueueTask<T> {
 }
 
 class PipelineTaskQueue {
-    private queue: QueueTask<any>[] = [];
+    private queue: QueueTask<unknown>[] = [];
     private activeCount = 0;
     private readonly concurrency: number;
 
@@ -43,10 +43,15 @@ class PipelineTaskQueue {
 
     enqueue<T>(taskFn: () => Promise<T>, urgent = false): Promise<T> {
         return new Promise<T>((resolve, reject) => {
+            const task: QueueTask<unknown> = {
+                taskFn: taskFn as () => Promise<unknown>,
+                resolve: resolve as (value: unknown) => void,
+                reject,
+            };
             if (urgent) {
-                this.queue.unshift({ taskFn, resolve, reject });
+                this.queue.unshift(task);
             } else {
-                this.queue.push({ taskFn, resolve, reject });
+                this.queue.push(task);
             }
             this.processNext();
         });
@@ -341,8 +346,8 @@ export class TranslationPipelineService {
         };
 
         if (activeProvider === 'google' || !translator.mergeAsrBatch) {
-            if (typeof (translator as any).mergeAsrBatch === 'function') {
-                return (translator as any).mergeAsrBatch(req);
+            if (typeof translator.mergeAsrBatch === 'function') {
+                return translator.mergeAsrBatch(req);
             }
             return {
                 success: false,
@@ -476,8 +481,11 @@ export class TranslationPipelineService {
                 }
 
                 return { success: true, results: resultMap };
-            } catch (err: any) {
-                return { success: false, error: err.message };
+            } catch (err: unknown) {
+                return {
+                    success: false,
+                    error: err instanceof Error ? err.message : String(err),
+                };
             } finally {
                 if (
                     this.currentActiveAbortController &&
@@ -665,8 +673,10 @@ export class TranslationPipelineService {
                     usedTermsMap,
                     updatedContext: ctx?.toDTO(),
                 };
-            } catch (err: any) {
-                return { success: false, error: err.message };
+            } catch (err: unknown) {
+                const errorMessage =
+                    err instanceof Error ? err.message : String(err);
+                return { success: false, error: errorMessage };
             }
         });
     }
@@ -772,7 +782,7 @@ Output Requirements:
                 charactersAdded: numChars,
                 termsAdded: numTerms,
             };
-        } catch (err: any) {
+        } catch (err: unknown) {
             this.logger.warn(
                 'Translation',
                 'Failed to extract terms from native subtitles:',
@@ -782,7 +792,7 @@ Output Requirements:
                 success: false,
                 charactersAdded: 0,
                 termsAdded: 0,
-                error: err?.message,
+                error: err instanceof Error ? err.message : String(err),
             };
         }
     }

@@ -200,7 +200,7 @@ export class ChromeCacheRepository implements ITrackCacheRepository {
             { text?: string; start?: number; end?: number }
         >();
         if (Array.isArray(items)) {
-            items.forEach((it: any) => {
+            items.forEach((it) => {
                 if (it && it.id !== undefined) itemsMap.set(it.id, it);
             });
         }

@@ -10,6 +10,23 @@ import { ExtensionSettings } from '@shared/domain/constants/SettingsDefaults';
 import { SubtitleLearningPopover } from '../../presentation/SubtitleLearningPopover';
 import { Logger } from '@shared/utils/logger';
 
+interface SegmentData {
+    segment: string;
+    index: number;
+    isWordLike?: boolean;
+}
+
+interface IntlSegmenterInstance {
+    segment(input: string): Iterable<SegmentData>;
+}
+
+interface IntlWithSegmenter {
+    Segmenter: new (
+        locale: string,
+        options?: { granularity: 'grapheme' | 'word' | 'sentence' },
+    ) => IntlSegmenterInstance;
+}
+
 export class SubtitleLearningManager {
     private readonly adapter: IStreamingAdapter;
     private readonly messageService: ContentMessageService;
@@ -26,7 +43,7 @@ export class SubtitleLearningManager {
     private learningCueCache = new Map<number, LearningCueItem>();
     private wordLookupCache = new Map<string, WordLookupResult>();
     private pausedByLearning: boolean = false;
-    private segmenterCache = new Map<string, any>();
+    private segmenterCache = new Map<string, IntlSegmenterInstance>();
 
     constructor(
         adapter: IStreamingAdapter,
@@ -132,7 +149,8 @@ export class SubtitleLearningManager {
         if (!segmenter) {
             try {
                 if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
-                    segmenter = new (Intl as any).Segmenter(lang, {
+                    const intlWithSeg = Intl as unknown as IntlWithSegmenter;
+                    segmenter = new intlWithSeg.Segmenter(lang, {
                         granularity: 'word',
                     });
                     this.segmenterCache.set(lang, segmenter);
@@ -145,7 +163,7 @@ export class SubtitleLearningManager {
         const tokens: SubtitleToken[] = [];
         if (segmenter) {
             try {
-                const segments = Array.from(segmenter.segment(text)) as any[];
+                const segments = Array.from(segmenter.segment(text));
                 let tIdx = 0;
                 for (const seg of segments) {
                     const segText = seg.segment || '';

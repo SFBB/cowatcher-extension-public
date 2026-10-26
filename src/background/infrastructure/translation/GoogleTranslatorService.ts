@@ -90,7 +90,7 @@ export class GoogleTranslatorService implements ITranslatorService {
         // Pattern 1: Bracketed markers [123] or 【123】, preceded by start, newline, or whitespace
         // Pattern 2: Line starters: 123. or 123: or 123： or #123: at the beginning of a line
         const markerRegex =
-            /(?:(?:^|\n|\s)(?:\[|【)\s*(\d+)\s*(?:\]|】)\s*[:：]?\s*|(?:^|\n)\s*(?:#)?\s*(\d+)\s*[\.:：]\s*)/g;
+            /(?:(?:^|\n|\s)(?:\[|【)\s*(\d+)\s*(?:\]|】)\s*[:：]?\s*|(?:^|\n)\s*(?:#)?\s*(\d+)\s*[.:：]\s*)/g;
         const markers: Array<{ id: number; start: number; end: number }> = [];
 
         let match: RegExpExecArray | null;
@@ -207,7 +207,7 @@ export class GoogleTranslatorService implements ITranslatorService {
         tl: string,
         signal?: AbortSignal,
         maxRetries = 3,
-    ): Promise<any> {
+    ): Promise<unknown> {
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(
             sl,
         )}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(payloadText)}`;
@@ -252,14 +252,16 @@ export class GoogleTranslatorService implements ITranslatorService {
                 }
 
                 return await res.json();
-            } catch (err: any) {
-                if (err.name === 'AbortError' || signal?.aborted) {
+            } catch (err: unknown) {
+                if (
+                    (err instanceof Error && err.name === 'AbortError') ||
+                    signal?.aborted
+                ) {
                     throw err;
                 }
-                if (
-                    attempt === maxRetries ||
-                    (err.message && err.message.includes('429'))
-                ) {
+                const errMessage =
+                    err instanceof Error ? err.message : String(err);
+                if (attempt === maxRetries || errMessage.includes('429')) {
                     throw err;
                 }
                 // Brief retry wait for standard transient network errors
@@ -365,14 +367,20 @@ export class GoogleTranslatorService implements ITranslatorService {
             }
 
             return { success: true, results: resultMap };
-        } catch (err: any) {
-            if (err.name === 'AbortError' || err.message === 'Aborted') {
+        } catch (err: unknown) {
+            if (
+                err instanceof Error &&
+                (err.name === 'AbortError' || err.message === 'Aborted')
+            ) {
                 return { success: false, error: 'Aborted' };
             }
-            this.logger.warn('Translation', err);
+            this.logger.warn('Translation', 'Google Translate error:', err);
             return {
                 success: false,
-                error: err.message || 'Google Translate request failed',
+                error:
+                    err instanceof Error
+                        ? err.message
+                        : 'Google Translate request failed',
             };
         }
     }
@@ -404,13 +412,16 @@ export class GoogleTranslatorService implements ITranslatorService {
                 this.logger,
             );
             return { success: true, mergedCues };
-        } catch (err: any) {
+        } catch (err: unknown) {
             this.logger.error(
                 'Translator',
                 'Error in GoogleTranslatorService mergeAsrBatch:',
                 err,
             );
-            return { success: false, error: err.message };
+            return {
+                success: false,
+                error: err instanceof Error ? err.message : String(err),
+            };
         }
     }
 
@@ -429,10 +440,13 @@ export class GoogleTranslatorService implements ITranslatorService {
                 ok: false,
                 message: `Google Translate status: ${res.status}`,
             };
-        } catch (e: any) {
+        } catch (e: unknown) {
             return {
                 ok: false,
-                message: e.message || 'Network error reaching Google Translate',
+                message:
+                    e instanceof Error
+                        ? e.message
+                        : 'Network error reaching Google Translate',
             };
         }
     }

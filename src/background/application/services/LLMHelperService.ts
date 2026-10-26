@@ -16,6 +16,7 @@ import {
 import { Logger } from '@shared/utils/logger';
 import { LanguageInfo } from '@shared/domain/value-objects/Language';
 import { AiCapability } from '../../domain/llm/LlmRole';
+import { CharacterItem } from '@shared/domain/entities/Translation';
 
 export class LLMHelperService implements ILLMHelperService {
     private static instance: LLMHelperService | null = null;
@@ -193,7 +194,7 @@ Target Language: ${resolvedTargetLang}`;
                             aliases: [],
                         };
                     } else if (val && typeof val === 'object') {
-                        const charObj = val as any;
+                        const charObj = val as unknown as CharacterItem;
                         const canonical = (charObj.canonical || name).trim();
                         const aliases = Array.isArray(charObj.aliases)
                             ? charObj.aliases
@@ -214,11 +215,8 @@ Target Language: ${resolvedTargetLang}`;
             }
 
             return { characters, terms };
-        } catch (err: any) {
-            this.logger.error(
-                'Error parsing JSON from LLM Helper:',
-                err?.message || String(err),
-            );
+        } catch (err) {
+            this.logger.error('LLM', 'Error parsing JSON from LLM Helper', err);
             return { characters: {}, terms: {} };
         }
     }

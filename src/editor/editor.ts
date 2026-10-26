@@ -336,8 +336,10 @@ async function initEditor(): Promise<void> {
                     const dto = val as unknown as ContextDTO;
                     if (dto.showId) {
                         const langCode =
-                            typeof dto.targetLanguage === 'object'
-                                ? (dto.targetLanguage as any).code
+                            typeof dto.targetLanguage === 'object' &&
+                            dto.targetLanguage
+                                ? (dto.targetLanguage as { code?: string })
+                                      .code || 'en'
                                 : String(dto.targetLanguage || 'en');
                         showEntries.push({
                             showId: dto.showId,
@@ -395,7 +397,7 @@ async function initEditor(): Promise<void> {
         if (characterRows.length === 0) {
             const tr = document.createElement('tr');
             tr.className = 'empty-table-row';
-            tr.innerHTML = `<td colspan="4" class="empty-table-msg">No characters defined yet.<br>Click <strong>+ Add Character</strong> above to create one, or paste text in <strong>AI Reference & Extraction</strong> above.</td>`;
+            tr.innerHTML = '<td colspan="4" class="empty-table-msg">No characters defined yet.<br>Click <strong>+ Add Character</strong> above to create one, or paste text in <strong>AI Reference & Extraction</strong> above.</td>';
             tbodyCharacters.appendChild(tr);
         } else {
             characterRows.forEach((row, index) => {
@@ -424,7 +426,7 @@ async function initEditor(): Promise<void> {
         if (termRows.length === 0) {
             const tr = document.createElement('tr');
             tr.className = 'empty-table-row';
-            tr.innerHTML = `<td colspan="3" class="empty-table-msg">No specialized terms defined yet.<br>Click <strong>+ Add Term</strong> above to create one, or paste text in <strong>AI Reference & Extraction</strong> above.</td>`;
+            tr.innerHTML = '<td colspan="3" class="empty-table-msg">No specialized terms defined yet.<br>Click <strong>+ Add Term</strong> above to create one, or paste text in <strong>AI Reference & Extraction</strong> above.</td>';
             tbodyTerms.appendChild(tr);
         } else {
             termRows.forEach((row, index) => {
@@ -618,8 +620,9 @@ async function initEditor(): Promise<void> {
                     'error',
                 );
             }
-        } catch (e: any) {
-            showStatus(`❌ Network / AI Error: ${e?.message || e}`, 'error');
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            showStatus(`❌ Network / AI Error: ${msg}`, 'error');
         } finally {
             updateAiButtonsState();
         }
@@ -654,8 +657,9 @@ async function initEditor(): Promise<void> {
                     'error',
                 );
             }
-        } catch (e: any) {
-            showStatus(`❌ Network / AI Error: ${e?.message || e}`, 'error');
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            showStatus(`❌ Network / AI Error: ${msg}`, 'error');
         } finally {
             updateAiButtonsState();
         }
@@ -712,8 +716,9 @@ async function initEditor(): Promise<void> {
                     'error',
                 );
             }
-        } catch (e: any) {
-            showStatus(`❌ Save Error: ${e?.message || e}`, 'error');
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            showStatus(`❌ Save Error: ${msg}`, 'error');
         } finally {
             btnSaveGlossary.disabled = false;
         }
@@ -760,11 +765,9 @@ async function initEditor(): Promise<void> {
                     'error',
                 );
             }
-        } catch (err: any) {
-            showStatus(
-                `❌ Invalidation error: ${err?.message || err}`,
-                'error',
-            );
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showStatus(`❌ Invalidation error: ${msg}`, 'error');
         } finally {
             btnInvalidateEpisode.disabled = false;
         }
@@ -828,11 +831,9 @@ async function initEditor(): Promise<void> {
                     'error',
                 );
             }
-        } catch (err: any) {
-            showStatus(
-                `❌ Invalidation error: ${err?.message || err}`,
-                'error',
-            );
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showStatus(`❌ Invalidation error: ${msg}`, 'error');
         } finally {
             btnInvalidateShow.disabled = false;
         }

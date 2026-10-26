@@ -199,7 +199,7 @@ export class LlmTranslatorService implements ITranslatorService {
         // Pattern 1: Bracketed markers [123] or [123-124] or 【123-124】, preceded by start, newline, or whitespace
         // Pattern 2: Line starters: 123. or 123-124: or 123： or #123: at the beginning of a line
         const markerRegex =
-            /(?:(?:^|\n|\s)(?:\[|【)\s*(\d+)(?:\s*[-~至到]\s*(\d+))?\s*(?:\]|】)\s*[:：]?\s*|(?:^|\n)\s*(?:#)?\s*(\d+)(?:\s*[-~至到]\s*(\d+))?\s*[\.:：]\s*)/g;
+            /(?:(?:^|\n|\s)(?:\[|【)\s*(\d+)(?:\s*[-~至到]\s*(\d+))?\s*(?:\]|】)\s*[:：]?\s*|(?:^|\n)\s*(?:#)?\s*(\d+)(?:\s*[-~至到]\s*(\d+))?\s*[.:：]\s*)/g;
         const markers: Array<{
             startId: number;
             endId: number;
@@ -315,7 +315,7 @@ export class LlmTranslatorService implements ITranslatorService {
             contextDialogues = `--- Preceding Dialogue Context ---\n${validCtx.join('\n')}\n\n`;
         }
 
-        const targetLangPrompt = Language.resolve(targetLang as any).promptName;
+        const targetLangPrompt = Language.resolve(targetLang).promptName;
         const systemPrompt = `You are a professional subtitle translator.
 ${contextBlock}
 Translate the numbered subtitle lines into ${targetLangPrompt}.
@@ -400,17 +400,17 @@ The next line MUST immediately resume with the next unmerged ID (e.g. [105]: ...
                 }
 
                 return { success: true, results: resultMap };
-            } catch (err: any) {
-                if (
-                    attempt === MAX_RETRIES ||
-                    err.name === 'AbortError' ||
-                    signal?.aborted
-                ) {
-                    return { success: false, error: err.message };
+            } catch (err: unknown) {
+                const isAbort =
+                    err instanceof Error &&
+                    (err.name === 'AbortError' || err.message === 'Aborted');
+                const errMsg = err instanceof Error ? err.message : String(err);
+                if (attempt === MAX_RETRIES || isAbort || signal?.aborted) {
+                    return { success: false, error: errMsg };
                 }
                 this.logger.warn(
                     'Translator',
-                    `Batch translation attempt ${attempt} failed: ${err.message}. Retrying...`,
+                    `Batch translation attempt ${attempt} failed: ${errMsg}. Retrying...`,
                 );
             }
         }
@@ -421,10 +421,14 @@ The next line MUST immediately resume with the next unmerged ID (e.g. [105]: ...
         };
     }
 
-    private fallbackExtractSupervisorJson(text: string): any {
+    private fallbackExtractSupervisorJson(text: string): {
+        corrections: Record<string, string>;
+        new_characters: Record<string, unknown>;
+        new_terms: Record<string, string>;
+    } {
         const result: {
             corrections: Record<string, string>;
-            new_characters: Record<string, any>;
+            new_characters: Record<string, unknown>;
             new_terms: Record<string, string>;
         } = {
             corrections: {},
@@ -461,7 +465,12 @@ The next line MUST immediately resume with the next unmerged ID (e.g. [105]: ...
         return result;
     }
 
-    private parseSupervisorJson(rawContent: string): any {
+    private parseSupervisorJson(rawContent: string): {
+        corrections?: Record<string, string>;
+        new_characters?: Record<string, unknown>;
+        new_terms?: Record<string, string>;
+        ranges?: Array<[number, number]>;
+    } {
         if (!rawContent) return {};
 
         // 1. Strip reasoning/thinking tags and markdown fences
@@ -656,7 +665,7 @@ Guidelines for new_characters and new_terms:
                             newCharacters[key] = { canonical, aliases: [] };
                         }
                     } else if (v && typeof v === 'object') {
-                        const obj = v as any;
+                        const obj = v as Record<string, unknown>;
                         const canonical = String(
                             obj.canonical || obj.name || key,
                         ).trim();
@@ -713,13 +722,16 @@ Guidelines for new_characters and new_terms:
                 newTerms:
                     Object.keys(newTerms).length > 0 ? newTerms : undefined,
             };
-        } catch (err: any) {
+        } catch (err: unknown) {
             this.logger.warn(
                 'LLM Translation',
                 'Supervisor Review LLM call failed:',
                 err,
             );
-            return { success: false, error: err.message };
+            return {
+                success: false,
+                error: err instanceof Error ? err.message : String(err),
+            };
         }
     }
 
@@ -736,9 +748,12 @@ Guidelines for new_characters and new_terms:
                 this.logger,
             );
             return { success: true, mergedCues };
-        } catch (err: any) {
+        } catch (err: unknown) {
             this.logger.error('Translator', 'algorithmicMergeAsr failed:', err);
-            return { success: false, error: err.message };
+            return {
+                success: false,
+                error: err instanceof Error ? err.message : String(err),
+            };
         }
     }
 
@@ -814,7 +829,7 @@ CRITICAL SUBTITLE RULES:
                     return { success: true, mergedCues };
                 }
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             this.logger.warn(
                 'Translator',
                 'LLM ASR merge failed, falling back to algorithmic merge:',
@@ -844,10 +859,13 @@ CRITICAL SUBTITLE RULES:
                     translatorRes.message ||
                     `Connected (${translatorRes.models?.length || 0} models available)`,
             };
-        } catch (e: any) {
+        } catch (e: unknown) {
             return {
                 ok: false,
-                message: e.message || 'Connection check failed',
+                message:
+                    e instanceof Error
+                        ? e.message
+                        : 'Connection check failed',
             };
         }
     }

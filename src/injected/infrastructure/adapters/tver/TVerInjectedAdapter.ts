@@ -13,7 +13,7 @@ import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPa
 import { Logger } from '@shared/utils/logger';
 import { TVerTrackRegistry } from './TVerTrackRegistry';
 import { TVerMetadataManager } from './TVerMetadataManager';
-import { TVerStreaksPlayer, TVerTextTrackLike } from './TVerTypes';
+import { TVerStreaksPlayer, TVerTextTrackLike, TVerSeriesEpisodesResponse } from './TVerTypes';
 
 export class TVerInjectedAdapter implements IInjectedAdapter {
     readonly platformId: StreamingPlatformId = STREAMING_PLATFORMS.TVER;
@@ -116,7 +116,9 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
 
     private getTVerPlayer(): TVerStreaksPlayer | null {
         try {
-            const video = this.getVideoElement() as any;
+            const video = this.getVideoElement() as
+                | (HTMLVideoElement & { playerId?: string })
+                | null;
             if (!video) return null;
             const players = window.streaksplayer?.getPlayers?.() || {};
             return (
@@ -175,8 +177,12 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
 
     private setupNetworkInterceptor(): void {
         const originalFetch = window.fetch;
-        const origOpen = XMLHttpRequest.prototype.open;
-        const origSend = XMLHttpRequest.prototype.send;
+        const origOpen = XMLHttpRequest.prototype.open as (
+            ...a: unknown[]
+        ) => void;
+        const origSend = XMLHttpRequest.prototype.send as (
+            ...a: unknown[]
+        ) => void;
         const xhrUrlMap = new WeakMap<XMLHttpRequest, string>();
 
         window.fetch = async (...args: Parameters<typeof originalFetch>) => {
@@ -207,7 +213,9 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                     clone
                         .json()
                         .then((data: unknown) => {
-                            this.handleSeriesEpisodesApiResponse(data);
+                            this.handleSeriesEpisodesApiResponse(
+                                data as TVerSeriesEpisodesResponse,
+                            );
                         })
                         .catch(() => {});
                 }
@@ -302,16 +310,23 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
             this: XMLHttpRequest,
             method: string,
             url: string | URL,
-            ...rest: any[]
+            ...rest: [
+                async?: boolean,
+                username?: string | null,
+                password?: string | null,
+            ]
         ) {
             const urlStr = typeof url === 'string' ? url : url.href;
             xhrUrlMap.set(this, urlStr);
-            return origOpen.apply(this, [method, url, ...rest] as any);
+            return origOpen.apply(this, [method, url, ...rest]);
         };
 
-        XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, ...args: any[]) {
+        XMLHttpRequest.prototype.send = function (
+            this: XMLHttpRequest,
+            ...args: [body?: Document | XMLHttpRequestBodyInit | null]
+        ) {
             this.addEventListener('load', () => onXhrLoad(this), { passive: true });
-            return origSend.apply(this, args as any);
+            return origSend.apply(this, args);
         };
 
         this.unhookNetwork = () => {
@@ -331,14 +346,24 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
 
         const notify = () => this.notifyUrlChange();
 
-        history.pushState = function (...args: any[]) {
-            const res = origPushState.apply(this, args as any);
+        history.pushState = function (
+            this: History,
+            data: unknown,
+            unused: string,
+            url?: string | URL | null,
+        ) {
+            const res = origPushState.call(this, data, unused, url);
             notify();
             return res;
         };
 
-        history.replaceState = function (...args: any[]) {
-            const res = origReplaceState.apply(this, args as any);
+        history.replaceState = function (
+            this: History,
+            data: unknown,
+            unused: string,
+            url?: string | URL | null,
+        ) {
+            const res = origReplaceState.call(this, data, unused, url);
             notify();
             return res;
         };
@@ -416,9 +441,9 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
 
         this.unhookPlayerEvents = () => {
             playerEvents.forEach((evt) => {
-                window.removeEventListener(evt, onStateChange, { capture: true } as any);
+                window.removeEventListener(evt, onStateChange, true);
             });
-            window.removeEventListener('timeupdate', onTimeUpdate, { capture: true } as any);
+            window.removeEventListener('timeupdate', onTimeUpdate, true);
         };
     }
 
@@ -666,7 +691,9 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
         } catch {}
     }
 
-    private handleSeriesEpisodesApiResponse(data: any): void {
+    private handleSeriesEpisodesApiResponse(
+        data: TVerSeriesEpisodesResponse,
+    ): void {
         const currentEpId =
             this.lastObservedEpisodeId || this.extractEpisodeId(window.location.href);
         const payload = this.metadataManager.handleSeriesEpisodesResponse(data, currentEpId);

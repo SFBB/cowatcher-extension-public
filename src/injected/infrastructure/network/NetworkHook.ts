@@ -8,7 +8,7 @@ declare global {
 }
 
 export type SubtitlePayloadHandler = (url: string, text: string) => void;
-export type MetadataPayloadHandler = (url: string, data: any) => void;
+export type MetadataPayloadHandler = (url: string, data: unknown) => void;
 
 export class NetworkHook {
     private static isInstalled = false;
@@ -35,7 +35,7 @@ export class NetworkHook {
         };
     }
 
-    private static notifyMetadataHandlers(url: string, data: any): void {
+    private static notifyMetadataHandlers(url: string, data: unknown): void {
         for (const handler of this.metadataHandlers) {
             try {
                 handler(url, data);
@@ -165,21 +165,31 @@ export class NetworkHook {
     }
 
     private static hookXHR(): void {
-        const origOpen = XMLHttpRequest.prototype.open;
-        const origSend = XMLHttpRequest.prototype.send;
+        const origOpen = XMLHttpRequest.prototype.open as (
+            ...a: unknown[]
+        ) => void;
+        const origSend = XMLHttpRequest.prototype.send as (
+            ...a: unknown[]
+        ) => void;
         const notify = this.notifyHandlers.bind(this);
 
         XMLHttpRequest.prototype.open = function (
             this: XMLHttpRequest,
-            ...args: any[]
+            ...args: [
+                method: string,
+                url: string | URL,
+                async?: boolean,
+                username?: string | null,
+                password?: string | null,
+            ]
         ) {
             this._ncw_url = args[1];
-            return (origOpen as any).apply(this, args);
+            return origOpen.apply(this, args);
         };
 
         XMLHttpRequest.prototype.send = function (
             this: XMLHttpRequest,
-            ...args: any[]
+            ...args: [body?: Document | XMLHttpRequestBodyInit | null]
         ) {
             this.addEventListener(
                 'load',
@@ -286,7 +296,7 @@ export class NetworkHook {
                 },
                 { passive: true },
             );
-            return (origSend as any).apply(this, args);
+            return origSend.apply(this, args);
         };
     }
 }

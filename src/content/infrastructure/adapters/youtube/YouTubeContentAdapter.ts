@@ -13,6 +13,12 @@ import { NCW_MESSAGE_TYPES } from '@shared/domain/constants/MessageTypes';
 import { Logger } from '@shared/utils/logger';
 import { PlaybackDatasetHelper } from '@shared/domain/entities/PlaybackDatasetPayload';
 
+interface YouTubePlayerElement extends HTMLElement {
+    pauseVideo?: () => void;
+    playVideo?: () => void;
+    getPlayerState?: () => number;
+}
+
 export class YouTubeContentAdapter implements IStreamingAdapter {
     readonly platformName = STREAMING_PLATFORMS.YOUTUBE;
     private adDetector: YouTubeAdDetector;
@@ -176,7 +182,9 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
 
     pausePlayback(): void {
         try {
-            const ytPlayer = document.getElementById('movie_player') as any;
+            const ytPlayer = document.getElementById(
+                'movie_player',
+            ) as YouTubePlayerElement | null;
             if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
                 ytPlayer.pauseVideo();
                 return;
@@ -192,7 +200,9 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
 
     resumePlayback(): void {
         try {
-            const ytPlayer = document.getElementById('movie_player') as any;
+            const ytPlayer = document.getElementById(
+                'movie_player',
+            ) as YouTubePlayerElement | null;
             if (ytPlayer && typeof ytPlayer.playVideo === 'function') {
                 ytPlayer.playVideo();
                 return;
@@ -208,7 +218,9 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
 
     isPlaybackPaused(): boolean {
         try {
-            const ytPlayer = document.getElementById('movie_player') as any;
+            const ytPlayer = document.getElementById(
+                'movie_player',
+            ) as YouTubePlayerElement | null;
             if (ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
                 return ytPlayer.getPlayerState() === 2;
             }
@@ -437,7 +449,7 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
 
         return new Promise<VideoMetadata | null | undefined>((resolve) => {
             let resolved = false;
-            let timer: any = null;
+            let timer: ReturnType<typeof setTimeout> | null = null;
 
             const handler = (event: MessageEvent) => {
                 if (event.source !== window || !event.data) return;
@@ -447,7 +459,7 @@ export class YouTubeContentAdapter implements IStreamingAdapter {
                     event.data.queryId === queryId
                 ) {
                     resolved = true;
-                    clearTimeout(timer);
+                    if (timer) clearTimeout(timer);
                     window.removeEventListener('message', handler);
 
                     const { status, metadata } = event.data;

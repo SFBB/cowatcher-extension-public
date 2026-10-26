@@ -178,7 +178,19 @@ export class OpenRouterClient implements ILlmClient {
         const json = await res.json();
         const rawList = Array.isArray(json.data) ? json.data : [];
 
-        const models: OpenRouterModelItem[] = rawList.map((m: any) => ({
+        interface RawOpenRouterModel {
+            id: string;
+            name?: string;
+            context_length?: number;
+            pricing?: {
+                prompt?: string;
+                completion?: string;
+            };
+        }
+
+        const models: OpenRouterModelItem[] = (
+            rawList as RawOpenRouterModel[]
+        ).map((m) => ({
             id: m.id,
             name: m.name || m.id,
             contextLength: m.context_length || 0,

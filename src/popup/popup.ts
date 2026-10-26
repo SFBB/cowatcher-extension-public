@@ -803,12 +803,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const targetLangName =
+        const targetLangObj =
             typeof ctx.targetLanguage === 'object' &&
             ctx.targetLanguage !== null
-                ? (ctx.targetLanguage as any).name ||
-                  (ctx.targetLanguage as any).code
-                : ctx.targetLanguage;
+                ? (ctx.targetLanguage as { name?: string; code?: string })
+                : null;
+        const targetLangName = targetLangObj
+            ? targetLangObj.name || targetLangObj.code
+            : ctx.targetLanguage;
         const langSuffix = targetLangName ? ` (${targetLangName})` : '';
         if (showTitle) {
             showTitle.textContent =

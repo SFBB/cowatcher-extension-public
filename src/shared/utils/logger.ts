@@ -18,8 +18,21 @@ export class Logger {
         console.warn(`[${scope}]-[${this.context}] ${message}`, ...args);
     }
 
-    error(scope: string, message: string, ...args: unknown[]): void {
-        console.error(`[${scope}]-[${this.context}] ${message}`, ...args);
+    error(
+        scope: string,
+        message: string,
+        error?: unknown,
+        ...args: unknown[]
+    ): void {
+        if (error !== undefined) {
+            console.error(
+                `[${scope}]-[${this.context}] ${message}`,
+                error,
+                ...args,
+            );
+        } else {
+            console.error(`[${scope}]-[${this.context}] ${message}`, ...args);
+        }
     }
 
     debug(scope: string, message: string, ...args: unknown[]): void {

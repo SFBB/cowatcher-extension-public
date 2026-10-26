@@ -7,6 +7,16 @@ import {
     PlatformMessageListener,
 } from './IBrowserPlatform';
 
+interface WebExtensionPolyfill {
+    runtime?: {
+        getURL?: (path: string) => string;
+        sendMessage?: (message: unknown) => Promise<unknown>;
+    };
+    declarativeNetRequest?: typeof chrome.declarativeNetRequest;
+}
+
+declare const browser: WebExtensionPolyfill | undefined;
+
 /**
  * Chrome Platform Implementation of IBrowserPlatform.
  */
@@ -82,9 +92,9 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
         }
         if (
             typeof browser !== 'undefined' &&
-            (browser as any).runtime?.getURL
+            browser?.runtime?.getURL
         ) {
-            return (browser as any).runtime.getURL(cleanPath);
+            return browser.runtime.getURL(cleanPath);
         }
         return cleanPath;
     }
@@ -150,7 +160,7 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
         const dnr =
             (typeof chrome !== 'undefined' && chrome.declarativeNetRequest) ||
             (typeof browser !== 'undefined' &&
-                (browser as any).declarativeNetRequest);
+                browser?.declarativeNetRequest);
         if (!dnr) return;
 
         try {
@@ -305,7 +315,7 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
         return () => {};
     }
 
-    async sendMessage<T = any>(message: any): Promise<T> {
+    async sendMessage<T = unknown>(message: unknown): Promise<T> {
         if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
             try {
                 const response = await browser.runtime.sendMessage(message);
@@ -350,7 +360,7 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
         });
     }
 
-    async broadcastToTabs(message: any): Promise<void> {
+    async broadcastToTabs(message: unknown): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query)
             return;
         try {
@@ -375,9 +385,9 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
         }
 
         const chromeListener = (
-            message: any,
+            message: unknown,
             sender: chrome.runtime.MessageSender,
-            sendResponse: (res?: any) => void,
+            sendResponse: (res?: unknown) => void,
         ) => {
             const platformSender: PlatformMessageSender = {
                 id: sender.id,

@@ -10,6 +10,15 @@ export interface ParsedCue {
     position?: 'bottom' | 'top' | 'left-vertical' | 'right-vertical';
 }
 
+export interface TtmlStyleInfo {
+    origin?: string | null;
+    extent?: string | null;
+    writingMode?: string | null;
+    textAlign?: string | null;
+    displayAlign?: string | null;
+    [key: string]: unknown;
+}
+
 export class SubtitleParser {
     /**
      * Parse raw subtitle string into normalized array of cues
@@ -101,7 +110,7 @@ export class SubtitleParser {
                 if (fr) frameRate = parseFloat(fr) || frameRate;
             }
 
-            const styles = new Map<string, any>();
+            const styles = new Map<string, TtmlStyleInfo>();
             doc.querySelectorAll('style').forEach((st) => {
                 const id = st.getAttribute('xml:id') || st.getAttribute('id');
                 if (id) {
@@ -125,7 +134,7 @@ export class SubtitleParser {
                 }
             });
 
-            const regions = new Map<string, any>();
+            const regions = new Map<string, TtmlStyleInfo>();
             doc.querySelectorAll('region').forEach((reg) => {
                 const id = reg.getAttribute('xml:id') || reg.getAttribute('id');
                 if (id) {
@@ -272,7 +281,7 @@ export class SubtitleParser {
             if (regM) divRegion = regM[1];
         }
 
-        const styles = new Map<string, any>();
+        const styles = new Map<string, TtmlStyleInfo>();
         const styleRegex = /<style\b([^>]*)/gi;
         let sMatch;
         while ((sMatch = styleRegex.exec(xmlText)) !== null) {
@@ -294,7 +303,7 @@ export class SubtitleParser {
             }
         }
 
-        const regions = new Map<string, any>();
+        const regions = new Map<string, TtmlStyleInfo>();
         const regionRegex = /<region\b([^>]*)/gi;
         let rMatch;
         while ((rMatch = regionRegex.exec(xmlText)) !== null) {
@@ -541,8 +550,8 @@ export class SubtitleParser {
     static resolvePosition(
         p: Element,
         parentRegionId: string | null,
-        regions: Map<string, any> = new Map(),
-        styles: Map<string, any> = new Map(),
+        regions: Map<string, TtmlStyleInfo> = new Map(),
+        styles: Map<string, TtmlStyleInfo> = new Map(),
     ): 'bottom' | 'top' | 'left-vertical' | 'right-vertical' {
         const regId = (p.getAttribute('region') || parentRegionId || '').trim();
         const styleId = (p.getAttribute('style') || '').trim();
@@ -720,8 +729,8 @@ export class SubtitleParser {
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/&apos;/g, "'")
+            .replace(/&#39;/g, '\'')
+            .replace(/&apos;/g, '\'')
             .replace(/\u00A0/g, ' ')
             .trim();
     }

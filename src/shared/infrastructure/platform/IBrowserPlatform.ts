@@ -18,9 +18,9 @@ export interface PlatformMessageSender {
 }
 
 export type PlatformMessageListener = (
-    message: any,
+    message: unknown,
     sender: PlatformMessageSender,
-    sendResponse: (res?: any) => void,
+    sendResponse: (res?: unknown) => void,
 ) => boolean | void;
 
 /**
@@ -50,8 +50,8 @@ export interface IBrowserPlatform {
     onAlarm(callback: (alarmName: string) => void): () => void;
 
     // --- Runtime Messaging & Tabs Lifecycle ---
-    sendMessage<T = any>(message: any): Promise<T>;
-    broadcastToTabs(message: any): Promise<void>;
+    sendMessage<T = unknown>(message: unknown): Promise<T>;
+    broadcastToTabs(message: unknown): Promise<void>;
     onMessage(listener: PlatformMessageListener): () => void;
     onTabRemoved(callback: (tabId: number) => void): () => void;
 }

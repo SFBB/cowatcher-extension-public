@@ -77,7 +77,7 @@ export class Context {
         });
     }
 
-    static fromDTO(dto: ContextDTO | any): Context {
+    static fromDTO(dto?: Partial<ContextDTO> | null): Context {
         if (!dto) return Context.createEmpty();
         return new Context({
             ...dto,

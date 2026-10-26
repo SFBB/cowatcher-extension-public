@@ -40,22 +40,24 @@ export class YouTubeSubtitleParser {
                 if (!ev.segs || !Array.isArray(ev.segs) || ev.segs.length === 0)
                     continue;
 
+                interface YouTubeJson3Segment {
+                    utf8?: string;
+                    tOffsetMs?: number;
+                }
+
                 // Filter valid segments with string content (preserving spaces between words)
-                const validSegs: Array<{ text: string; offsetMs: number }> =
-                    ev.segs
-                        .filter(
-                            (s: any) =>
-                                s &&
-                                typeof s.utf8 === 'string' &&
-                                s.utf8.length > 0,
-                        )
-                        .map((s: any) => ({
-                            text: s.utf8,
-                            offsetMs:
-                                typeof s.tOffsetMs === 'number'
-                                    ? s.tOffsetMs
-                                    : 0,
-                        }));
+                const validSegs: Array<{ text: string; offsetMs: number }> = (
+                    ev.segs as YouTubeJson3Segment[]
+                )
+                    .filter(
+                        (s) =>
+                            Boolean(s && typeof s.utf8 === 'string' && s.utf8.length > 0),
+                    )
+                    .map((s) => ({
+                        text: s.utf8!,
+                        offsetMs:
+                            typeof s.tOffsetMs === 'number' ? s.tOffsetMs : 0,
+                    }));
 
                 if (validSegs.length === 0) continue;
 
@@ -373,8 +375,8 @@ export class YouTubeSubtitleParser {
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/&apos;/g, "'")
+            .replace(/&#39;/g, '\'')
+            .replace(/&apos;/g, '\'')
             .replace(/&nbsp;/g, ' ')
             .replace(/&#(\d+);/g, (_, dec) =>
                 String.fromCharCode(parseInt(dec, 10)),

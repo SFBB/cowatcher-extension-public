@@ -737,8 +737,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     `Failed to invalidate cues: ${res?.error || 'Unknown error'}`,
                 );
             }
-        } catch (err: any) {
-            alert(`Error invalidating cues: ${err?.message || err}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            alert(`Error invalidating cues: ${msg}`);
         } finally {
             btnRangeModalConfirm.removeAttribute('disabled');
             btnRangeModalConfirm.textContent = '⚠️ Mark Range Stale';

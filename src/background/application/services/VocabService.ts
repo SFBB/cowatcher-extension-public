@@ -582,7 +582,7 @@ ${dialoguesText}`;
             }
 
             return { vocab: validList };
-        } catch (err: any) {
+        } catch (err: unknown) {
             this.logger.warn(
                 'Vocabulary',
                 'Vocab extraction batch failed:',

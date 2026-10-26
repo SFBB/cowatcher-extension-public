@@ -380,6 +380,7 @@ export type MessagePayloadMap = {
             provider?: string;
             model?: string;
             isSupervisor: boolean;
+            error?: string;
         };
     };
     NCW_EXTRACT_GLOSSARY_BILINGUAL: {
@@ -420,7 +421,7 @@ export type MessagePayloadMap = {
         };
         response: {
             success: boolean;
-            context: ContextDTO;
+            context?: ContextDTO;
             error?: string;
         };
     };

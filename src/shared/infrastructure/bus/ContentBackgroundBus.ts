@@ -17,7 +17,7 @@ export type BusResponseCallback<T extends MessageType> = (
 export type BusDispatcher = (
     message: BusMessage,
     sender: BusSender,
-    sendResponse: (res: any) => void,
+    sendResponse: (res: unknown) => void,
 ) => boolean | void;
 
 export class ContentBackgroundBus {
@@ -68,9 +68,13 @@ export class ContentBackgroundBus {
     ): () => void {
         const platform = BrowserPlatformFactory.getPlatform();
         return platform.onMessage((message, sender, sendResponse) => {
-            if (!message || message.type !== targetType) return false;
+            const msg = message as { type?: unknown } | null | undefined;
+            if (!msg || msg.type !== targetType) return false;
 
-            const result = handler(message, sender);
+            const result = handler(
+                message as MessagePayloadMap[T]['request'],
+                sender,
+            );
             if (result instanceof Promise) {
                 result.then((res) => {
                     if (res !== undefined) sendResponse(res);
@@ -91,7 +95,8 @@ export class ContentBackgroundBus {
     static registerDispatcher(dispatcher: BusDispatcher): () => void {
         const platform = BrowserPlatformFactory.getPlatform();
         return platform.onMessage((message, sender, sendResponse) => {
-            if (!message || typeof message.type !== 'string') return false;
+            const msg = message as { type?: unknown } | null | undefined;
+            if (!msg || typeof msg.type !== 'string') return false;
             return dispatcher(message as BusMessage, sender, sendResponse);
         });
     }

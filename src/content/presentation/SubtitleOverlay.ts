@@ -170,7 +170,7 @@ export class SubtitleOverlay {
 
         if (typeof document === 'undefined') return;
 
-        let target: HTMLElement | null = null;
+        let target: HTMLElement;
         const resolved = this.containerResolver?.() || null;
         if (
             resolved &&

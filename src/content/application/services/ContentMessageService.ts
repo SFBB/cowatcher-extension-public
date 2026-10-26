@@ -6,6 +6,7 @@ import {
     TranslateCueItem,
     ReviewCueItem,
     PrecedingContextItem,
+    MessagePayloadMap,
 } from '@shared/types/Messages';
 import { MergeAsrCueItem } from '@shared/domain/entities/Subtitle';
 import { LanguageInfo } from '@shared/domain/value-objects/Language';
@@ -95,7 +96,11 @@ export class ContentMessageService {
         );
     }
 
-    onCuesStale(callback: (payload: any) => void): () => void {
+    onCuesStale(
+        callback: (
+            payload: MessagePayloadMap[typeof NCW_CONSTANTS.MESSAGE_TYPES.PUSH_CUES_STALE]['request'],
+        ) => void,
+    ): () => void {
         return ContentBackgroundBus.onMessage(
             NCW_CONSTANTS.MESSAGE_TYPES.PUSH_CUES_STALE,
             (payload) => {

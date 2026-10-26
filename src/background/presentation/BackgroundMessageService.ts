@@ -875,7 +875,7 @@ export class BackgroundMessageService {
                                     hasAi: false,
                                     isSupervisor: false,
                                     error: err?.message,
-                                } as any);
+                                });
                             });
                         return true;
                     }
@@ -943,7 +943,7 @@ export class BackgroundMessageService {
                                 sendResponse({
                                     success: false,
                                     error: err?.message,
-                                } as any);
+                                });
                             });
                         return true;
                     }

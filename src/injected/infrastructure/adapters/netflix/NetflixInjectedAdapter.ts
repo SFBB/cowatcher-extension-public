@@ -10,7 +10,7 @@ import { NetworkHook } from '../../network/NetworkHook';
 import { NetflixPlayerBridge } from './NetflixPlayerBridge';
 import { NetflixMetadataManager } from './NetflixMetadataManager';
 import { NetflixTrackRegistry } from './NetflixTrackRegistry';
-import { NetflixTimedTextTrack } from './NetflixTypes';
+import { NetflixTimedTextTrack, NetflixMetadataApiResponse } from './NetflixTypes';
 import { Logger } from '@shared/utils/logger';
 
 export class NetflixInjectedAdapter implements IInjectedAdapter {
@@ -203,7 +203,9 @@ export class NetflixInjectedAdapter implements IInjectedAdapter {
 
     private setupMetadataInterceptor(): void {
         this.unhookMetadata = NetworkHook.onMetadataPayload((_url, data) => {
-            this.metadataManager.handleMetadataApiResponse(data);
+            this.metadataManager.handleMetadataApiResponse(
+                data as NetflixMetadataApiResponse,
+            );
             const currentEpId =
                 this.currentEpisodeId ||
                 this.playerBridge.getCurrentMovieId() ||

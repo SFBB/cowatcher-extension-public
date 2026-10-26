@@ -55,9 +55,17 @@ export class TVerTrackRegistry {
         const cues = track?.cues_ || track?.cues;
         if (!cues || cues.length === 0) return null;
 
+        interface TVerCueLike {
+            startTime?: number;
+            endTime?: number;
+            text?: string;
+            rawText?: string;
+            getCueAsHTML?: () => HTMLElement | null;
+        }
+
         let out = 'WEBVTT\n\n';
         for (let i = 0; i < cues.length; i++) {
-            const cue = cues[i] as any;
+            const cue = cues[i] as unknown as TVerCueLike;
             if (
                 typeof cue.startTime !== 'number' ||
                 typeof cue.endTime !== 'number'

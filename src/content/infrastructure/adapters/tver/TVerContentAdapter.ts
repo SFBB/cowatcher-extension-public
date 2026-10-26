@@ -432,7 +432,7 @@ export class TVerContentAdapter implements IStreamingAdapter {
 
         return new Promise<VideoMetadata | null | undefined>((resolve) => {
             let resolved = false;
-            let timer: any = null;
+            let timer: ReturnType<typeof setTimeout> | null = null;
 
             const handler = (event: MessageEvent) => {
                 if (event.source !== window || !event.data) return;
@@ -442,7 +442,7 @@ export class TVerContentAdapter implements IStreamingAdapter {
                     event.data.queryId === queryId
                 ) {
                     resolved = true;
-                    clearTimeout(timer);
+                    if (timer) clearTimeout(timer);
                     window.removeEventListener('message', handler);
 
                     const { status, metadata } = event.data;
