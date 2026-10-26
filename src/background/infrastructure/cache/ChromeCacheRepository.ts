@@ -627,6 +627,60 @@ export class ChromeCacheRepository implements ITrackCacheRepository {
         return success;
     }
 
+    static getRetentionMs(period: '1w' | '1m' | '1y' = '1m'): number {
+        switch (period) {
+            case '1w':
+                return 7 * 24 * 60 * 60 * 1000;
+            case '1m':
+                return 30 * 24 * 60 * 60 * 1000;
+            case '1y':
+                return 365 * 24 * 60 * 60 * 1000;
+            default:
+                return 30 * 24 * 60 * 60 * 1000;
+        }
+    }
+
+    static async cleanExpiredRecords(
+        retention: '1w' | '1m' | '1y' = '1m',
+    ): Promise<number> {
+        let deletedCount = 0;
+        const db = await this.getDB();
+        if (db) {
+            try {
+                const ttlMs = this.getRetentionMs(retention);
+                const cutoff = Date.now() - ttlMs;
+                deletedCount = await new Promise<number>((resolve) => {
+                    const tx = db.transaction(
+                        ChromeCacheRepository.STORE_NAME,
+                        'readwrite',
+                    );
+                    const store = tx.objectStore(
+                        ChromeCacheRepository.STORE_NAME,
+                    );
+                    const index = store.index('updatedAt');
+                    const range = IDBKeyRange.upperBound(cutoff);
+                    const req = index.openCursor(range);
+                    let count = 0;
+
+                    req.onsuccess = (e) => {
+                        const cursor = (e.target as IDBRequest)
+                            .result as IDBCursorWithValue;
+                        if (cursor) {
+                            cursor.delete();
+                            count++;
+                            cursor.continue();
+                        } else {
+                            resolve(count);
+                        }
+                    };
+
+                    req.onerror = () => resolve(count);
+                });
+            } catch (_e) {}
+        }
+        return deletedCount;
+    }
+
     static async clearAllTrackCaches(): Promise<boolean> {
         let success = true;
         const db = await this.getDB();
@@ -709,8 +763,21 @@ export class ChromeCacheRepository implements ITrackCacheRepository {
         return ChromeCacheRepository.clearAllTrackCaches();
     }
 
+    async cleanExpiredRecords(
+        retention: '1w' | '1m' | '1y' = '1m',
+    ): Promise<number> {
+        return ChromeCacheRepository.cleanExpiredRecords(retention);
+    }
+
     private static async _pruneOldRecords(db: IDBDatabase): Promise<void> {
         if (!db) return;
+        try {
+            const storage = BrowserStorageFactory.getStorage();
+            const res = await storage.get<Record<string, unknown>>(['settings']);
+            const settings = res?.settings as { cacheRetention?: '1w' | '1m' | '1y' } | undefined;
+            const retention = settings?.cacheRetention || '1m';
+            await this.cleanExpiredRecords(retention);
+        } catch (_e) {}
         try {
             const tx = db.transaction(
                 ChromeCacheRepository.STORE_NAME,

@@ -59,6 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements - Subtitle Cache Pane
     const btnRefreshCache = document.getElementById('btn-refresh-cache');
     const btnClearAllCache = document.getElementById('btn-clear-all-cache');
+    const btnCleanExpiredCache = document.getElementById(
+        'btn-clean-expired-cache',
+    );
+    const cacheRetentionSelect = document.getElementById(
+        'cache-retention-select',
+    ) as HTMLSelectElement | null;
     const cacheSearchInput = document.getElementById(
         'cache-search',
     ) as HTMLInputElement | null;
@@ -203,6 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const cfgVocabCustomPrompt = document.getElementById(
         'cfg-vocab-custom-prompt',
     ) as HTMLTextAreaElement | null;
+    const cfgCacheRetention = document.getElementById(
+        'cfg-cache-retention',
+    ) as HTMLSelectElement | null;
 
     // DOM Elements - Modal & Toast
     const vocabPreviewModal = document.getElementById('vocab-preview-modal');
@@ -314,6 +323,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     async function loadSubtitleCaches(): Promise<void> {
         try {
+            const retention = currentSettings.cacheRetention || '1m';
+            await cacheRepository.cleanExpiredRecords(retention).catch(() => 0);
             const records = await cacheRepository.getAllTrackCaches();
             cachedTracks = records || [];
             renderSubtitleCaches();
@@ -740,6 +751,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('All subtitle caches cleared');
                 loadSubtitleCaches();
             });
+        }
+    });
+
+    btnCleanExpiredCache?.addEventListener('click', async () => {
+        const retention = currentSettings.cacheRetention || '1m';
+        const cleaned = await cacheRepository.cleanExpiredRecords(retention);
+        showToast(
+            cleaned > 0
+                ? `Cleaned ${cleaned} expired subtitle cache(s).`
+                : 'No expired subtitle caches found.',
+        );
+        loadSubtitleCaches();
+    });
+
+    cacheRetentionSelect?.addEventListener('change', async () => {
+        const val = (cacheRetentionSelect.value || '1m') as
+            | '1w'
+            | '1m'
+            | '1y';
+        currentSettings.cacheRetention = val;
+        if (cfgCacheRetention) {
+            cfgCacheRetention.value = val;
+        }
+        await storage.set({
+            [NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]: currentSettings,
+        });
+        const cleaned = await cacheRepository.cleanExpiredRecords(val);
+        showToast(
+            cleaned > 0
+                ? `Retention set to ${val}. Cleaned ${cleaned} expired cache(s).`
+                : `Retention set to ${val}.`,
+        );
+        loadSubtitleCaches();
+    });
+
+    cfgCacheRetention?.addEventListener('change', () => {
+        if (cacheRetentionSelect && cfgCacheRetention) {
+            cacheRetentionSelect.value = cfgCacheRetention.value;
+            cacheRetentionSelect.dispatchEvent(new Event('change'));
         }
     });
 
@@ -1897,7 +1947,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dateStr = `${year}-${month}-${day}`;
 
                 if (isFuture) {
-                    daysHtml += `<div class="heatmap-cell" style="opacity: 0.15; cursor: default;"></div>`;
+                    daysHtml +=
+                        '<div class="heatmap-cell" style="opacity: 0.15; cursor: default;"></div>';
                 } else {
                     const entry = statsMap.get(dateStr);
                     const seconds = entry ? entry.seconds : 0;
@@ -2527,6 +2578,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentSettings.vocabExtractorCustomPrompt || '';
         if (uiLanguageSelect)
             uiLanguageSelect.value = currentSettings.uiLanguage || 'en';
+        if (cacheRetentionSelect)
+            cacheRetentionSelect.value = currentSettings.cacheRetention || '1m';
+        if (cfgCacheRetention)
+            cfgCacheRetention.value = currentSettings.cacheRetention || '1m';
 
         populateOpenRouterOptions();
     }
@@ -2662,11 +2717,21 @@ document.addEventListener('DOMContentLoaded', () => {
             uiLanguage: (uiLanguageSelect
                 ? uiLanguageSelect.value
                 : currentSettings.uiLanguage) as 'en' | 'zh',
+            cacheRetention: (cfgCacheRetention
+                ? cfgCacheRetention.value
+                : cacheRetentionSelect
+                  ? cacheRetentionSelect.value
+                  : currentSettings.cacheRetention || '1m') as
+                | '1w'
+                | '1m'
+                | '1y',
         };
 
         currentSettings = updated;
         await storage.set({ [NCW_CONSTANTS.STORAGE_KEYS.SETTINGS]: updated });
+        await cacheRepository.cleanExpiredRecords(updated.cacheRetention);
         showToast('Settings saved successfully!');
+        loadSubtitleCaches();
     });
 
     uiLanguageSelect?.addEventListener('change', async (e) => {

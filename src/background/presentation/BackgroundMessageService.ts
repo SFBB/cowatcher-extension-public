@@ -84,6 +84,16 @@ export class BackgroundMessageService {
         await this.llmHelperService.init();
         await this.translationPipelineService.init();
         await this.vocabService.init();
+        try {
+            const res = await this.storage.get<Record<string, unknown>>([
+                NCW_CONSTANTS.STORAGE_KEYS.SETTINGS,
+            ]);
+            const settings = res?.[NCW_CONSTANTS.STORAGE_KEYS.SETTINGS] as {
+                cacheRetention?: '1w' | '1m' | '1y';
+            } | undefined;
+            const retention = settings?.cacheRetention || '1m';
+            await this.cacheRepository.cleanExpiredRecords(retention);
+        } catch (_e) {}
     }
 
     static getInstance(

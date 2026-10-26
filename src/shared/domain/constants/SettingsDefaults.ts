@@ -9,6 +9,8 @@ import { LLMProvider, TranslationProvider } from '../entities/PipelineTypes';
 import { Language, LanguageInfo } from '../value-objects/Language';
 import { STREAMING_PLATFORMS, StreamingPlatformId } from './StreamingPlatforms';
 
+export type CacheRetentionPeriod = '1w' | '1m' | '1y';
+
 export interface ExtensionSettings {
     enabled: boolean;
     platformEnabled?: Partial<Record<StreamingPlatformId, boolean>>;
@@ -70,6 +72,7 @@ export interface ExtensionSettings {
 
     enableSubtitleLearning: boolean;
     autoPauseOnTokenClick: boolean;
+    cacheRetention: CacheRetentionPeriod;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -136,6 +139,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
 
     enableSubtitleLearning: false,
     autoPauseOnTokenClick: true,
+    cacheRetention: '1m',
 };
 
 export const PROVIDER_PRESETS: Record<string, PipelineConfig> = {

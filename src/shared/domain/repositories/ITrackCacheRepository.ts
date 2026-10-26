@@ -82,4 +82,5 @@ export interface ITrackCacheRepository {
     getAllTrackCaches(): Promise<TrackCacheRecord[]>;
     deleteTrackCache(cacheKey: string): Promise<boolean>;
     clearAllTrackCaches(): Promise<boolean>;
+    cleanExpiredRecords(retention?: '1w' | '1m' | '1y'): Promise<number>;
 }

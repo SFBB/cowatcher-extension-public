@@ -270,6 +270,41 @@ export class ChromePlatformAdapter implements IBrowserPlatform {
         );
     }
 
+    createAlarm(
+        name: string,
+        alarmInfo: {
+            periodInMinutes?: number;
+            delayInMinutes?: number;
+            when?: number;
+        },
+    ): void {
+        if (
+            typeof chrome !== 'undefined' &&
+            chrome.alarms &&
+            typeof chrome.alarms.create === 'function'
+        ) {
+            chrome.alarms.create(
+                name,
+                alarmInfo as chrome.alarms.AlarmCreateInfo,
+            );
+        }
+    }
+
+    onAlarm(callback: (alarmName: string) => void): () => void {
+        if (
+            typeof chrome !== 'undefined' &&
+            chrome.alarms &&
+            chrome.alarms.onAlarm
+        ) {
+            const listener = (alarm: chrome.alarms.Alarm) => {
+                callback(alarm.name);
+            };
+            chrome.alarms.onAlarm.addListener(listener);
+            return () => chrome.alarms.onAlarm.removeListener(listener);
+        }
+        return () => {};
+    }
+
     async sendMessage<T = any>(message: any): Promise<T> {
         if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
             try {

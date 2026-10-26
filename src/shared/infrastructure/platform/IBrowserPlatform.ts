@@ -38,6 +38,17 @@ export interface IBrowserPlatform {
     onStartup(callback: () => void): void;
     isContextValid(): boolean;
 
+    // --- Background Alarms ---
+    createAlarm(
+        name: string,
+        alarmInfo: {
+            periodInMinutes?: number;
+            delayInMinutes?: number;
+            when?: number;
+        },
+    ): void;
+    onAlarm(callback: (alarmName: string) => void): () => void;
+
     // --- Runtime Messaging & Tabs Lifecycle ---
     sendMessage<T = any>(message: any): Promise<T>;
     broadcastToTabs(message: any): Promise<void>;

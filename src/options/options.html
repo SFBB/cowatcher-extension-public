@@ -78,7 +78,20 @@
               playback and instant rewatching.
             </p>
           </div>
-          <div class="pane-actions">
+          <div class="pane-actions" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <div class="cache-retention-control" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+              <label for="cache-retention-select" style="font-size: 0.8rem; color: #aaa; white-space: nowrap;">
+                ⏱️ Auto-cleanup:
+              </label>
+              <select id="cache-retention-select" class="select-sm" title="Automatic Cache Retention Period">
+                <option value="1w">1 Week</option>
+                <option value="1m">1 Month (Default)</option>
+                <option value="1y">1 Year</option>
+              </select>
+            </div>
+            <button id="btn-clean-expired-cache" class="btn-secondary" title="Manually clean caches older than the retention period">
+              🧹 Clean Expired
+            </button>
             <button id="btn-refresh-cache" class="btn-secondary">
               🔄 Refresh
             </button>
@@ -747,6 +760,23 @@
                 rows="3"
                 placeholder="e.g. Focus on JLPT N1 idioms, medical terminology, ignore character names..."
               ></textarea>
+            </div>
+          </div>
+
+          <!-- Col 4: Storage & Cache Retention Policy -->
+          <div class="settings-card">
+            <h3 class="card-title">💾 Local Storage & Cache Policy</h3>
+
+            <div class="form-group">
+              <label for="cfg-cache-retention">Auto-cleanup Retention Period</label>
+              <select id="cfg-cache-retention">
+                <option value="1w">1 Week (7 Days)</option>
+                <option value="1m">1 Month (30 Days - Default)</option>
+                <option value="1y">1 Year (365 Days)</option>
+              </select>
+              <small style="color: #888; font-size: 0.75rem; margin-top: 4px; display: block;">
+                Automatically purges cached subtitle tracks and cues older than this retention period to ensure transient data caching.
+              </small>
             </div>
           </div>
         </div>
