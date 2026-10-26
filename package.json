@@ -2,7 +2,7 @@
   "type": "module",
   "name": "cowatcher",
   "displayName": "CoWatcher",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Smart Watch History, AI Dual Subtitles, Real-Time Translation, Language Immersion & More, your streaming companion",
   "main": "index.js",
   "directories": {
