@@ -3,6 +3,7 @@
 English Documentation | [简体中文文档](README_zh.md) | [📖 Detailed Popup UI Guide](docs/popup_guide.md) | [🌟 Contributors & Sponsors](CONTRIBUTORS.md)
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Buy%20me%20a%20coffee-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/sfbb49898)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/kXdPU4vh9K)
 
 We support:
 
@@ -152,7 +153,9 @@ ollama pull gemma4:e2b
 
 ---
 
-## ☕ Contribution & Support & Donation
+## ☕ Community, Contribution & Support
+
+💬 **Join our Discord Community**: [https://discord.gg/kXdPU4vh9K](https://discord.gg/kXdPU4vh9K)
 
 This project welcomes any pull requests, forks, or issues(bugs or feature requests)!
 Read [contributing](/CONTRIBUTING.md) and [architecture](/Architecture.md) for more information!

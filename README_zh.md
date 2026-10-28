@@ -3,6 +3,7 @@
 [English Documentation](README.md) | 简体中文文档 | [📖 控制面板详细使用指南](docs/popup_guide_zh.md) | [🌟 贡献者与赞助者榜单](CONTRIBUTORS.md)
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-请作者喝杯咖啡-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/sfbb49898)
+[![Discord](https://img.shields.io/badge/Discord-加入交流社区-5865F2?logo=discord&logoColor=white)](https://discord.gg/kXdPU4vh9K)
 
 我们支持:
 
@@ -152,7 +153,9 @@ ollama pull gemma4:e2b
 
 ---
 
-## ☕ 贡献、支持与赞助 (Contribution & Support & Donation)
+## ☕ 社区交流、贡献与赞助 (Community, Contribution & Support)
+
+💬 **加入 Discord 交流社区**：[https://discord.gg/kXdPU4vh9K](https://discord.gg/kXdPU4vh9K)
 
 本项目热烈欢迎任何 pull request, fork, 或者 issue(bugs or feature requests)！
 详见 [贡献规范](/CONTRIBUTING.md) 与 [架构设计](/Architecture.md)。
