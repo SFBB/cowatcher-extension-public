@@ -1,6 +1,7 @@
 import { ExtensionSettings } from '@shared/utils/constants';
 import { SubtitleLearningManager } from '../application/learning/SubtitleLearningManager';
 import { SubtitleToken } from '@shared/domain/entities/SubtitleLearning';
+import { SubtitleSelectionController } from './SubtitleSelectionController';
 
 export interface OverlayCueItem {
     id: number | string;
@@ -34,9 +35,11 @@ export class SubtitleOverlay {
     private targetContainer: HTMLElement | null = null;
     private containerResolver: (() => HTMLElement | null) | null = null;
     private learningManager?: SubtitleLearningManager;
+    private readonly selectionController = new SubtitleSelectionController();
 
     setLearningManager(manager: SubtitleLearningManager): void {
         this.learningManager = manager;
+        this.selectionController.setListener(manager);
     }
 
     bindContainerResolver(resolver: () => HTMLElement | null): void {
@@ -380,8 +383,6 @@ export class SubtitleOverlay {
     private createTokenElement(
         token: SubtitleToken,
         displayText: string,
-        originalText: string,
-        translatedText: string | null,
     ): Node {
         if (!token.isWordLike) {
             return document.createTextNode(displayText);
@@ -391,29 +392,6 @@ export class SubtitleOverlay {
         span.className = `ncw-token${token.isUserMarked ? ' is-user-marked' : ''}`;
         span.setAttribute('data-token-id', token.id);
         span.textContent = displayText;
-
-        span.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.learningManager?.handleTokenClick(
-                token,
-                originalText,
-                translatedText || undefined,
-                span,
-                this.container || document.body,
-            );
-        });
-
-        span.addEventListener('contextmenu', (e) => {
-            this.learningManager?.handleTokenContextMenu(
-                e,
-                token,
-                originalText,
-                translatedText || undefined,
-                span,
-                this.container || document.body,
-            );
-        });
-
         return span;
     }
 
@@ -463,26 +441,18 @@ export class SubtitleOverlay {
                     }
                     if (part) {
                         origEl.appendChild(
-                            this.createTokenElement(
-                                token,
-                                part,
-                                originalText,
-                                translatedText,
-                            ),
+                            this.createTokenElement(token, part),
                         );
                     }
                 });
             } else {
                 origEl.appendChild(
-                    this.createTokenElement(
-                        token,
-                        token.text,
-                        originalText,
-                        translatedText,
-                    ),
+                    this.createTokenElement(token, token.text),
                 );
             }
         }
+
+        this.selectionController.attach(origEl, learningCue);
     }
 
     createCueWrapper(

@@ -4,10 +4,12 @@ import {
     SubtitleToken,
     LearningCueItem,
     WordLookupResult,
+    SubtitlePhraseSelection,
 } from '@shared/domain/entities/SubtitleLearning';
 import { VocabWordItem } from '@shared/domain/entities/Vocabulary';
 import { ExtensionSettings } from '@shared/domain/constants/SettingsDefaults';
 import { SubtitleLearningPopover } from '../../presentation/SubtitleLearningPopover';
+import { ISubtitleSelectionListener } from '../../presentation/SubtitleSelectionController';
 import { Logger } from '@shared/utils/logger';
 
 interface SegmentData {
@@ -27,7 +29,7 @@ interface IntlWithSegmenter {
     ) => IntlSegmenterInstance;
 }
 
-export class SubtitleLearningManager {
+export class SubtitleLearningManager implements ISubtitleSelectionListener {
     private readonly adapter: IStreamingAdapter;
     private readonly messageService: ContentMessageService;
     private readonly popover: SubtitleLearningPopover;
@@ -211,6 +213,163 @@ export class SubtitleLearningManager {
         }
 
         return tokens;
+    }
+
+    /**
+     * ISubtitleSelectionListener - Callback when user presses down on a token.
+     * Pauses playback immediately with 0ms latency.
+     */
+    onSelectionStart(_button: 0 | 2): void {
+        if (this.popover.isVisible) {
+            this.popover.hide(false);
+        }
+        const autoPause = this.settings.autoPauseOnTokenClick !== false;
+        if (autoPause && !this.adapter.isPlaybackPaused()) {
+            this.adapter.pausePlayback();
+            this.pausedByLearning = true;
+        }
+    }
+
+    /**
+     * ISubtitleSelectionListener - Callback when user releases mouse after drag or click.
+     * Left click: keeps playback paused, displays dictionary popover.
+     * Right click: quick-marks vocabulary and resumes playback automatically!
+     */
+    onSelectionCommit(
+        selection: SubtitlePhraseSelection,
+        container?: HTMLElement,
+    ): void {
+        if (selection.button === 2) {
+            // Right mouse button released: toggle mark and resume playback instantly!
+            this.toggleUserMarkedPhrase(selection, container);
+            if (this.pausedByLearning) {
+                this.pausedByLearning = false;
+                this.adapter.resumePlayback();
+            }
+        } else {
+            // Left mouse button released: keep paused and open Popover
+            this.showPhrasePopover(selection, container);
+        }
+    }
+
+    /**
+     * ISubtitleSelectionListener - Callback when selection is aborted (e.g. Esc pressed).
+     */
+    onSelectionCancel(_button: 0 | 2): void {
+        if (this.pausedByLearning) {
+            this.pausedByLearning = false;
+            this.adapter.resumePlayback();
+        }
+    }
+
+    private showPhrasePopover(
+        selection: SubtitlePhraseSelection,
+        container?: HTMLElement,
+    ): void {
+        const word = selection.selectedText;
+        const isMarked = this.userVocabWords.has(word.toLowerCase());
+        const targetContainer = container || document.body;
+
+        this.popover.show({
+            word,
+            sourceLang: this.currentSourceLang,
+            targetLang: this.currentTargetLang,
+            tokenEl: selection.anchorEl,
+            container: targetContainer,
+            isMarked,
+            contextSentence: selection.originalText,
+            contextTranslation: selection.translatedText,
+            onToggleMark: () => {
+                this.toggleUserMarkedPhrase(selection, targetContainer);
+            },
+            onClose: () => {
+                if (this.pausedByLearning) {
+                    this.pausedByLearning = false;
+                    this.adapter.resumePlayback();
+                }
+            },
+        });
+
+        // Check lookup cache
+        const cacheKey = `${word}_${this.currentSourceLang}_${this.currentTargetLang}`;
+        if (this.wordLookupCache.has(cacheKey)) {
+            this.popover.updateDefinition(this.wordLookupCache.get(cacheKey)!);
+            return;
+        }
+
+        // Fetch definition asynchronously
+        this.messageService
+            .lookupWordDefinition({
+                word,
+                contextSentence: selection.originalText,
+                contextTranslation: selection.translatedText,
+                sourceLang: this.currentSourceLang,
+                targetLang: this.currentTargetLang,
+            })
+            .then((res) => {
+                if (res && res.success && res.data) {
+                    this.wordLookupCache.set(cacheKey, res.data);
+                    this.popover.updateDefinition(res.data);
+                }
+            })
+            .catch((err) => {
+                this.logger.warn(
+                    'Lookup',
+                    'Failed lookup for phrase:',
+                    word,
+                    err,
+                );
+            });
+    }
+
+    async toggleUserMarkedPhrase(
+        selection: SubtitlePhraseSelection,
+        container?: HTMLElement,
+    ): Promise<void> {
+        const movieId = this.currentMovieId || 'default';
+        const word = selection.selectedText;
+        const normalized = word.toLowerCase();
+        const isCurrentlyMarked = this.userVocabWords.has(normalized);
+
+        if (isCurrentlyMarked) {
+            this.userVocabWords.delete(normalized);
+            selection.tokenElements.forEach((el) => {
+                el.classList.remove('is-user-marked');
+            });
+            this.messageService.deleteUserVocabWord({ movieId, word });
+            this.showToast(`🗑️ Removed "${word}" from vocabulary`, container);
+        } else {
+            this.userVocabWords.add(normalized);
+            selection.tokenElements.forEach((el) => {
+                el.classList.add('is-user-marked');
+            });
+
+            const currentTimestamp =
+                (await this.adapter?.getContentTime()) ??
+                this.adapter?.getVideoElement()?.currentTime ??
+                0;
+
+            const wordItem: VocabWordItem = {
+                word,
+                pos: '',
+                phonetic: '',
+                meaning: '',
+                sentence: selection.originalText,
+                sentenceTranslation: selection.translatedText || '',
+                timestamp: currentTimestamp,
+                frequency: 1,
+                source: 'user',
+                createdAt: Date.now(),
+            };
+
+            this.messageService.saveUserVocabWord({
+                movieId,
+                showTitle: this.currentShowTitle,
+                wordItem,
+            });
+
+            this.showToast(`⭐ Saved "${word}" to vocabulary`, container);
+        }
     }
 
     /**

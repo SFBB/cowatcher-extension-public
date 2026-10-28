@@ -24,7 +24,7 @@ export class SubtitleLearningPopover {
     }
 
     show(params: PopoverOpenParams): void {
-        this.hide();
+        this.hide(false);
         this.currentParams = params;
 
         const el = document.createElement('div');
@@ -207,7 +207,7 @@ export class SubtitleLearningPopover {
         }
     }
 
-    hide(): void {
+    hide(triggerOnClose: boolean = true): void {
         if (this.outsideClickHandler) {
             document.removeEventListener('mousedown', this.outsideClickHandler);
             this.outsideClickHandler = null;
@@ -223,7 +223,9 @@ export class SubtitleLearningPopover {
         if (this.currentParams) {
             const params = this.currentParams;
             this.currentParams = null;
-            params.onClose();
+            if (triggerOnClose) {
+                params.onClose();
+            }
         }
     }
 

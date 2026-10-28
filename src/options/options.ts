@@ -20,6 +20,9 @@ import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
 import { Language } from '@shared/domain/value-objects/Language';
 import { Logger } from '@shared/utils/logger';
 import { TranslationProvider } from '@shared/domain/entities/PipelineTypes';
+import { AnkiService } from './anki/ankiService';
+import { AnkiExportModal } from './anki/AnkiExportModal';
+import { VocabExportItem } from './anki/ankiTypes';
 
 const logger = new Logger('options');
 
@@ -88,6 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
     ) as HTMLInputElement | null;
     const btnExportSelectedVocab = document.getElementById(
         'btn-export-selected-vocab',
+    ) as HTMLButtonElement | null;
+    const btnExportAnki = document.getElementById(
+        'btn-export-anki',
+    ) as HTMLButtonElement | null;
+    const modalAnkiBtn = document.getElementById(
+        'modal-anki-btn',
     ) as HTMLButtonElement | null;
     const vocabSourceFilter = document.getElementById(
         'vocab-source-filter',
@@ -296,6 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
             toastNotify.classList.remove('show');
         }, 2400);
     }
+
+    const ankiService = new AnkiService();
+    const ankiModal = new AnkiExportModal(ankiService, (msg) => showToast(msg));
 
     function escapeHtml(str: string): string {
         return String(str || '')
@@ -892,6 +904,12 @@ document.addEventListener('DOMContentLoaded', () => {
             btnExportSelectedVocab.textContent = `⬇️ Export Selected (${totalSelected})`;
         }
 
+        if (btnExportAnki) {
+            const totalSelected = selectedVocabEpisodeIds.size;
+            btnExportAnki.disabled = totalSelected === 0;
+            btnExportAnki.textContent = `🎴 Export to Anki (${totalSelected})`;
+        }
+
         if (!vocabCardsGrid) return;
 
         if (filtered.length === 0) {
@@ -973,6 +991,9 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="btn-secondary btn-sm btn-export-show" data-group-id="${escapeHtml(g.groupId)}">
                 ⬇️ Export Entire Show (CSV)
               </button>
+              <button class="btn-secondary btn-sm btn-anki btn-anki-show" data-group-id="${escapeHtml(g.groupId)}" title="Export entire show to Anki">
+                🎴 Anki
+              </button>
               <button class="btn-secondary btn-sm btn-toggle-vocab-group" data-group-id="${escapeHtml(g.groupId)}">
                 ${isExpanded ? 'Collapse ▲' : 'Expand ▼'}
               </button>
@@ -1018,6 +1039,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                         <button class="btn-primary btn-sm btn-export-single-vocab" data-id="${escapeHtml(v.movieId)}">
                           ⬇️ Export
+                        </button>
+                        <button class="btn-secondary btn-sm btn-anki btn-anki-single-vocab" data-id="${escapeHtml(v.movieId)}" title="Export this episode to Anki">
+                          🎴 Anki
                         </button>
                         <button class="btn-danger btn-sm btn-delete-vocab" data-id="${escapeHtml(v.movieId)}">
                           🗑️
@@ -1143,6 +1167,28 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Export Entire Show to Anki
+        const ankiShowBtn = target?.closest(
+            '.btn-anki-show',
+        ) as HTMLButtonElement | null;
+        if (ankiShowBtn) {
+            const gid = ankiShowBtn.dataset.groupId;
+            if (gid) {
+                const matchingEps = cachedVocabList.filter((v) => {
+                    const rawTitle = (v.showTitle || '').trim();
+                    const g = rawTitle
+                        ? rawTitle.toLowerCase()
+                        : `movie_${v.movieId || 'unknown'}`;
+                    return g === gid;
+                });
+                if (matchingEps.length > 0) {
+                    const items = collectVocabExportItems(matchingEps);
+                    ankiModal.show(items, getVocabLanguage());
+                }
+            }
+            return;
+        }
+
         // Export Single Episode
         const exportSingleBtn = target?.closest(
             '.btn-export-single-vocab',
@@ -1152,6 +1198,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const found = cachedVocabList.find((v) => v.movieId === mid);
             if (found) {
                 exportVocabCsv(found);
+            }
+            return;
+        }
+
+        // Export Single Episode to Anki
+        const ankiSingleBtn = target?.closest(
+            '.btn-anki-single-vocab',
+        ) as HTMLButtonElement | null;
+        if (ankiSingleBtn) {
+            const mid = ankiSingleBtn.dataset.id;
+            const found = cachedVocabList.find((v) => v.movieId === mid);
+            if (found) {
+                const items = collectVocabExportItems([found]);
+                ankiModal.show(items, getVocabLanguage());
             }
             return;
         }
@@ -1224,6 +1284,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const filename = `cowatcher_selected_vocab_${selectedEpisodes.length}_episodes.csv`;
         exportMergedVocabCsv(selectedEpisodes, filename);
+    });
+
+    // Export Selected to Anki Handler
+    btnExportAnki?.addEventListener('click', () => {
+        const selectedEpisodes = cachedVocabList.filter((v) =>
+            selectedVocabEpisodeIds.has(v.movieId),
+        );
+        if (selectedEpisodes.length === 0) {
+            alert('Please select at least one episode to export to Anki.');
+            return;
+        }
+        const items = collectVocabExportItems(selectedEpisodes);
+        ankiModal.show(items, getVocabLanguage());
     });
 
     btnExportUserVocab?.addEventListener('click', () => {
@@ -1325,6 +1398,42 @@ document.addEventListener('DOMContentLoaded', () => {
     modalDownloadBtn?.addEventListener('click', () => {
         if (activeModalVocab) exportVocabCsv(activeModalVocab);
     });
+
+    modalAnkiBtn?.addEventListener('click', () => {
+        if (activeModalVocab && activeModalVocab.words.length > 0) {
+            const items = collectVocabExportItems([activeModalVocab]);
+            ankiModal.show(items, getVocabLanguage());
+        } else {
+            showToast('No vocabulary to export.');
+        }
+    });
+
+    function getVocabLanguage(): string {
+        const src = currentSettings.vocabSourceLanguage;
+        if (src && src !== 'auto') {
+            const resolved = Language.resolve(src);
+            if (resolved) return resolved.code;
+        }
+        return 'ja_JP';
+    }
+
+    function collectVocabExportItems(
+        episodes: EpisodeVocabData[],
+    ): VocabExportItem[] {
+        const items: VocabExportItem[] = [];
+        episodes.forEach((ep) => {
+            ep.words.forEach((w) => {
+                items.push({
+                    word: w,
+                    episodeInfo: {
+                        showTitle: ep.showTitle,
+                        movieId: ep.movieId,
+                    },
+                });
+            });
+        });
+        return items;
+    }
 
     function exportUserMarkedVocabCsv(episodes: EpisodeVocabData[]): void {
         if (!episodes || episodes.length === 0) {

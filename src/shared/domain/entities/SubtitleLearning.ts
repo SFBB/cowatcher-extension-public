@@ -39,3 +39,21 @@ export interface WordLookupResult {
     exampleSentence?: string; // Context or dictionary example
     exampleTranslation?: string;
 }
+
+/**
+ * Domain entity representing an interactive user selection on subtitle text.
+ * Encapsulates the contiguous range of tokens, the authentic sliced substring,
+ * and the triggering mouse button.
+ */
+export interface SubtitlePhraseSelection {
+    cueId: number;
+    startToken: SubtitleToken;
+    endToken: SubtitleToken;
+    tokens: SubtitleToken[]; // All word-like tokens included in the range
+    selectedText: string; // The authentic sliced substring from originalText
+    originalText: string; // The full subtitle line context
+    translatedText?: string;
+    button: 0 | 2; // 0 = left mouse, 2 = right mouse
+    anchorEl: HTMLElement; // Anchor element for popover positioning
+    tokenElements: HTMLElement[]; // DOM spans of selected tokens
+}

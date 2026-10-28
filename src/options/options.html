@@ -234,10 +234,18 @@
             </button>
             <button
               id="btn-export-selected-vocab"
-              class="btn-primary btn-sm"
+              class="btn-secondary btn-sm"
               disabled
             >
-              ⬇️ Export Selected (0)
+              ⬇️ Export CSV (0)
+            </button>
+            <button
+              id="btn-export-anki"
+              class="btn-primary btn-sm btn-anki"
+              disabled
+              title="Export selected vocabulary directly to Anki or as Anki TSV file"
+            >
+              🎴 Export to Anki (0)
             </button>
             <span id="vocab-list-count" class="counter-text"
               >Showing 0 episodes</span
@@ -793,11 +801,107 @@
         <div class="modal-body" id="modal-words-list">
           <!-- Rendered words -->
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
           <span id="modal-word-count" style="color: #888">0 words</span>
-          <button id="modal-download-btn" class="btn-primary">
-            📥 Download CSV
+          <div style="display: flex; gap: 8px;">
+            <button id="modal-download-btn" class="btn-secondary">
+              📥 Download CSV
+            </button>
+            <button id="modal-anki-btn" class="btn-primary btn-anki">
+              🎴 Export to Anki
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Anki Export Modal -->
+    <div class="modal-overlay" id="anki-export-modal" style="display: none">
+      <div class="modal-dialog" style="max-width: 580px">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 22px;">🎴</span>
+            <div>
+              <h3 style="margin: 0; font-size: 16px;">Export Vocabulary to Anki</h3>
+              <div id="anki-status-badge" class="status-pill checking" style="margin-top: 4px; font-size: 11px;">
+                🔄 Checking AnkiConnect...
+              </div>
+            </div>
+          </div>
+          <button class="modal-close" id="btn-anki-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: 16px; background: rgba(255,255,255,0.03); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Items to Export:</div>
+            <strong id="anki-modal-item-count" style="font-size: 14px; color: #fff;">0 words</strong>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label for="anki-deck-select" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">
+              📁 Destination Deck:
+            </label>
+            <select id="anki-deck-select" class="form-control" style="width: 100%; height: 38px;">
+              <option value="CoWatcher">CoWatcher (Default)</option>
+            </select>
+            <input
+              type="text"
+              id="anki-custom-deck-input"
+              class="form-control"
+              placeholder="Enter new deck name (e.g. Japanese::Anime)"
+              style="display: none; width: 100%; margin-top: 8px; height: 36px;"
+            />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label for="anki-voice-select" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">
+              🗣️ Audio / Pronunciation Language:
+            </label>
+            <select id="anki-voice-select" class="form-control" style="width: 100%; height: 38px;">
+              <option value="ja_JP">Japanese (ja_JP) - Kyoko / Ayumi / Haruka</option>
+              <option value="en_US">English (en_US) - Siri / Samantha / Edge TTS</option>
+              <option value="ko_KR">Korean (ko_KR)</option>
+              <option value="zh_CN">Chinese (zh_CN)</option>
+            </select>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">
+              Generates native Anki [tts:lang] tags so Anki automatically uses your system voice on PC & mobile without downloading large audio files.
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer;">
+              <input type="checkbox" id="anki-tts-check" checked />
+              <span>Enable native TTS audio playback in Anki cards</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer;">
+              <input type="checkbox" id="anki-furigana-check" checked />
+              <span>Format Japanese reading with Ruby / Furigana annotations</span>
+            </label>
+          </div>
+
+          <div style="margin-top: 10px; font-size: 12px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+            <a href="#" id="anki-help-toggle" style="color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+              <span>❓ How does AnkiConnect Direct Sync work?</span>
+            </a>
+            <div id="anki-help-content" style="display: none; margin-top: 8px; padding: 10px; background: #111; border-radius: 6px; font-size: 11.5px; color: #aaa; line-height: 1.6;">
+              1. Open Anki on your computer.<br />
+              2. Go to <strong>Tools &rarr; Add-ons &rarr; Get Add-ons</strong>.<br />
+              3. Enter code <code>2055492159</code> (AnkiConnect) and restart Anki.<br />
+              4. CoWatcher will instantly detect Anki and sync cards with zero clicks!
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <button id="btn-anki-modal-cancel" class="btn-secondary">
+            Cancel
           </button>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-anki-modal-tsv" class="btn-secondary" title="Export as standard TSV file for manual Anki import">
+              📥 Download TSV
+            </button>
+            <button id="btn-anki-modal-sync" class="btn-primary btn-anki">
+              🎴 Direct Sync to Anki
+            </button>
+          </div>
         </div>
       </div>
     </div>

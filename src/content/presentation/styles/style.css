@@ -339,13 +339,22 @@ body.ncw-hide-native-subs .caption-window {
     transition:
         background-color 0.15s ease,
         color 0.15s ease;
-    user-select: text;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .ncw-token:hover {
     background-color: rgba(255, 235, 59, 0.35);
     color: #fff;
     text-decoration: underline;
+}
+
+.ncw-token.is-selecting {
+    background-color: rgba(59, 130, 246, 0.45) !important;
+    color: #fff !important;
+    border-radius: 3px;
+    box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.7);
+    text-decoration: none !important;
 }
 
 .ncw-token.is-user-marked {
