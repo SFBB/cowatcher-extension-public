@@ -155,7 +155,9 @@ ollama pull gemma4:e2b
 
 ## ☕ Community, Contribution & Support
 
-💬 **Join our Discord Community**: [https://discord.gg/kXdPU4vh9K](https://discord.gg/kXdPU4vh9K)
+[![Discord Server](https://discord.com/api/guilds/1564996489673973960/widget.png?style=banner2)](https://discord.gg/kXdPU4vh9K)
+
+👉 **[Join Discord Community (https://discord.gg/kXdPU4vh9K)](https://discord.gg/kXdPU4vh9K)**
 
 This project welcomes any pull requests, forks, or issues(bugs or feature requests)!
 Read [contributing](/CONTRIBUTING.md) and [architecture](/Architecture.md) for more information!

@@ -155,7 +155,9 @@ ollama pull gemma4:e2b
 
 ## ☕ 社区交流、贡献与赞助 (Community, Contribution & Support)
 
-💬 **加入 Discord 交流社区**：[https://discord.gg/kXdPU4vh9K](https://discord.gg/kXdPU4vh9K)
+[![Discord 交流社区](https://discord.com/api/guilds/1564996489673973960/widget.png?style=banner2)](https://discord.gg/kXdPU4vh9K)
+
+👉 **[加入 Discord 交流社区 (https://discord.gg/kXdPU4vh9K)](https://discord.gg/kXdPU4vh9K)**
 
 本项目热烈欢迎任何 pull request, fork, 或者 issue(bugs or feature requests)！
 详见 [贡献规范](/CONTRIBUTING.md) 与 [架构设计](/Architecture.md)。
