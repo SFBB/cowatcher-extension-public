@@ -58,4 +58,5 @@ export interface SubtitlePhraseSelection {
     button: 0 | 2; // 0 = left mouse, 2 = right mouse
     anchorEl: HTMLElement; // Anchor element for popover positioning
     tokenElements: HTMLElement[]; // DOM spans of selected tokens
+    container?: HTMLElement; // Overlay or player container for popover mounting
 }

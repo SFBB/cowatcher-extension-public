@@ -452,7 +452,11 @@ export class SubtitleOverlay {
             }
         }
 
-        this.selectionController.attach(origEl, learningCue);
+        this.selectionController.attach(
+            origEl,
+            learningCue,
+            this.container || document.body,
+        );
     }
 
     createCueWrapper(

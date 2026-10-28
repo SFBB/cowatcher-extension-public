@@ -15,6 +15,7 @@ export interface PopoverOpenParams {
 
 export class SubtitleLearningPopover {
     private element: HTMLElement | null = null;
+    private backdropElement: HTMLElement | null = null;
     private currentParams: PopoverOpenParams | null = null;
     private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
     private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -135,6 +136,21 @@ export class SubtitleLearningPopover {
 
         el.appendChild(body);
 
+        // Backdrop covering the container to absorb dismiss clicks and avoid triggering player play/pause
+        const backdrop = document.createElement('div');
+        backdrop.className = 'ncw-popover-backdrop';
+        backdrop.addEventListener('mousedown', (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.hide();
+        });
+        backdrop.addEventListener('click', (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        params.container.appendChild(backdrop);
+        this.backdropElement = backdrop;
+
         params.container.appendChild(el);
         this.element = el;
 
@@ -216,6 +232,12 @@ export class SubtitleLearningPopover {
             document.removeEventListener('keydown', this.keydownHandler);
             this.keydownHandler = null;
         }
+        if (this.backdropElement && this.backdropElement.parentElement) {
+            this.backdropElement.parentElement.removeChild(
+                this.backdropElement,
+            );
+        }
+        this.backdropElement = null;
         if (this.element && this.element.parentElement) {
             this.element.parentElement.removeChild(this.element);
         }
@@ -240,8 +262,8 @@ export class SubtitleLearningPopover {
         const tokenLeft = tokenRect.left - containerRect.left;
         const tokenTop = tokenRect.top - containerRect.top;
 
-        const popWidth = 280;
-        const popHeight = 160;
+        const popWidth = 300;
+        const popHeight = 180;
 
         let left = tokenLeft + tokenRect.width / 2 - popWidth / 2;
         let top = tokenTop - popHeight - 12; // Above token by default
@@ -256,6 +278,14 @@ export class SubtitleLearningPopover {
             10,
             Math.min(left, containerRect.width - popWidth - 10),
         );
+
+        // Keep vertically within container
+        if (containerRect.height > popHeight + 20) {
+            top = Math.max(
+                10,
+                Math.min(top, containerRect.height - popHeight - 10),
+            );
+        }
 
         popover.style.left = `${left}px`;
         popover.style.top = `${top}px`;

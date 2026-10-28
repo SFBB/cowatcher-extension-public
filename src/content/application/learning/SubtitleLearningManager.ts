@@ -239,16 +239,18 @@ export class SubtitleLearningManager implements ISubtitleSelectionListener {
         selection: SubtitlePhraseSelection,
         container?: HTMLElement,
     ): void {
+        const targetContainer =
+            container || selection.container || document.body;
         if (selection.button === 2) {
             // Right mouse button released: toggle mark and resume playback instantly!
-            this.toggleUserMarkedPhrase(selection, container);
+            this.toggleUserMarkedPhrase(selection, targetContainer);
             if (this.pausedByLearning) {
                 this.pausedByLearning = false;
                 this.adapter.resumePlayback();
             }
         } else {
             // Left mouse button released: keep paused and open Popover
-            this.showPhrasePopover(selection, container);
+            this.showPhrasePopover(selection, targetContainer);
         }
     }
 
@@ -268,7 +270,8 @@ export class SubtitleLearningManager implements ISubtitleSelectionListener {
     ): void {
         const word = selection.selectedText;
         const isMarked = this.userVocabWords.has(word.toLowerCase());
-        const targetContainer = container || document.body;
+        const targetContainer =
+            container || selection.container || document.body;
 
         this.popover.show({
             word,

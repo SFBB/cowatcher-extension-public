@@ -17,6 +17,7 @@ export interface ISubtitleSelectionListener {
 export class SubtitleSelectionController {
     private listener: ISubtitleSelectionListener | null = null;
     private readonly cueMap = new WeakMap<HTMLElement, LearningCueItem>();
+    private readonly containerMap = new WeakMap<HTMLElement, HTMLElement>();
 
     private isSelecting: boolean = false;
     private activeButton: (0 | 2) | null = null;
@@ -38,8 +39,15 @@ export class SubtitleSelectionController {
     /**
      * Attach interactive selection listeners to the original subtitle line element.
      */
-    attach(origEl: HTMLElement, cue: LearningCueItem): void {
+    attach(
+        origEl: HTMLElement,
+        cue: LearningCueItem,
+        container?: HTMLElement,
+    ): void {
         this.cueMap.set(origEl, cue);
+        if (container) {
+            this.containerMap.set(origEl, container);
+        }
 
         if (origEl.dataset.hasSelectionController === 'true') {
             return;
@@ -51,6 +59,14 @@ export class SubtitleSelectionController {
         });
 
         origEl.addEventListener('contextmenu', (e: MouseEvent) => {
+            const tokenSpan = (e.target as HTMLElement)?.closest('.ncw-token');
+            if (tokenSpan) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
+        origEl.addEventListener('click', (e: MouseEvent) => {
             const tokenSpan = (e.target as HTMLElement)?.closest('.ncw-token');
             if (tokenSpan) {
                 e.preventDefault();
@@ -285,6 +301,13 @@ export class SubtitleSelectionController {
             if (span) tokenElements.push(span);
         });
 
+        const container =
+            this.containerMap.get(origEl) ||
+            (origEl.closest(
+                '.ncw-subtitle-master-container',
+            ) as HTMLElement | null) ||
+            document.body;
+
         const selection: SubtitlePhraseSelection = {
             cueId: cue.cueId,
             startToken,
@@ -296,6 +319,7 @@ export class SubtitleSelectionController {
             button,
             anchorEl: startSpan,
             tokenElements,
+            container,
         };
 
         this.listener?.onSelectionCommit(selection);
