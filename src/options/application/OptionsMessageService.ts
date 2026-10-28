@@ -9,6 +9,10 @@ import { ContextDTO } from '@shared/domain/entities/Context';
 import { OpenRouterModelItem } from '@shared/types/Messages';
 import { StreamingPlatformId } from '@shared/domain/constants/StreamingPlatforms';
 import { LanguageInfo } from '@shared/domain/value-objects/Language';
+import {
+    WordLookupRequest,
+    WordLookupResult,
+} from '@shared/domain/entities/SubtitleLearning';
 import NCW_CONSTANTS from '@shared/utils/constants';
 
 export class OptionsMessageService {
@@ -104,6 +108,16 @@ export class OptionsMessageService {
     }
 
     // --- Vocabulary ---
+
+    async lookupWordDefinition(
+        req: WordLookupRequest,
+    ): Promise<WordLookupResult | null> {
+        const res = await ContentBackgroundBus.send(
+            NCW_CONSTANTS.MESSAGE_TYPES.LOOKUP_WORD_DEFINITION,
+            req,
+        );
+        return res && res.success && res.data ? res.data : null;
+    }
 
     async resetVocabData(movieId: string): Promise<boolean> {
         const res = await ContentBackgroundBus.send(

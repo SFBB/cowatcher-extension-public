@@ -12,6 +12,8 @@ export interface VocabWordItem {
     frequency: number;
     source?: 'user' | 'ai';
     createdAt?: number;
+    sourceLang?: string; // Captured language snapshot at time of collection
+    targetLang?: string; // Captured language snapshot at time of collection
 }
 
 /**

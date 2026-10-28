@@ -299,30 +299,43 @@ export class VocabService {
             contextTranslation,
             sourceLang,
             targetLang,
+            customPrompt,
+            preferredRole,
         } = req;
         if (!word) return { success: false, error: 'Word is required' };
 
         try {
+            // Determine LLM role: prefer supervisor if enabled, fallback to translator
+            const role =
+                preferredRole === 'supervisor' &&
+                this.llmService.isSupervisorActive()
+                    ? 'supervisor'
+                    : 'translator';
+
+            const customInstruction = customPrompt?.trim()
+                ? `\nCustom Instructions from User:\n${customPrompt.trim()}\n`
+                : '';
+
             const prompt = `You are an expert bilingual dictionary and language tutor.
-Given the word "${word}" used in the context sentence:
+Given the word or phrase "${word}" used in the context sentence:
 "${contextSentence}"${contextTranslation ? ` (Translation: "${contextTranslation}")` : ''}
 
 Language: ${sourceLang} -> ${targetLang}
-
+${customInstruction}
 Provide a concise, accurate JSON response with the following schema:
 {
   "word": "${word}",
   "lemma": "dictionary / base lemma form",
   "reading": "phonetic transcription / furigana / pinyin / IPA",
-  "pos": "part of speech (noun, verb, adj, etc.)",
+  "pos": "part of speech (noun, verb, phrase, etc.)",
   "meaning": "clear definition in ${targetLang} suited for this context",
-  "grammarNotes": "brief 1-sentence note on conjugation, tense, or nuance if applicable",
+  "grammarNotes": "brief 1-sentence note on conjugation, tense, nuance, or custom requested info if applicable",
   "exampleSentence": "a simple, natural example sentence using this word",
   "exampleTranslation": "translation of the example sentence in ${targetLang}"
 }
 Only output the valid JSON object, no other commentary.`;
 
-            const raw = await this.llmService.callChat('translator', {
+            const raw = await this.llmService.callChat(role, {
                 messages: [{ role: 'user', content: prompt }],
                 jsonMode: true,
                 temperature: 0.2,
@@ -547,6 +560,15 @@ ${dialoguesText}`;
 
             const validList: VocabWordItem[] = [];
             const now = Date.now();
+            const resolvedSrcStr =
+                typeof sourceLanguage === 'object' && sourceLanguage !== null
+                    ? sourceLanguage.code
+                    : sourceLanguage || 'auto';
+            const resolvedTgtStr =
+                typeof targetLanguage === 'object' && targetLanguage !== null
+                    ? targetLanguage.code
+                    : String(targetLanguage || 'en');
+
             for (const item of rawList) {
                 if (
                     item &&
@@ -564,6 +586,8 @@ ${dialoguesText}`;
                         ),
                         timestamp: now,
                         frequency: 1,
+                        sourceLang: resolvedSrcStr,
+                        targetLang: resolvedTgtStr,
                     });
                 }
             }
@@ -613,6 +637,15 @@ ${dialoguesText}`;
             }
         }
 
+        const srcCode =
+            typeof sourceLanguage === 'object' && sourceLanguage !== null
+                ? sourceLanguage.code
+                : sourceLanguage || 'auto';
+        const tgtCode =
+            typeof targetLanguage === 'object' && targetLanguage !== null
+                ? targetLanguage.code
+                : String(targetLanguage || 'en');
+
         for (const w of newWords) {
             const key = w.word.toLowerCase();
             if (wordsMap.has(key)) {
@@ -627,6 +660,10 @@ ${dialoguesText}`;
                         w.sentenceTranslation || old.sentenceTranslation,
                     pos: w.pos || old.pos,
                     phonetic: w.phonetic || old.phonetic,
+                    sourceLang:
+                        old.sourceLang || w.sourceLang || srcCode,
+                    targetLang:
+                        old.targetLang || w.targetLang || tgtCode,
                     source: isUserSource
                         ? 'user'
                         : w.source || old.source || 'ai',
@@ -637,6 +674,8 @@ ${dialoguesText}`;
             } else {
                 wordsMap.set(key, {
                     ...w,
+                    sourceLang: w.sourceLang || srcCode,
+                    targetLang: w.targetLang || tgtCode,
                     source: w.source || 'ai',
                     createdAt: w.createdAt || Date.now(),
                 });

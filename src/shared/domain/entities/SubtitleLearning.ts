@@ -27,6 +27,8 @@ export interface WordLookupRequest {
     contextTranslation?: string;
     sourceLang: string;
     targetLang: string;
+    customPrompt?: string; // Optional user prompt injection / guidelines
+    preferredRole?: 'supervisor' | 'translator'; // Preferred LLM role (supervisor with fallback to translator)
 }
 
 export interface WordLookupResult {

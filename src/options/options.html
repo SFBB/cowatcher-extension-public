@@ -791,24 +791,80 @@
       </section>
     </main>
 
-    <!-- Word List Preview Modal -->
+    <!-- Word List Preview & Curation Editor Modal -->
     <div class="modal-overlay" id="vocab-preview-modal" style="display: none">
-      <div class="modal-dialog">
+      <div class="modal-dialog" style="max-width: 860px; width: 92vw; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="modal-header">
-          <h3 id="modal-episode-title">Episode Vocabulary Preview</h3>
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h3 id="modal-episode-title" style="margin: 0; font-size: 16px;">Episode Vocabulary Editor</h3>
+              <span id="modal-lang-badge" class="badge badge-neutral" style="font-size: 11px;">Snapshot: ja ➔ zh-CN</span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;" id="modal-episode-subtitle">
+              Review, edit, and enrich vocabulary with the supervisor model before exporting.
+            </div>
+          </div>
           <button class="modal-close" id="btn-modal-close">&times;</button>
         </div>
-        <div class="modal-body" id="modal-words-list">
+
+        <!-- Curation & Prompt Toolbar -->
+        <div class="curation-toolbar" style="padding: 12px 18px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-color);">
+          <div style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label for="curation-custom-prompt" style="font-size: 12px; font-weight: 600; color: #ccc;">
+                💡 监督模型提示词注入 (Custom Prompt Injection):
+              </label>
+              <span style="font-size: 11px; color: #888;">优先使用监督模型 (Supervisor)，未启用则回退至翻译模型</span>
+            </div>
+            <textarea
+              id="curation-custom-prompt"
+              class="form-control"
+              rows="2"
+              placeholder="可输入定制指令，例如：附带 JLPT 级别和考点搭配 / 纯目标语释义 / 词根助记法..."
+              style="width: 100%; font-size: 12px; resize: vertical;"
+            ></textarea>
+            <div class="prompt-chips" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+              <button type="button" class="btn-chip" data-prompt="附带 JLPT N1/N2 等级与高频真题搭配">+ JLPT 等级与考点</button>
+              <button type="button" class="btn-chip" data-prompt="使用目标语言进行释义（纯目标语浸润，不要出现母语）">+ 纯目标语释义</button>
+              <button type="button" class="btn-chip" data-prompt="提供词根词缀拆解或简易形象助记法（Mnemonic）">+ 词根助记法</button>
+              <button type="button" class="btn-chip" data-prompt="指出口语中的语境色彩（俚语、委婉语或情感偏向）">+ 口语语境辨析</button>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.08);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="curation-select-all" />
+                <span>全选</span>
+              </label>
+              <button id="btn-curation-batch-delete" class="btn-secondary btn-sm" disabled style="color: #ef4444;">
+                🗑️ 删除选中 (<span id="curation-selected-count">0</span>)
+              </button>
+              <span id="curation-enrich-status" style="font-size: 12px; color: #38bdf8; display: none;"></span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-curation-enrich-all" class="btn-primary btn-sm" style="background: #0284c7;">
+                ✨ 一键 AI 释义 (监督模型)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-body" id="modal-words-list" style="flex: 1; overflow-y: auto; padding: 14px 18px;">
           <!-- Rendered words -->
         </div>
-        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
-          <span id="modal-word-count" style="color: #888">0 words</span>
+
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid var(--border-color);">
+          <span id="modal-word-count" style="color: #888; font-size: 12px;">0 words</span>
           <div style="display: flex; gap: 8px;">
+            <button id="btn-curation-save" class="btn-secondary">
+              💾 保存修改
+            </button>
             <button id="modal-download-btn" class="btn-secondary">
-              📥 Download CSV
+              📥 下载 CSV
             </button>
             <button id="modal-anki-btn" class="btn-primary btn-anki">
-              🎴 Export to Anki
+              🎴 导出到 Anki
             </button>
           </div>
         </div>

@@ -687,6 +687,23 @@ button {
     border: 1px solid rgba(251, 191, 36, 0.25);
 }
 
+.btn-chip {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 3px 10px;
+    font-size: 11px;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-chip:hover {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+}
+
 .btn-secondary {
     background: #26262e;
     color: #eee;

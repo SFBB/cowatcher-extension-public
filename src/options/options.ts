@@ -14,6 +14,7 @@ import {
     DailyWatchStat,
 } from '@shared/types/Messages';
 import { ContextDTO } from '@shared/domain/entities/Context';
+import { VocabWordItem } from '@shared/domain/entities/Vocabulary';
 import { BrowserStorageFactory } from '@shared/infrastructure/storage/BrowserStorageFactory';
 import { BrowserPlatformFactory } from '@shared/infrastructure/platform/BrowserPlatformFactory';
 import { NCW_STORAGE_KEYS } from '@shared/domain/constants/StorageKeys';
@@ -23,6 +24,8 @@ import { TranslationProvider } from '@shared/domain/entities/PipelineTypes';
 import { AnkiService } from './anki/ankiService';
 import { AnkiExportModal } from './anki/AnkiExportModal';
 import { VocabExportItem } from './anki/ankiTypes';
+import { VocabCurationService } from './application/VocabCurationService';
+import { VocabPreviewEditorModal } from './presentation/VocabPreviewEditorModal';
 
 const logger = new Logger('options');
 
@@ -41,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSettings: ExtensionSettings = {
         ...NCW_CONSTANTS.DEFAULT_SETTINGS,
     };
-    let activeModalVocab: EpisodeVocabData | null = null;
 
     // Accordion and batch selection state
     const expandedCacheGroups = new Set<string>();
@@ -94,9 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ) as HTMLButtonElement | null;
     const btnExportAnki = document.getElementById(
         'btn-export-anki',
-    ) as HTMLButtonElement | null;
-    const modalAnkiBtn = document.getElementById(
-        'modal-anki-btn',
     ) as HTMLButtonElement | null;
     const vocabSourceFilter = document.getElementById(
         'vocab-source-filter',
@@ -223,12 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ) as HTMLSelectElement | null;
 
     // DOM Elements - Modal & Toast
-    const vocabPreviewModal = document.getElementById('vocab-preview-modal');
-    const modalEpisodeTitle = document.getElementById('modal-episode-title');
-    const modalWordsList = document.getElementById('modal-words-list');
-    const modalWordCount = document.getElementById('modal-word-count');
-    const modalDownloadBtn = document.getElementById('modal-download-btn');
-    const btnModalClose = document.getElementById('btn-modal-close');
     const toastNotify = document.getElementById('toast-notify');
 
     // DOM Elements - Range Invalidate Modal
@@ -308,6 +301,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ankiService = new AnkiService();
     const ankiModal = new AnkiExportModal(ankiService, (msg) => showToast(msg));
+    const vocabCurationService = new VocabCurationService(
+        messageService,
+        storage,
+    );
+    const vocabEditorModal = new VocabPreviewEditorModal(
+        vocabCurationService,
+        ankiModal,
+        (msg) => showToast(msg),
+        (episode, words) => {
+            exportVocabCsv(episode, words);
+        },
+    );
 
     function escapeHtml(str: string): string {
         return String(str || '')
@@ -1325,88 +1330,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btnRefreshVocab?.addEventListener('click', loadVocabBank);
     vocabSearchInput?.addEventListener('input', renderVocabBank);
 
-    // Vocab Modal Preview
+    // Vocab Modal Preview & Curation Editor
     function openVocabPreviewModal(data: EpisodeVocabData): void {
-        activeModalVocab = data;
-        if (!vocabPreviewModal) return;
-
-        if (modalEpisodeTitle) {
-            modalEpisodeTitle.textContent = `${data.showTitle || 'Episode'} (${data.movieId}) - Vocab List`;
-        }
-        if (modalWordCount) {
-            modalWordCount.textContent = `${data.words.length} words collected`;
-        }
-
-        if (modalWordsList) {
-            if (data.words.length === 0) {
-                modalWordsList.innerHTML =
-                    '<div style="text-align:center; padding: 20px; color:#888;">No words collected.</div>';
-            } else {
-                modalWordsList.innerHTML = data.words
-                    .map((w) => {
-                        const word = escapeHtml(w.word || '');
-                        const pos = w.pos
-                            ? `<span style="color:#aaa; font-style: italic; font-size: 11px;">(${escapeHtml(w.pos)})</span>`
-                            : '';
-                        const pho = w.phonetic
-                            ? `<span style="color:#777; font-size: 11px;">[${escapeHtml(w.phonetic)}]</span>`
-                            : '';
-                        const freq =
-                            w.frequency && w.frequency > 1
-                                ? `<span style="color:var(--accent-red); font-size: 11px;">×${w.frequency}</span>`
-                                : '';
-                        const sourceBadge =
-                            w.source === 'user'
-                                ? '<span class="badge" style="background:rgba(212,175,55,0.2); color:#ffd700; border:1px solid #d4af37; font-size:10px;">⭐ User Marked</span>'
-                                : '<span class="badge" style="background:#222; color:#888; font-size:10px;">🤖 AI</span>';
-                        const meaning = escapeHtml(w.meaning || '');
-                        const sentence = w.sentence
-                            ? `<div style="font-size: 12px; color: #999; margin-top: 4px;">"${escapeHtml(w.sentence)}"</div>`
-                            : '';
-                        const trans = w.sentenceTranslation
-                            ? `<div style="font-size: 11.5px; color: #666;">${escapeHtml(w.sentenceTranslation)}</div>`
-                            : '';
-
-                        return `
-              <div style="background:#16161b; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
-                <div style="display:flex; justify-content: space-between; align-items: center;">
-                  <strong style="color:#fff; font-size: 14.5px;">${word}</strong>
-                  <div style="display: flex; gap: 6px; align-items: center;">${sourceBadge} ${pos} ${pho} ${freq}</div>
-                </div>
-                <div style="color: #46d369; font-size: 13px; margin: 4px 0;">${meaning}</div>
-                ${sentence}
-                ${trans}
-              </div>
-            `;
-                    })
-                    .join('');
-            }
-        }
-
-        vocabPreviewModal.style.display = 'flex';
+        vocabEditorModal.open(data, () => loadVocabBank());
     }
-
-    btnModalClose?.addEventListener('click', () => {
-        if (vocabPreviewModal) vocabPreviewModal.style.display = 'none';
-    });
-
-    vocabPreviewModal?.addEventListener('click', (e) => {
-        if (e.target === vocabPreviewModal)
-            vocabPreviewModal.style.display = 'none';
-    });
-
-    modalDownloadBtn?.addEventListener('click', () => {
-        if (activeModalVocab) exportVocabCsv(activeModalVocab);
-    });
-
-    modalAnkiBtn?.addEventListener('click', () => {
-        if (activeModalVocab && activeModalVocab.words.length > 0) {
-            const items = collectVocabExportItems([activeModalVocab]);
-            ankiModal.show(items, getVocabLanguage());
-        } else {
-            showToast('No vocabulary to export.');
-        }
-    });
 
     function getVocabLanguage(): string {
         const src = currentSettings.vocabSourceLanguage;
@@ -1590,8 +1517,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500);
     }
 
-    function exportVocabCsv(data: EpisodeVocabData): void {
-        if (!data || !Array.isArray(data.words) || data.words.length === 0)
+    function exportVocabCsv(
+        data: EpisodeVocabData,
+        wordsOverride?: VocabWordItem[],
+    ): void {
+        const words = wordsOverride || data?.words;
+        if (!data || !Array.isArray(words) || words.length === 0)
             return;
 
         const srcLang = data.sourceLanguage || 'Source';
@@ -1614,7 +1545,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : `"${s}"`;
         };
 
-        const rows = data.words.map((w) => [
+        const rows = words.map((w) => [
             escapeCsv(w.word || ''),
             escapeCsv(w.source === 'user' ? 'User Marked' : 'AI Extracted'),
             escapeCsv(w.pos || ''),

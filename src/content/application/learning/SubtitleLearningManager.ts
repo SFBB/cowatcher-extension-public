@@ -360,6 +360,8 @@ export class SubtitleLearningManager implements ISubtitleSelectionListener {
                 frequency: 1,
                 source: 'user',
                 createdAt: Date.now(),
+                sourceLang: this.currentSourceLang,
+                targetLang: this.currentTargetLang,
             };
 
             this.messageService.saveUserVocabWord({
@@ -523,6 +525,8 @@ export class SubtitleLearningManager implements ISubtitleSelectionListener {
                 frequency: 1,
                 source: 'user', // Explicitly user-marked!
                 createdAt: Date.now(),
+                sourceLang: this.currentSourceLang,
+                targetLang: this.currentTargetLang,
             };
 
             this.messageService.saveUserVocabWord({

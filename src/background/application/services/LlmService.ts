@@ -222,6 +222,10 @@ export class LlmService {
         });
     }
 
+    isSupervisorActive(): boolean {
+        return this.enableSupervisor;
+    }
+
     async getAiCapability(role?: LlmRole): Promise<AiCapability> {
         // If specific role requested, query that client directly
         if (role) {
