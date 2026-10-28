@@ -277,6 +277,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgOpacityVal = document.getElementById(
         'bg-opacity-val',
     ) as HTMLElement;
+    const transOpacitySlider = document.getElementById(
+        'trans-opacity',
+    ) as HTMLInputElement;
+    const transOpacityVal = document.getElementById(
+        'trans-opacity-val',
+    ) as HTMLElement;
     const subOffsetSlider = document.getElementById(
         'sub-offset',
     ) as HTMLInputElement;
@@ -436,6 +442,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? currentSettings.bgOpacity
                 : 0.0;
         if (bgOpacityVal) bgOpacityVal.textContent = `${Math.round(op * 100)}%`;
+        const transOp =
+            currentSettings.translationOpacity !== undefined
+                ? currentSettings.translationOpacity
+                : 1.0;
+        if (transOpacityVal)
+            transOpacityVal.textContent = `${Math.round(transOp * 100)}%`;
 
         updateVocabStatusHeader();
         if (currentVocabData) {
@@ -599,6 +611,15 @@ document.addEventListener('DOMContentLoaded', () => {
             bgOpacitySlider.value = String(Math.round(op * 100));
             if (bgOpacityVal)
                 bgOpacityVal.textContent = `${Math.round(op * 100)}%`;
+        }
+        if (transOpacitySlider) {
+            const transOp =
+                currentSettings.translationOpacity !== undefined
+                    ? currentSettings.translationOpacity
+                    : 1.0;
+            transOpacitySlider.value = String(Math.round(transOp * 100));
+            if (transOpacityVal)
+                transOpacityVal.textContent = `${Math.round(transOp * 100)}%`;
         }
         if (enableAutomaticAsrMergingCheckbox) {
             enableAutomaticAsrMergingCheckbox.checked =
@@ -2055,6 +2076,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const target = e.target as HTMLInputElement;
             if (bgOpacityVal) bgOpacityVal.textContent = `${target.value}%`;
             saveSettings({ bgOpacity: parseInt(target.value, 10) / 100 });
+        });
+    }
+
+    if (transOpacitySlider) {
+        transOpacitySlider.addEventListener('input', (e) => {
+            const target = e.target as HTMLInputElement;
+            if (transOpacityVal)
+                transOpacityVal.textContent = `${target.value}%`;
+            saveSettings({
+                translationOpacity: parseInt(target.value, 10) / 100,
+            });
         });
     }
 

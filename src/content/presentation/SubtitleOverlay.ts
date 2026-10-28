@@ -210,6 +210,10 @@ export class SubtitleOverlay {
             this.settings.bgOpacity !== undefined
                 ? this.settings.bgOpacity
                 : 0.0;
+        const translationOpacity =
+            this.settings.translationOpacity !== undefined
+                ? this.settings.translationOpacity
+                : 1.0;
 
         const showOriginalSmaller = this.settings.showOriginalSmaller !== false;
         const origRatio = showOriginalSmaller ? 0.75 : 1.0;
@@ -234,6 +238,10 @@ export class SubtitleOverlay {
             this.container.style.setProperty(
                 '--ncw-bg-opacity',
                 String(bgOpacity),
+            );
+            this.container.style.setProperty(
+                '--ncw-trans-opacity',
+                String(translationOpacity),
             );
             this.container.style.setProperty(
                 '--ncw-bottom-offset',
@@ -473,6 +481,9 @@ export class SubtitleOverlay {
 
         const transEl = document.createElement('div');
         transEl.className = 'ncw-sub-line ncw-translated-text';
+        transEl.addEventListener('click', (e: MouseEvent) => {
+            e.stopPropagation();
+        });
 
         const origEl = document.createElement('div');
         origEl.className = 'ncw-sub-line ncw-original-text';

@@ -651,6 +651,26 @@
 
         <div class="form-group">
           <div class="slider-header">
+            <label for="trans-opacity" data-i18n="translationOpacity"
+              >Translation Subtitle Opacity</label
+            >
+            <span class="slider-val" id="trans-opacity-val">100%</span>
+          </div>
+          <input
+            type="range"
+            id="trans-opacity"
+            min="0"
+            max="100"
+            step="5"
+            value="100"
+          />
+          <div class="field-hint" data-i18n="translationOpacityHint">
+            Adjust translated subtitle darkness (Hover to reveal full opacity)
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="slider-header">
             <label for="sub-offset" data-i18n="bottomMargin"
               >Bottom Margin</label
             >

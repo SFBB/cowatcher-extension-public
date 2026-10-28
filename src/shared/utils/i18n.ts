@@ -137,6 +137,9 @@ const NCW_I18N = {
             bgOpacity: 'Subtitle Background Opacity',
             bgOpacityHint:
                 'Adjust background plate darkness behind subtitles (Default: 0% transparent)',
+            translationOpacity: 'Translation Subtitle Opacity',
+            translationOpacityHint:
+                'Adjust translated text transparency. Hover over translation line to reveal 100% opacity (Default: 100%)',
             enableGlassEffect: 'Glass Style Box (Blur & Border Highlight)',
             enableGlassEffectHint:
                 'Adds backdrop blur, border highlight and shadow behind subtitles (Default: OFF)',
@@ -327,6 +330,9 @@ const NCW_I18N = {
             fontSize: '字幕字体大小',
             bgOpacity: '字幕背景不透明度',
             bgOpacityHint: '调整字幕半透明背景板深浅（默认 0% 全透明无黑底）',
+            translationOpacity: '翻译字幕不透明度',
+            translationOpacityHint:
+                '调整译文字幕深浅。调低可减少对母语依赖，鼠标悬停时自动浮现完整译文（默认 100%）',
             enableGlassEffect: '毛玻璃质感底框（模糊滤镜与边框光晕）',
             enableGlassEffectHint:
                 '为字幕卡片增加背景高斯模糊、白色高光微边框与悬浮投影（默认关闭）',
@@ -515,6 +521,9 @@ const NCW_I18N = {
             bgOpacity: '字幕背景の不透明度',
             bgOpacityHint:
                 '字幕背景の透明度を調整します（デフォルト: 0% 完全透明）',
+            translationOpacity: '翻訳字幕の不透明度',
+            translationOpacityHint:
+                '翻訳字幕の濃さを調整します。低く設定してもマウスホバーで100%表示されます（デフォルト: 100%）',
             enableGlassEffect: 'すりガラス風フレーム（ぼかし・光沢枠線）',
             enableGlassEffectHint:
                 '字幕に背景ぼかし・光沢枠線・ドロップシャドウを適用（デフォルト: 無効）',
@@ -705,6 +714,9 @@ const NCW_I18N = {
             bgOpacity: '자막 배경 불투명도',
             bgOpacityHint:
                 '자막 배경의 투명도를 조절합니다 (기본값: 0% 완전 투명)',
+            translationOpacity: '번역 자막 불투명도',
+            translationOpacityHint:
+                '번역 자막의 투명도를 조절합니다. 마우스 호버 시 100%로 표시됩니다 (기본값: 100%)',
             enableGlassEffect: '반투명 유리 질감 프레임 (블러 및 테두리 광택)',
             enableGlassEffectHint:
                 '자막에 배경 블러, 테두리 광택 및 그림자 효과 적용 (기본값: 꺼짐)',

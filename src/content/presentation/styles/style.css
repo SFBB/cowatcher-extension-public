@@ -151,6 +151,13 @@ body.ncw-hide-native-subs .caption-window {
     font-weight: 600;
     font-size: var(--ncw-font-size, 26px);
     letter-spacing: 0.5px;
+    opacity: var(--ncw-trans-opacity, 1);
+    transition: opacity 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    pointer-events: auto;
+}
+
+.ncw-translated-text:hover {
+    opacity: 1 !important;
 }
 
 .ncw-original-text {
@@ -179,7 +186,7 @@ body.ncw-hide-native-subs .caption-window {
     margin-top: 0;
     font-size: var(--ncw-font-size-orig, 19px);
     font-weight: 400;
-    opacity: 0.92;
+    opacity: var(--ncw-trans-opacity, 0.92);
 }
 
 .ncw-subtitle-master-container.ncw-swapped-subs

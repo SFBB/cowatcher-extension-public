@@ -40,6 +40,7 @@ export interface ExtensionSettings {
     reviewBatchSize: number;
     fontSize: number;
     bgOpacity: number;
+    translationOpacity: number;
     enableAnimation: boolean;
     enableGlassEffect: boolean;
     subOffsetBottom: number;
@@ -107,6 +108,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     reviewBatchSize: 8,
     fontSize: 26,
     bgOpacity: 0.0,
+    translationOpacity: 1.0,
     enableAnimation: false,
     enableGlassEffect: false,
     subOffsetBottom: 80,
