@@ -1486,13 +1486,31 @@
                 border-radius: 22px;
                 overflow: hidden;
                 border: 1px solid rgba(255, 255, 255, 0.1);
-                background: #05060a;
+                background: linear-gradient(110deg, #0b0d14 30%, #141824 50%, #0b0d14 70%);
+                background-size: 200% 100%;
+                animation: appleShimmer 1.6s infinite linear;
                 box-shadow: 0 32px 80px rgba(0, 0, 0, 0.75);
+            }
+            .apple-hero-media.is-loaded {
+                background: #05060a;
+                animation: none;
+            }
+            @keyframes appleShimmer {
+                0% { background-position: 200% 0; }
+                100% { background-position: -200% 0; }
             }
             .apple-hero-media img {
                 width: 100%;
+                height: auto;
                 display: block;
                 cursor: zoom-in;
+            }
+            .apple-zoomable {
+                opacity: 0;
+                transition: opacity 0.4s ease;
+            }
+            .apple-zoomable.is-loaded {
+                opacity: 1;
             }
             .apple-media-caption {
                 margin-top: 0.9rem;
@@ -1782,7 +1800,11 @@
                     </p>
                     <div class="apple-hero-media">
                         <img
-                            src="../screenshots/subtitle-fullscreen.png"
+                            src="../screenshots/subtitle-fullscreen.webp"
+                            width="1920"
+                            height="1080"
+                            fetchpriority="high"
+                            decoding="async"
                             alt="CoWatcher YouTube 全屏双语字幕渲染实景"
                             class="apple-zoomable"
                         />
@@ -1811,7 +1833,10 @@
                         <div class="apple-dual-grid" style="grid-template-columns: 1fr;">
                             <figure class="apple-media-card" style="margin: 0;">
                                 <img
-                                    src="../screenshots/subtitle-styles.png"
+                                    src="../screenshots/subtitle-styles.webp"
+                                    width="674"
+                                    height="971"
+                                    decoding="async"
                                     alt="四种字幕样式与显示模式对比"
                                     class="apple-zoomable"
                                     style="max-height: 440px;"
@@ -1823,7 +1848,10 @@
                             </figure>
                             <figure class="apple-media-card" style="margin: 0;">
                                 <img
-                                    src="../screenshots/subtitle-display-modes.png"
+                                    src="../screenshots/subtitle-display-modes.webp"
+                                    width="441"
+                                    height="179"
+                                    decoding="async"
                                     alt="弹窗内一键切换显示模式"
                                     class="apple-zoomable"
                                     style="max-height: 180px;"
@@ -1843,7 +1871,10 @@
                     <div class="apple-dual-grid">
                         <figure class="apple-media-card" style="margin: 0;">
                             <img
-                                src="../screenshots/glossary-editor.png"
+                                src="../screenshots/glossary-editor.webp"
+                                width="1137"
+                                height="604"
+                                decoding="async"
                                 alt="跨集术语表与角色译名编辑器"
                                 class="apple-zoomable"
                             />
@@ -1854,7 +1885,10 @@
                         </figure>
                         <figure class="apple-media-card" style="margin: 0;">
                             <img
-                                src="../screenshots/glossary-ai-extract.png"
+                                src="../screenshots/glossary-ai-extract.webp"
+                                width="1141"
+                                height="445"
+                                decoding="async"
                                 alt="AI 从双语参考资料自动提取术语表"
                                 class="apple-zoomable"
                             />
@@ -1890,7 +1924,10 @@
                     <div class="apple-dual-grid">
                         <figure class="apple-media-card" style="margin: 0;">
                             <img
-                                src="../screenshots/subtitle-ai-providers.png"
+                                src="../screenshots/subtitle-ai-providers.webp"
+                                width="447"
+                                height="208"
+                                decoding="async"
                                 alt="AI 服务提供商切换菜单"
                                 class="apple-zoomable"
                             />
@@ -1901,7 +1938,10 @@
                         </figure>
                         <figure class="apple-media-card" style="margin: 0;">
                             <img
-                                src="../screenshots/subtitle-languages.png"
+                                src="../screenshots/subtitle-languages.webp"
+                                width="456"
+                                height="523"
+                                decoding="async"
                                 alt="多语言翻译支持列表"
                                 class="apple-zoomable"
                             />
@@ -2362,6 +2402,18 @@
                 document.body.appendChild(lightbox);
 
                 document.querySelectorAll('.apple-zoomable').forEach((img) => {
+                    const markLoaded = () => {
+                        img.classList.add('is-loaded');
+                        if (img.parentElement && img.parentElement.classList.contains('apple-hero-media')) {
+                            img.parentElement.classList.add('is-loaded');
+                        }
+                    };
+                    if (img.complete && img.naturalWidth > 0) {
+                        markLoaded();
+                    } else {
+                        img.addEventListener('load', markLoaded, { once: true });
+                        img.addEventListener('error', markLoaded, { once: true });
+                    }
                     img.addEventListener('click', () => {
                         lightboxImg.src = img.src;
                         lightboxImg.alt = img.alt;
