@@ -36,6 +36,10 @@ export class SubtitlePlaybackSyncer {
     lastContentTime: number | null = null;
     emptyCueSince: number | null = null;
 
+    private lastTimingBaseTime: number | null = null;
+    private lastTimingSyncAt: number | null = null;
+    private isStalled = false;
+
     cadmiumOffset = 0;
     domOffset = 0;
     manualOffset = 0;
@@ -61,6 +65,19 @@ export class SubtitlePlaybackSyncer {
         this.onTick = this.onTick.bind(this);
         this.onSeeking = this.onSeeking.bind(this);
         this.onSeeked = this.onSeeked.bind(this);
+        this.startRafLoop = this.startRafLoop.bind(this);
+        this.stopRafLoop = this.stopRafLoop.bind(this);
+        this.onVideoWaiting = this.onVideoWaiting.bind(this);
+        this.onVideoPlaying = this.onVideoPlaying.bind(this);
+    }
+
+    private onVideoWaiting(): void {
+        this.isStalled = true;
+    }
+
+    private onVideoPlaying(): void {
+        this.isStalled = false;
+        this.startRafLoop();
     }
 
     attachVideo(videoEl: HTMLVideoElement): void {
@@ -73,8 +90,11 @@ export class SubtitlePlaybackSyncer {
         this.video.addEventListener('timeupdate', this.onTick);
         this.video.addEventListener('seeking', this.onSeeking);
         this.video.addEventListener('seeked', this.onSeeked);
-        this.video.addEventListener('play', this.startRafLoop.bind(this));
-        this.video.addEventListener('pause', this.stopRafLoop.bind(this));
+        this.video.addEventListener('play', this.startRafLoop);
+        this.video.addEventListener('pause', this.stopRafLoop);
+        this.video.addEventListener('waiting', this.onVideoWaiting);
+        this.video.addEventListener('stalled', this.onVideoWaiting);
+        this.video.addEventListener('playing', this.onVideoPlaying);
 
         this.logger.info(
             'SubtitlePlaybackSyncer',
@@ -91,9 +111,22 @@ export class SubtitlePlaybackSyncer {
             this.video.removeEventListener('timeupdate', this.onTick);
             this.video.removeEventListener('seeking', this.onSeeking);
             this.video.removeEventListener('seeked', this.onSeeked);
+            this.video.removeEventListener('play', this.startRafLoop);
+            this.video.removeEventListener('pause', this.stopRafLoop);
+            this.video.removeEventListener('waiting', this.onVideoWaiting);
+            this.video.removeEventListener('stalled', this.onVideoWaiting);
+            this.video.removeEventListener('playing', this.onVideoPlaying);
             this.stopRafLoop();
             this.video = null;
         }
+        this.resetTimingTracker();
+    }
+
+    private resetTimingTracker(): void {
+        this.lastContentTime = null;
+        this.lastTimingBaseTime = null;
+        this.lastTimingSyncAt = null;
+        this.isStalled = false;
     }
 
     bindVideoEvents(): void {
@@ -204,10 +237,30 @@ export class SubtitlePlaybackSyncer {
                 ? performance.now()
                 : Date.now();
         const elapsedMs = Math.max(0, now - syncAt);
-        if (elapsedMs < 5000) {
+        if (elapsedMs < 1500) {
             return baseTime + (elapsedMs / 1000) * rate;
         }
         return baseTime;
+    }
+
+    private updateStallState(timing: DatasetTiming): void {
+        if (
+            this.lastTimingSyncAt !== null &&
+            this.lastTimingBaseTime !== null &&
+            timing.syncAt !== this.lastTimingSyncAt
+        ) {
+            const syncDeltaMs = timing.syncAt - this.lastTimingSyncAt;
+            const timeDelta = Math.abs(
+                timing.baseTime - this.lastTimingBaseTime,
+            );
+            if (syncDeltaMs > 150 && timeDelta < 0.005) {
+                this.isStalled = true;
+            } else if (timeDelta >= 0.005) {
+                this.isStalled = false;
+            }
+        }
+        this.lastTimingBaseTime = timing.baseTime;
+        this.lastTimingSyncAt = timing.syncAt;
     }
 
     getContentTime(): number {
@@ -219,21 +272,29 @@ export class SubtitlePlaybackSyncer {
 
         if (timing && timing.baseTime >= 0) {
             if (timing.isPaused) {
+                this.isStalled = false;
+                this.lastTimingBaseTime = timing.baseTime;
+                this.lastTimingSyncAt = timing.syncAt;
                 this.lastContentTime = timing.baseTime;
                 return timing.baseTime;
             }
-            let calculatedTime = this.extrapolatePlaybackTime(
-                timing.baseTime,
-                timing.syncAt,
-                timing.rate,
-            );
+
+            this.updateStallState(timing);
+
+            let calculatedTime = this.isStalled
+                ? timing.baseTime
+                : this.extrapolatePlaybackTime(
+                      timing.baseTime,
+                      timing.syncAt,
+                      timing.rate,
+                  );
             if (
                 !this.video.seeking &&
                 typeof this.lastContentTime === 'number' &&
                 this.lastContentTime > 0
             ) {
                 const delta = calculatedTime - this.lastContentTime;
-                if (delta < 0 && delta > -0.25) {
+                if (delta < 0 && delta > -1.0) {
                     calculatedTime = this.lastContentTime;
                 }
             }
@@ -301,7 +362,7 @@ export class SubtitlePlaybackSyncer {
     reset(): void {
         this.activeCueId = null;
         this.lastCueSig = '';
-        this.lastContentTime = null;
+        this.resetTimingTracker();
         this.emptyCueSince = null;
         this.cadmiumOffset = 0;
         this.domOffset = 0;
@@ -380,7 +441,7 @@ export class SubtitlePlaybackSyncer {
             this.detachVideo();
             return;
         }
-        this.lastContentTime = null;
+        this.resetTimingTracker();
         this.emptyCueSince = null;
         this.overlay.hide(true);
         this.activeCueId = null;
@@ -392,7 +453,7 @@ export class SubtitlePlaybackSyncer {
             this.detachVideo();
             return;
         }
-        this.lastContentTime = null;
+        this.resetTimingTracker();
         this.emptyCueSince = null;
         if (!this.video || this.delegate.isAdPlaying()) return;
 
@@ -434,10 +495,15 @@ export class SubtitlePlaybackSyncer {
                 : [];
         }
 
+        const isCueActive = (cue: SubtitleCue): boolean =>
+            time >= cue.startTime &&
+            (time < cue.endTime ||
+                (cue.endTime === cue.startTime && time === cue.endTime));
+
         const startIdx = this.binarySearchNearestCueIndex(cues, time);
         const active: SubtitleCue[] = [];
         for (let i = startIdx; i >= 0 && time - cues[i].startTime <= 30; i--) {
-            if (time >= cues[i].startTime && time <= cues[i].endTime) {
+            if (isCueActive(cues[i])) {
                 active.unshift(cues[i]);
             }
         }
@@ -446,7 +512,7 @@ export class SubtitlePlaybackSyncer {
             i < cues.length && cues[i].startTime <= time;
             i++
         ) {
-            if (time >= cues[i].startTime && time <= cues[i].endTime) {
+            if (isCueActive(cues[i])) {
                 active.push(cues[i]);
             }
         }
