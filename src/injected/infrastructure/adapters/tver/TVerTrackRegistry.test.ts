@@ -88,7 +88,7 @@ describe('TVerTrackRegistry episode isolation & merge guard', () => {
         expect(detail.rawText).toContain('第二集台词一');
     });
 
-    it('ignores leftover TextTrack cues from previous episode (including TTML -> WebVTT cross-format)', async () => {
+    it('returns undefined from getTrack (QUERY_SUBTITLE) while player TextTracks still hold previous episode cues, then resolves once ep2 arrives', async () => {
         const registry = new TVerTrackRegistry();
 
         registry.addInterceptedTrack(
@@ -114,22 +114,16 @@ describe('TVerTrackRegistry episode isolation & merge guard', () => {
             ],
         } as unknown as TVerStreaksPlayer;
 
-        const isStaleTrack = (rawText: string, url?: string) => {
-            const prev = registry.getCachedTrack('ep1');
-            if (!prev) return false;
-            if (url && prev.url && url === prev.url) return true;
-            return TVerTrackRegistry.isSameTrackContent(prev.rawText, rawText);
-        };
+        const mockVideo = { readyState: 4 } as unknown as HTMLVideoElement;
 
-        const staleAttempt = await registry.extractOrUpdateFromPlayerTracks(
-            'ep2',
-            stalePlayer,
-            null,
-            { allowMerge: false, isStaleTrack },
-        );
-
-        expect(staleAttempt.detail).toBeNull();
+        // First QUERY_SUBTITLE poll while player still has ep1's TextTrack -> must return undefined (keep polling), not ep1!
+        const firstPoll = await registry.getTrack('ep2', 'ja', stalePlayer, mockVideo);
+        expect(firstPoll).toBeUndefined();
         expect(registry.getCachedTrack('ep2')).toBeNull();
+
+        // Multi-episode hop: ep3 also rejects ep1's leftover TextTrack
+        const ep3Poll = await registry.getTrack('ep3', 'ja', stalePlayer, mockVideo);
+        expect(ep3Poll).toBeUndefined();
 
         // Now ep2's real subtitle arrives
         const ep2Detail = registry.addInterceptedTrack(
@@ -138,11 +132,42 @@ describe('TVerTrackRegistry episode isolation & merge guard', () => {
             'ep2',
             'ja',
             false,
-            isStaleTrack,
         );
 
         expect(ep2Detail?.rawText).toContain('第二集台词一');
         expect(ep2Detail?.rawText).not.toContain('第一集台词一');
+
+        const resolvedPoll = await registry.getTrack('ep2', 'ja', stalePlayer, mockVideo);
+        expect(resolvedPoll?.rawText).toContain('第二集台词一');
+    });
+
+    it('supports going back to rewatch ep1 without marking ep1 itself as stale', async () => {
+        const registry = new TVerTrackRegistry();
+        registry.addInterceptedTrack('https://cdn.tver.jp/sub/ep1.vtt', EP1_VTT, 'ep1', 'ja', false);
+        registry.addInterceptedTrack('https://cdn.tver.jp/sub/ep2.vtt', EP2_VTT, 'ep2', 'ja', false);
+
+        const ep2LeftoverPlayer = {
+            textTracks: () => [
+                {
+                    kind: 'subtitles',
+                    language: 'ja',
+                    label: '日本語',
+                    cues: [
+                        { startTime: 2, endTime: 4, text: '第二集台词一' },
+                        { startTime: 5, endTime: 7, text: '第二集台词二' },
+                        { startTime: 8, endTime: 10, text: '第二集台词三' },
+                    ],
+                },
+            ],
+        } as unknown as TVerStreaksPlayer;
+
+        // Rewatching ep1 hits ep1's own cache via getTrack
+        const rewatch = await registry.getTrack('ep1', 'ja', ep2LeftoverPlayer, null);
+        expect(rewatch?.rawText).toContain('第一集台词一');
+
+        // And extracting ep2's leftover TextTrack while on ep1 is rejected, while ep1's own track is not
+        expect(registry.isStaleForEpisode('ep1', EP2_VTT)).toBe(true);
+        expect(registry.isStaleForEpisode('ep1', EP1_VTT)).toBe(false);
     });
 
     it('clears unknownTracks on episode change so stale tracks are not bound to the next episode', () => {

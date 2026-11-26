@@ -30,7 +30,6 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
     private lastEmittedSignature = '';
     private lastReportedUrl = '';
     private lastObservedEpisodeId: string | null = null;
-    private previousEpisodeId: string | null = null;
     private lastTrackState = '';
     private lastAdState = false;
     private subtitleUpdateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -265,7 +264,6 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                                     epId,
                                     'ja',
                                     this.isLiveStream(),
-                                    (t, u) => this.isStaleFromPreviousEpisode(t, u),
                                 );
                                 if (detail) {
                                     this.notifySubtitleUpdated(detail.episodeId);
@@ -322,7 +320,6 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                             epId,
                             'ja',
                             this.isLiveStream(),
-                            (t, u) => this.isStaleFromPreviousEpisode(t, u),
                         );
                         if (detail) {
                             this.notifySubtitleUpdated(detail.episodeId);
@@ -413,7 +410,6 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
 
             const newEpId = this.extractEpisodeId(current);
             if (newEpId && newEpId !== this.lastObservedEpisodeId) {
-                this.previousEpisodeId = this.lastObservedEpisodeId;
                 this.lastObservedEpisodeId = newEpId;
                 this.lastTrackState = '';
                 this.trackRegistry.clearUnknownTracks();
@@ -704,14 +700,6 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
         }
     }
 
-    private isStaleFromPreviousEpisode(rawText: string, url?: string): boolean {
-        if (!this.previousEpisodeId) return false;
-        const prev = this.trackRegistry.getCachedTrack(this.previousEpisodeId);
-        if (!prev || !prev.rawText) return false;
-        if (url && prev.url && url === prev.url) return true;
-        return TVerTrackRegistry.isSameTrackContent(prev.rawText, rawText);
-    }
-
     private tryExtractFromTextTracks(force = false): boolean {
         const currentEpId =
             this.lastObservedEpisodeId || this.extractEpisodeId(window.location.href);
@@ -722,11 +710,7 @@ export class TVerInjectedAdapter implements IInjectedAdapter {
                 currentEpId,
                 this.getTVerPlayer(),
                 this.getVideoElement(),
-                {
-                    allowMerge: this.isLiveStream(),
-                    isStaleTrack: (t, u) =>
-                        this.isStaleFromPreviousEpisode(t, u),
-                },
+                this.isLiveStream(),
             )
             .then(({ detail, hasNewCues }) => {
                 if (detail && detail.rawText) {

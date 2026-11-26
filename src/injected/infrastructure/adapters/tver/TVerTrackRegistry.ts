@@ -263,22 +263,34 @@ export class TVerTrackRegistry {
         return { detail, hasNewCues: true };
     }
 
+    isStaleForEpisode(
+        episodeId: string,
+        rawText: string,
+        url?: string,
+    ): boolean {
+        for (const [cachedEpId, langMap] of this.knownTracks.entries()) {
+            if (cachedEpId === episodeId) continue;
+            for (const track of langMap.values()) {
+                if (url && track.url && url === track.url) return true;
+                if (
+                    track.rawText &&
+                    TVerTrackRegistry.isSameTrackContent(track.rawText, rawText)
+                ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     addInterceptedTrack(
         url: string,
         rawText: string,
         activeEpisodeId?: string | null,
         lang = 'ja',
         allowMerge = false,
-        isStaleTrack?: (rawText: string, url: string) => boolean,
     ): TVerTrackDetail | null {
         if (!rawText || rawText.length < 20) return null;
-        if (isStaleTrack?.(rawText, url)) {
-            this.logger.info(
-                'TVer-AI-Sub',
-                `Ignored stale intercepted track from previous episode: ${url.slice(0, 80)}`,
-            );
-            return null;
-        }
 
         const episodeId = this.extractEpisodeIdFromUrl(url) || activeEpisodeId;
         if (!episodeId) {
@@ -290,6 +302,14 @@ export class TVerTrackRegistry {
             this.logger.info(
                 'TVer-AI-Sub',
                 `Stored unknown intercepted track: ${url.slice(0, 80)}`,
+            );
+            return null;
+        }
+
+        if (this.isStaleForEpisode(episodeId, rawText, url)) {
+            this.logger.info(
+                'TVer-AI-Sub',
+                `Ignored stale intercepted track from another episode while on ${episodeId}: ${url.slice(0, 80)}`,
             );
             return null;
         }
@@ -429,12 +449,8 @@ export class TVerTrackRegistry {
         episodeId: string,
         player: TVerStreaksPlayer | null,
         video: HTMLVideoElement | null,
-        options?: {
-            allowMerge?: boolean;
-            isStaleTrack?: (rawText: string, url?: string) => boolean;
-        },
+        allowMerge = false,
     ): Promise<{ detail: TVerTrackDetail | null; hasNewCues: boolean }> {
-        const allowMerge = options?.allowMerge ?? false;
         try {
             const rawTrackList = (
                 player && typeof player.textTracks === 'function'
@@ -464,10 +480,10 @@ export class TVerTrackRegistry {
                 if (cues && cues.length > 0) {
                     const vtt = TVerTrackRegistry.textTrackToWebVTT(track);
                     if (vtt && vtt.length > 20) {
-                        if (options?.isStaleTrack?.(vtt, track.src)) {
+                        if (this.isStaleForEpisode(episodeId, vtt, track.src)) {
                             this.logger.info(
                                 'TVer-AI-Sub',
-                                `Skipped stale TextTrack from previous episode while loading ${episodeId}`,
+                                `Skipped stale TextTrack from another episode while loading ${episodeId}`,
                             );
                             continue;
                         }
@@ -493,10 +509,10 @@ export class TVerTrackRegistry {
                         if (resp.ok) {
                             const text = await resp.text();
                             if (TVerTrackRegistry.isSubtitleContent(text)) {
-                                if (options?.isStaleTrack?.(text, track.src)) {
+                                if (this.isStaleForEpisode(episodeId, text, track.src)) {
                                     this.logger.info(
                                         'TVer-AI-Sub',
-                                        `Skipped stale TextTrack src from previous episode while loading ${episodeId}`,
+                                        `Skipped stale TextTrack src from another episode while loading ${episodeId}`,
                                     );
                                     continue;
                                 }
